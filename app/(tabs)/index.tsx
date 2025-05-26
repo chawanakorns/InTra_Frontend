@@ -1,75 +1,150 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+// app/(tabs)/index.tsx
+import CategoryButton from '@/components/CategoryButton';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-
-export default function HomeScreen() {
+export default function Dashboard() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView 
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Calendar</Text>
+        </View>
+
+        {/* Calendar Grid */}
+        <View style={styles.calendarContainer}>
+          {/* Days of Week */}
+          <View style={styles.daysRow}>
+            {['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'].map(day => (
+              <Text key={day} style={styles.dayHeader}>{day}</Text>
+            ))}
+          </View>
+          
+          {/* Calendar Days - Corrected to 7 columns */}
+          <View style={styles.calendarGrid}>
+            {/* Week 1 */}
+            {[1, 2, 3, 4, 5, 6, 7].map(day => (
+              <TouchableOpacity key={day} style={styles.dayCell}>
+                <Text style={styles.dayText}>{day}</Text>
+              </TouchableOpacity>
+            ))}
+            
+            {/* Week 2 */}
+            {[8, 9, 10, 11, 12, 13, 14].map(day => (
+              <TouchableOpacity key={day} style={styles.dayCell}>
+                <Text style={styles.dayText}>{day}</Text>
+              </TouchableOpacity>
+            ))}
+            
+            {/* Week 3 */}
+            {[15, 16, 17, 18, 19, 20, 21].map(day => (
+              <TouchableOpacity key={day} style={styles.dayCell}>
+                <Text style={styles.dayText}>{day}</Text>
+              </TouchableOpacity>
+            ))}
+            
+            {/* Week 4 */}
+            {[22, 23, 24, 25, 26, 27, 28].map(day => (
+              <TouchableOpacity key={day} style={styles.dayCell}>
+                <Text style={styles.dayText}>{day}</Text>
+              </TouchableOpacity>
+            ))}
+            
+            {/* Week 5 */}
+            {[29, 30, 31, ...Array(4).fill('')].map((day, index) => (
+              day ? (
+                <TouchableOpacity key={day} style={styles.dayCell}>
+                  <Text style={styles.dayText}>{day}</Text>
+                </TouchableOpacity>
+              ) : (
+                <View key={`empty-${index}`} style={styles.emptyCell} />
+              )
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        {/* Search Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Search</Text>
+        </View>
+
+        <View style={styles.divider} />
+
+        {/* Categories */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Categories</Text>
+          <CategoryButton title="Attractions" checked={false} />
+          <CategoryButton title="Restaurants" checked={false} />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  container: {
+    padding: 16,
+    paddingBottom: 80,
+  },
+  header: {
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  calendarContainer: {
+    marginBottom: 20,
+  },
+  daysRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  dayHeader: {
+    width: '14.28%', // 100% / 7 days
+    textAlign: 'center',
+    fontWeight: 'bold',
+    color: '#666',
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayCell: {
+    width: '14.28%', // 100% / 7 days
+    aspectRatio: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  emptyCell: {
+    width: '14.28%',
+    aspectRatio: 1,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  dayText: {
+    fontSize: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#eee',
+    marginVertical: 16,
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
   },
 });
