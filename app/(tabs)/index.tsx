@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CategoryItem from '../../components/CategoryItem';
@@ -13,9 +13,20 @@ export default function Dashboard() {
     }
   };
 
+  const popularDestinations = [
+    { id: '1', title: 'Destination 1' },
+    { id: '2', title: 'Destination 2' },
+    { id: '3', title: 'Destination 3' },
+    { id: '4', title: 'Destination 4' },
+    { id: '5', title: 'Destination 5' },
+  ];
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView 
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>InTra</Text>
@@ -89,23 +100,24 @@ export default function Dashboard() {
           </View>
         </View>
 
-        {/* Popular Destination */}
+        {/* Popular Destinations */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Popular Destinations</Text>
-          <View style={styles.categoriesContainer}>
-            <CategoryItem
-              title="1"
-              image={require('../../assets/images/attraction.jpg')}
-            />
-            <CategoryItem
-              title="2"
-              image={require('../../assets/images/attraction.jpg')}
-            />
-            <CategoryItem
-              title="3"
-              image={require('../../assets/images/attraction.jpg')}
-            />
-          </View>
+          <FlatList
+            data={popularDestinations}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.popularList}
+            renderItem={({ item }) => (
+              <View style={styles.popularItem}>
+                <CategoryItem
+                  title={item.title}
+                  image={require('../../assets/images/attraction.jpg')}
+                />
+              </View>
+            )}
+            keyExtractor={item => item.id}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -119,7 +131,7 @@ const styles = StyleSheet.create({
   },
   container: {
     padding: 16,
-    paddingBottom: 80,
+    paddingBottom: 20, // Reduced bottom padding
   },
   header: {
     flexDirection: 'row',
@@ -183,5 +195,15 @@ const styles = StyleSheet.create({
   categoriesContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  popularList: {
+    paddingBottom: 10, // Space below the scrollable items
+  },
+  popularItem: {
+    width: 160, // Same width as category buttons
+    marginRight: 12,
+  },
+  popularCategory: {
+    width: '100%',
   },
 });
