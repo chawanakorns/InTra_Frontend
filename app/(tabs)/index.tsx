@@ -1,86 +1,111 @@
-// app/(tabs)/index.tsx
-import CategoryButton from '@/components/CategoryButton';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Calendar } from 'react-native-calendars';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import CategoryItem from '../../components/CategoryItem';
 
 export default function Dashboard() {
+  const currentDate = new Date().toISOString().split('T')[0];
+  
+  const markedDates = {
+    [currentDate]: {
+      selected: true,
+      selectedColor: '#0066CC',
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView 
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Calendar</Text>
+          <Text style={styles.title}>InTra</Text>
+          <View style={styles.dateContainer}>
+            <Text style={styles.day}>{new Date().getDate()}</Text>
+            <View>
+              <Text style={styles.month}>
+                {new Date().toLocaleString('default', { month: 'short' })}
+              </Text>
+              <Text style={styles.year}>
+                {new Date().getFullYear()}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        {/* Calendar Grid */}
+        {/* Calendar */}
         <View style={styles.calendarContainer}>
-          {/* Days of Week */}
-          <View style={styles.daysRow}>
-            {['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'].map(day => (
-              <Text key={day} style={styles.dayHeader}>{day}</Text>
-            ))}
-          </View>
-          
-          {/* Calendar Days - Corrected to 7 columns */}
-          <View style={styles.calendarGrid}>
-            {/* Week 1 */}
-            {[1, 2, 3, 4, 5, 6, 7].map(day => (
-              <TouchableOpacity key={day} style={styles.dayCell}>
-                <Text style={styles.dayText}>{day}</Text>
-              </TouchableOpacity>
-            ))}
-            
-            {/* Week 2 */}
-            {[8, 9, 10, 11, 12, 13, 14].map(day => (
-              <TouchableOpacity key={day} style={styles.dayCell}>
-                <Text style={styles.dayText}>{day}</Text>
-              </TouchableOpacity>
-            ))}
-            
-            {/* Week 3 */}
-            {[15, 16, 17, 18, 19, 20, 21].map(day => (
-              <TouchableOpacity key={day} style={styles.dayCell}>
-                <Text style={styles.dayText}>{day}</Text>
-              </TouchableOpacity>
-            ))}
-            
-            {/* Week 4 */}
-            {[22, 23, 24, 25, 26, 27, 28].map(day => (
-              <TouchableOpacity key={day} style={styles.dayCell}>
-                <Text style={styles.dayText}>{day}</Text>
-              </TouchableOpacity>
-            ))}
-            
-            {/* Week 5 */}
-            {[29, 30, 31, ...Array(4).fill('')].map((day, index) => (
-              day ? (
-                <TouchableOpacity key={day} style={styles.dayCell}>
-                  <Text style={styles.dayText}>{day}</Text>
-                </TouchableOpacity>
-              ) : (
-                <View key={`empty-${index}`} style={styles.emptyCell} />
-              )
-            ))}
-          </View>
+          <Calendar
+            current={currentDate}
+            markedDates={markedDates}
+            hideExtraDays
+            disableMonthChange
+            theme={{
+              backgroundColor: '#ffffff',
+              calendarBackground: '#ffffff',
+              textSectionTitleColor: '#666',
+              selectedDayBackgroundColor: '#0066CC',
+              selectedDayTextColor: '#ffffff',
+              todayTextColor: '#0066CC',
+              dayTextColor: '#2d4150',
+              textDisabledColor: '#d9e1e8',
+              dotColor: '#0066CC',
+              selectedDotColor: '#ffffff',
+              arrowColor: '#0066CC',
+              monthTextColor: '#0066CC',
+              textDayFontWeight: '300',
+              textMonthFontWeight: 'bold',
+              textDayHeaderFontWeight: '300',
+              textDayFontSize: 16,
+              textMonthFontSize: 16,
+              textDayHeaderFontSize: 12,
+            }}
+            style={styles.calendar}
+          />
         </View>
-
-        <View style={styles.divider} />
 
         {/* Search Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Search</Text>
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search"
+              placeholderTextColor="#999"
+            />
+          </View>
         </View>
-
-        <View style={styles.divider} />
 
         {/* Categories */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Categories</Text>
-          <CategoryButton title="Attractions" checked={false} />
-          <CategoryButton title="Restaurants" checked={false} />
+          <View style={styles.categoriesContainer}>
+            <CategoryItem
+              title="Attractions"
+              image={require('../../assets/images/attraction.jpg')}
+            />
+            <CategoryItem
+              title="Restaurants"
+              image={require('../../assets/images/attraction.jpg')}
+            />
+          </View>
+        </View>
+
+        {/* Popular Destination */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Popular Destinations</Text>
+          <View style={styles.categoriesContainer}>
+            <CategoryItem
+              title="1"
+              image={require('../../assets/images/attraction.jpg')}
+            />
+            <CategoryItem
+              title="2"
+              image={require('../../assets/images/attraction.jpg')}
+            />
+            <CategoryItem
+              title="3"
+              image={require('../../assets/images/attraction.jpg')}
+            />
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -97,42 +122,40 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
   },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  day: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
+  month: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  year: {
+    fontSize: 14,
+    color: '#666',
+  },
   calendarContainer: {
     marginBottom: 20,
   },
-  daysRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  dayHeader: {
-    width: '14.28%', // 100% / 7 days
-    textAlign: 'center',
-    fontWeight: 'bold',
-    color: '#666',
-  },
-  calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  dayCell: {
-    width: '14.28%', // 100% / 7 days
-    aspectRatio: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyCell: {
-    width: '14.28%',
-    aspectRatio: 1,
-  },
-  dayText: {
-    fontSize: 16,
+  calendar: {
+    borderRadius: 10,
+    elevation: 0,
+    shadowOpacity: 0,
+    borderWidth: 0,
   },
   divider: {
     height: 1,
@@ -143,8 +166,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 12,
+  },
+  searchContainer: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 50,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  searchInput: {
+    fontSize: 16,
+    color: '#333',
+  },
+  categoriesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
 });
