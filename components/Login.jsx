@@ -1,14 +1,17 @@
-import { Colors } from '@/constants/Colors'
-import React from 'react'
-import { Image, StyleSheet, Text, View } from 'react-native'
+import { Colors } from '@/constants/Colors';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function Login() {
+
+        const router =useRouter();
     return (
         <View>
            <Image source = {require('./../assets/images/Index-images.jpg')}
             style={{ 
                 width: '100%', 
-                height: 400 
+                height: 480 
             }}
            
         />
@@ -19,7 +22,7 @@ export default function Login() {
                     fontFamily:'outfit',
                     color:Colors.WHITE,
                     textAlign:'center',
-                    marginTop:20
+                    marginTop:50
 
                 }}> Welcome to</Text>
 
@@ -46,10 +49,13 @@ export default function Login() {
                     fontFamily:'outfit-medium',
                     color:Colors.GRAY,
                     textAlign:'center',
-                    marginTop:20
+                    marginTop:20,
+                    width: '90%',
                 }}>Discover Your Journey — Smart Itineraries Designed Just for You.</Text>
 
-                <View style = {styles.button}>
+                <TouchableOpacity style = {styles.button}
+                    onPress={()=>router.push('auth/sign-in')}
+                >
                     <Text style = {{
                     fontSize:20,
                     fontFamily:'outfit',
@@ -57,7 +63,7 @@ export default function Login() {
                     textAlign:'center',
                     
                 }}>  Let get started! </Text>
-                </View>
+                </TouchableOpacity>
            </View>
         </View>
     )
@@ -67,15 +73,18 @@ const styles = StyleSheet.create({
     container:{
         backgroundColor: Colors.BLUE,
         marginTop:-20, 
-        borderTopLeftRadius:20,
-        borderTopRightRadius:20,
-        height:'100%'
+        borderTopLeftRadius:30,
+        borderTopRightRadius:30,
+        height:'100%',
+        alignItems: 'center'
     },
     button:{
         padding:15,
         backgroundColor:Colors.PRIMARY,
         borderRadius:99,
-        marginTop:20,
+        marginTop:'10%',
+        width: '90%',
+       
         
 
     }
