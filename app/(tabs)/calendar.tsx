@@ -151,9 +151,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   date: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '500',
     color: '#6B7280',
-    marginTop: 4,
+    marginTop: 18,
   },
   calendarContainer: {
     marginBottom: 30,
