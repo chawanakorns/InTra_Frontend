@@ -1,5 +1,6 @@
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 export default function Rootlayout() {
   useFonts({
@@ -10,11 +11,17 @@ export default function Rootlayout() {
      'cinzelDeco-bold':require('./../assets/fonts/CinzelDecorative-Bold.ttf'),
      'cinzelDeco-black':require('./../assets/fonts/CinzelDecorative-Black.ttf')
   })
+  
   return (
-    <Stack>
-        <Stack.Screen name="index" options={{
-          headerShown:false
-        }}/>
-    </Stack>
+    <SafeAreaProvider>
+      <SafeAreaView style={{ flex: 1 }} edges={['left', 'right', 'bottom']}>
+        <Stack>
+          <Stack.Screen 
+            name="(tabs)" 
+            options={{ headerShown: false }} 
+          />
+        </Stack>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
