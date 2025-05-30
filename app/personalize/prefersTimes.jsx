@@ -5,13 +5,11 @@ import React, { useEffect, useState } from 'react';
 import { Dimensions, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const data = [
-  { id: '1', label: 'Adventurous', image: require('./../../assets/images/adventurous.jpg') },
-  { id: '2', label: 'Relaxed', image: require('./../../assets/images/relaxed.jpg') },
-  { id: '3', label: 'Cultural', image: require('./../../assets/images/cultural.jpg') },
-  { id: '4', label: 'Foodie', image: require('./../../assets/images/foodie.jpg') },
+  { id: '1', label: 'Daytime', image: require('./../../assets/images/adventurous.jpg') },
+  { id: '2', label: 'Nighttime', image: require('./../../assets/images/relaxed.jpg') }
 ];
 
-export default function kindOfUsers() {
+export default function prefersTimes() {
   const router = useRouter();
   const navigation = useNavigation();
   const [selected, setSelected] = useState([]); // Array for multiple selections
@@ -53,7 +51,7 @@ export default function kindOfUsers() {
         We need to question some questionnaires,{'\n'}for improving your itinerary plans.
       </Text>
 
-      <Text style={styles.question}>What kind of tourists are you?</Text>
+      <Text style={styles.question}>What is your prefers times to travel?</Text>
 
       <FlatList
         data={data}
@@ -65,7 +63,7 @@ export default function kindOfUsers() {
       />
 
 <TouchableOpacity 
-            onPress={()=> router.replace('/personalize/typeOfactivities')}
+            onPress={()=> router.replace('auth/sign-in')}
              style = {{
                 padding:15,
                 borderRadius:15,
@@ -83,7 +81,7 @@ export default function kindOfUsers() {
             </TouchableOpacity>
 
       <TouchableOpacity 
-            onPress={()=> router.replace('auth/sign-in')}
+            onPress={()=> router.replace('/personalize/typeOfdining')}
              style = {{
                 padding:15,
                 borderRadius:15,
@@ -129,7 +127,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.WHITE,
     fontFamily: 'outfit-bold',
-    marginTop: 30,
+    marginTop: 120,
   },
   card: {
     width: CARD_SIZE,
