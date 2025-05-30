@@ -34,10 +34,10 @@ export default function Login() {
                     textAlign:'center',
                     marginTop:10
 
-                }}> Intra</Text>
+                }}> InTra</Text>
 
                 <Text style = {{
-                    fontSize:25,
+                    fontSize:21,
                     fontFamily:'outfit-bold',
                     color:Colors.WHITE,
                     textAlign:'center',

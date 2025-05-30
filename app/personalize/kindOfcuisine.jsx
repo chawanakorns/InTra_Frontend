@@ -1,14 +1,38 @@
-import { Colors } from '@/constants/Colors';
-import { useNavigation } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Dimensions, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Colors } from "@/constants/Colors";
+import { useNavigation } from "@react-navigation/native";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+  Dimensions,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const data = [
-  { id: '1', label: 'Local', image: require('./../../assets/images/adventurous.jpg') },
-  { id: '2', label: 'International', image: require('./../../assets/images/relaxed.jpg') },
-  { id: '3', label: 'Street Food', image: require('./../../assets/images/cultural.jpg') },
-  { id: '4', label: 'Vegetarian', image: require('./../../assets/images/foodie.jpg') },
+  {
+    id: "1",
+    label: "Local",
+    image: require("./../../assets/images/adventurous.jpg"),
+  },
+  {
+    id: "2",
+    label: "International",
+    image: require("./../../assets/images/relaxed.jpg"),
+  },
+  {
+    id: "3",
+    label: "Street Food",
+    image: require("./../../assets/images/cultural.jpg"),
+  },
+  {
+    id: "4",
+    label: "Vegetarian",
+    image: require("./../../assets/images/foodie.jpg"),
+  },
 ];
 
 export default function kindOfcuisine() {
@@ -50,7 +74,8 @@ export default function kindOfcuisine() {
     <View style={styles.container}>
       <Text style={styles.title}>Almost Finished!</Text>
       <Text style={styles.subtitle}>
-        We need to question some questionnaires,{'\n'}for improving your itinerary plans.
+        We need to question some questionnaires,{"\n"}for improving your
+        itinerary plans.
       </Text>
 
       <Text style={styles.question}>What kind of cuisine do you prefer?</Text>
@@ -60,49 +85,57 @@ export default function kindOfcuisine() {
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         numColumns={2}
-        columnWrapperStyle={{ justifyContent: 'space-between' }}
+        columnWrapperStyle={{ justifyContent: "space-between" }}
         style={{ marginTop: 15 }}
       />
 
-<TouchableOpacity 
-            onPress={()=> router.replace('/personalize/typeOfdining')}
-             style = {{
-                padding:15,
-                borderRadius:15,
-                marginTop:20,
-                borderWidth:1,
-                borderColor:Colors.PRIMARY,
-                backgroundColor:Colors.PRIMARY
-            }}>
-                <Text  style ={{
-                    fontFamily:'outfit',
-                    color:Colors.WHITE,
-                    textAlign:'center',
+      <TouchableOpacity
+        onPress={() => router.replace("/personalize/typeOfdining")}
+        style={{
+          padding: 15,
+          borderRadius: 15,
+          marginTop: 20,
+          borderWidth: 1,
+          borderColor: Colors.PRIMARY,
+          backgroundColor: Colors.PRIMARY,
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: "outfit",
+            color: Colors.WHITE,
+            textAlign: "center",
+          }}
+        >
+          Next
+        </Text>
+      </TouchableOpacity>
 
-                }}>Next</Text>
-            </TouchableOpacity>
-
-      <TouchableOpacity 
-            onPress={()=> router.replace('/personalize/typeOfactivities')}
-             style = {{
-                padding:15,
-                borderRadius:15,
-                marginTop:20,
-                borderWidth:1,
-                borderColor:Colors.WHITE
-            }}>
-                <Text  style ={{
-                    fontFamily:'outfit',
-                    color:Colors.WHITE,
-                    textAlign:'center',
-
-                }}>Previous</Text>
-            </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => router.replace("/personalize/typeOfactivities")}
+        style={{
+          padding: 15,
+          borderRadius: 15,
+          marginTop: 20,
+          borderWidth: 1,
+          borderColor: Colors.WHITE,
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: "outfit",
+            color: Colors.WHITE,
+            textAlign: "center",
+          }}
+        >
+          Previous
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
-const CARD_SIZE = (Dimensions.get('window').width - 70) / 2;
+const CARD_SIZE = (Dimensions.get("window").width - 70) / 2;
 
 const styles = StyleSheet.create({
   container: {
@@ -114,21 +147,21 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     color: Colors.WHITE,
-    fontFamily: 'outfit-bold',
-    textAlign: 'center',
-    marginTop:80
+    fontFamily: "outfit-bold",
+    textAlign: "center",
+    marginTop: 80,
   },
   subtitle: {
     fontSize: 14,
     color: Colors.WHITE,
-    fontFamily: 'outfit',
-    textAlign: 'center',
+    fontFamily: "outfit",
+    textAlign: "center",
     marginTop: 10,
   },
   question: {
     fontSize: 16,
     color: Colors.WHITE,
-    fontFamily: 'outfit-bold',
+    fontFamily: "outfit-bold",
     marginTop: 30,
   },
   card: {
@@ -136,7 +169,7 @@ const styles = StyleSheet.create({
     height: 130,
     marginVertical: 10,
     borderRadius: 15,
-    overflow: 'hidden',
+    overflow: "hidden",
     backgroundColor: Colors.GRAY,
   },
   selectedCard: {
@@ -144,22 +177,19 @@ const styles = StyleSheet.create({
     borderColor: Colors.PRIMARY,
   },
   image: {
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
+    width: "100%",
+    height: "100%",
+    position: "absolute",
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   label: {
     color: Colors.WHITE,
-    fontFamily: 'outfit-bold',
+    fontFamily: "outfit-bold",
     fontSize: 16,
   },
-  
-  
-  
 });

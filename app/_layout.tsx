@@ -17,7 +17,7 @@ export default function Rootlayout() {
       <SafeAreaView style={{ flex: 1 }} edges={['left', 'right', 'bottom']}>
         <Stack>
           <Stack.Screen 
-            name="(tabs)" 
+            name="index" 
             options={{ headerShown: false }} 
           />
         </Stack>

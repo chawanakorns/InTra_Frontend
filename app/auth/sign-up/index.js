@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNavigation, useRouter } from 'expo-router';
-import React, { useEffect,} from 'react';
+import { useEffect, } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 
@@ -11,18 +11,11 @@ export default function SignUp() {
     const navigation=useNavigation();
     const router=useRouter();
     
-    
-   
-
     useEffect(()=>{
         navigation.setOptions({
             headerShown:false
         })
     },[]);
-
-
-   
-    
 
     return (
         <View

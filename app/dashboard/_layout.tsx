@@ -22,6 +22,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => <Feather name="home" size={24} color={color} />,
+          headerShown: false,
         }}
       />
       <Tabs.Screen
@@ -29,6 +30,7 @@ export default function TabLayout() {
         options={{
           title: 'Calendar',
           tabBarIcon: ({ color }) => <Feather name="calendar" size={24} color={color} />,
+          headerShown: false,
         }}
       />
       <Tabs.Screen
@@ -36,6 +38,7 @@ export default function TabLayout() {
         options={{
           title: 'Bookmarks',
           tabBarIcon: ({ color }) => <MaterialIcons name="bookmark" size={24} color={color} />,
+          headerShown: false,
         }}
       />
       <Tabs.Screen
@@ -43,6 +46,7 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => <Feather name="user" size={24} color={color} />,
+          headerShown: false,
         }}
       />
     </Tabs>

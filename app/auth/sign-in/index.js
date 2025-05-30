@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNavigation, useRouter } from 'expo-router';
-import { React, useEffect, } from 'react';
+import { useEffect } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 
@@ -31,21 +31,21 @@ export default function SignIn () {
                 color:Colors.WHITE,
                 fontSize:30,
                 marginTop:30
-            }}> Let's Sign You In</Text>
+            }}>Let's Sign You In</Text>
 
             <Text style={{
                 fontFamily:'outfit',
-                fontSize:30,
+                fontSize:24,
                 color:Colors.GRAY,
                 marginTop:20
             }}>Welcome Back</Text>
             
             <Text style={{
                 fontFamily:'outfit',
-                fontSize:30,
+                fontSize:24,
                 color:Colors.GRAY,
-                marginTop:20
-            }}> You've been missed</Text>
+                marginTop:5
+            }}>You've been missed...</Text>
 
           
 
