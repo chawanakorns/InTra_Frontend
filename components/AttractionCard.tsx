@@ -50,7 +50,7 @@ export default function AttractionCard({ attraction, onPress, style }: Attractio
           <Image 
             source={{ uri: attraction.image }} 
             style={styles.image}
-            defaultSource={require('./../../assets/images/attraction.jpg')}
+            defaultSource={require('../assets/images/attraction.jpg')}
           />
         ) : (
           <View style={styles.placeholder}>

@@ -94,11 +94,12 @@ export default function Dashboard() {
             <CategoryItem
               title="Attractions"
               image={require('../../assets/images/attraction.jpg')}
+              onPress={() => router.push('./recommendations/attractions')}
             />
             <CategoryItem
               title="Restaurants"
               image={require('../../assets/images/attraction.jpg')}
-              onPress={() => router.push('./recommendations')}
+              onPress={() => router.push('./recommendations/restaurants')}
             />
           </View>
         </View>

@@ -16,7 +16,6 @@ export default function Rootlayout() {
     <SafeAreaProvider>
       <SafeAreaView style={{ flex: 1 }} edges={['left', 'right', 'bottom']}>
         <Stack screenOptions={{ headerShown: false }}>
-          {/* You can remove individual screen configs now */}
         </Stack>
       </SafeAreaView>
     </SafeAreaProvider>
