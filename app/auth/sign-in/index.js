@@ -73,11 +73,12 @@ export default function SignIn() {
         <Text
           style={{
             fontFamily: "outfit",
+            fontSize: 16,
             color: Colors.WHITE,
+            marginBottom: 10,
           }}
         >
-          {" "}
-          Email{" "}
+          Email
         </Text>
         <TextInput
           style={style.input}
@@ -88,17 +89,18 @@ export default function SignIn() {
 
       <View
         style={{
-          marginTop: 30,
+          marginTop: 20,
         }}
       >
         <Text
           style={{
             fontFamily: "outfit",
+            fontSize: 16,
             color: Colors.WHITE,
+            marginBottom: 10,
           }}
         >
-          {" "}
-          Password{" "}
+          Password
         </Text>
         <TextInput
           secureTextEntry={true}
@@ -114,7 +116,7 @@ export default function SignIn() {
         style={{
           padding: 15,
           borderRadius: 15,
-          marginTop: 20,
+          marginTop: 40,
           borderWidth: 1,
           backgroundColor: Colors.PRIMARY,
         }}
@@ -122,6 +124,7 @@ export default function SignIn() {
         <Text
           style={{
             fontFamily: "outfit",
+            fontSize: 16,
             color: Colors.WHITE,
             textAlign: "center",
           }}
@@ -131,26 +134,30 @@ export default function SignIn() {
       </TouchableOpacity>
 
       {/*Create Account Button */}
-      <TouchableOpacity
-        onPress={() => router.replace("auth/sign-up")}
+      <View
         style={{
-          padding: 15,
-          borderRadius: 15,
+          flexDirection: "row",
+          justifyContent: "center",
           marginTop: 20,
-          borderWidth: 1,
-          borderColor: Colors.WHITE,
         }}
       >
         <Text
-          style={{
-            fontFamily: "outfit",
-            color: Colors.WHITE,
-            textAlign: "center",
-          }}
+          style={{ fontFamily: "outfit", fontSize: 16, color: Colors.WHITE }}
         >
-          Create Account
+          Don't have an account?{" "}
         </Text>
-      </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.replace("auth/sign-up")}>
+          <Text
+            style={{
+              fontFamily: "outfit-bold",
+              fontSize: 16,
+              color: Colors.WHITE,
+            }}
+          >
+            Register
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -161,5 +168,6 @@ const style = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 15,
     borderColor: Colors.GRAY,
+    backgroundColor: Colors.WHITE,
   },
 });

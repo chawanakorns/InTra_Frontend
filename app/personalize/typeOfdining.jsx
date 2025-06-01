@@ -105,6 +105,7 @@ export default function typeOfdining() {
         <Text
           style={{
             fontFamily: "outfit",
+            fontSize: 16,
             color: Colors.WHITE,
             textAlign: "center",
           }}
@@ -126,6 +127,7 @@ export default function typeOfdining() {
         <Text
           style={{
             fontFamily: "outfit",
+            fontSize: 16,
             color: Colors.WHITE,
             textAlign: "center",
           }}
