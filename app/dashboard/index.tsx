@@ -2,9 +2,11 @@ import { FlatList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-n
 import { Calendar } from 'react-native-calendars';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CategoryItem from '../../components/CategoryItem';
+import { router, useRouter } from 'expo-router';
 
 export default function Dashboard() {
   const currentDate = new Date().toISOString().split('T')[0];
+  const router = useRouter();
   
   const markedDates = {
     [currentDate]: {
@@ -96,6 +98,7 @@ export default function Dashboard() {
             <CategoryItem
               title="Restaurants"
               image={require('../../assets/images/attraction.jpg')}
+              onPress={() => router.push('./restaurants')}
             />
           </View>
         </View>

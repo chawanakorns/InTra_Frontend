@@ -1,8 +1,16 @@
 import { ImageBackground, StyleSheet, Text, TouchableOpacity } from 'react-native';
 
-export default function CategoryItem({ title, image }: { title: string, image: any }) {
+export default function CategoryItem({
+  title,
+  image,
+  onPress,
+}: {
+  title: string;
+  image: any;
+  onPress?: () => void;
+}) {
   return (
-    <TouchableOpacity style={styles.container}>
+    <TouchableOpacity style={styles.container} onPress={onPress}>
       <ImageBackground
         source={image}
         style={styles.imageBackground}
