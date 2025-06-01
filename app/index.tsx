@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import Login from './../components/Login.jsx';
+import Landing from './../components/Landing.jsx';
 
 export default function Index(){
   return (
@@ -9,7 +9,7 @@ export default function Index(){
      
     }}
     >
-    <Login/>
+    <Landing/>
     </View>
   );
    
