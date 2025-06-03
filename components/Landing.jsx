@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   titleText: {
-    fontSize: 54,
+    fontSize: 48,
     fontFamily: "cinzelDeco-bold",
     color: Colors.WHITE,
     textAlign: "center",
