@@ -119,14 +119,14 @@ export default function kindOfcuisine() {
           borderRadius: 15,
           marginTop: 20,
           borderWidth: 1,
-          borderColor: Colors.WHITE,
+          backgroundColor: Colors.WHITE,
         }}
       >
         <Text
           style={{
             fontFamily: "outfit",
             fontSize: 16,
-            color: Colors.WHITE,
+            color: Colors.BLACK,
             textAlign: "center",
           }}
         >

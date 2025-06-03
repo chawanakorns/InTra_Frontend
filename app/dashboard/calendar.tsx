@@ -1,3 +1,4 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -10,20 +11,27 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Dropdown } from 'react-native-element-dropdown';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CalendarScreen() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [weekDates, setWeekDates] = useState<Date[]>([]);
+  const [weekDates, setWeekDates] = useState([]);
+  // Itinerary states
+  const [itineraries, setItineraries] = useState([]);
+  const [selectedItinerary, setSelectedItinerary] = useState(null);
   // Modal states
   const [modalVisible, setModalVisible] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedItineraryType, setSelectedItineraryType] = useState('');
   const [selectedBudget, setSelectedBudget] = useState('');
   const [itineraryName, setItineraryName] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date());
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
   // Drag to close animation
   const panY = useRef(new Animated.Value(0)).current;
   const panResponder = useRef(
@@ -52,17 +60,14 @@ export default function CalendarScreen() {
     })
   ).current;
 
-  // Update time every minute and initialize week dates
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
-    // Calculate the start of the current week (Sunday)
     const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const dayOfWeek = today.getDay();
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - dayOfWeek);
-    // Generate 7 days starting from Sunday
     const initialWeekDates = Array.from({ length: 7 }, (_, i) => {
       const date = new Date(startOfWeek);
       date.setDate(startOfWeek.getDate() + i);
@@ -72,8 +77,7 @@ export default function CalendarScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  // Format date as "May 5, 2025"
-  const formatDate = (date: Date) => {
+  const formatDate = (date) => {
     return date.toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
@@ -81,9 +85,7 @@ export default function CalendarScreen() {
     });
   };
 
-  // Handle opening modal
   const handleAddButtonPress = () => {
-    // Reset panY to 0 when opening the modal
     Animated.timing(panY, {
       toValue: 0,
       duration: 0,
@@ -94,18 +96,14 @@ export default function CalendarScreen() {
     });
   };
 
-  // Handle closing modal and reset states
   const handleCloseModal = () => {
-    // Reset all modal-related states
     setModalVisible(false);
     setCurrentStep(1);
     setSelectedItineraryType('');
     setSelectedBudget('');
     setItineraryName('');
-    setStartDate('');
-    setEndDate('');
-
-    // Reset panY to 0
+    setStartDate(new Date());
+    setEndDate(new Date());
     Animated.timing(panY, {
       toValue: 0,
       duration: 200,
@@ -113,34 +111,40 @@ export default function CalendarScreen() {
     }).start();
   };
 
-  // Handle next step
   const handleNext = () => {
     if (currentStep < 3) {
       setCurrentStep(currentStep + 1);
     }
   };
 
-  // Handle previous step
   const handlePrevious = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
   };
 
-  // Handle create itinerary
   const handleCreateItinerary = () => {
-    // Here you would typically save the itinerary data
-    console.log('Creating itinerary:', {
+    const newItinerary = {
+      id: Date.now().toString(),
       type: selectedItineraryType,
       budget: selectedBudget,
       name: itineraryName,
       startDate,
       endDate,
-    });
+      schedule: [],
+    };
+    setItineraries([...itineraries, newItinerary]);
+    setSelectedItinerary(newItinerary);
     handleCloseModal();
   };
 
-  // Render modal content based on current step
+  const timeSlots = Array.from({ length: 12 }, (_, i) => {
+    const hour = 6 + i;
+    return `${hour.toString().padStart(2, '0')}:00 ${
+      hour < 12 ? 'AM' : hour === 12 ? 'PM' : 'PM'
+    }`;
+  });
+
   const renderModalContent = () => {
     switch (currentStep) {
       case 1:
@@ -324,7 +328,12 @@ export default function CalendarScreen() {
                 style={[styles.actionButton, styles.secondaryButton]}
                 onPress={handlePrevious}
               >
-                <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
+                <Text
+                  style={[
+                    styles.actionButtonText,
+                    styles.secondaryButtonText,
+                  ]}
+                >
                   Previous
                 </Text>
               </TouchableOpacity>
@@ -355,18 +364,52 @@ export default function CalendarScreen() {
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Trip dates</Text>
               <View style={styles.dateInputContainer}>
-                <TextInput
+                <TouchableOpacity
                   style={[styles.textInput, styles.dateInput]}
-                  placeholder="Start date"
-                  value={startDate}
-                  onChangeText={setStartDate}
-                />
-                <TextInput
+                  onPress={() => setShowStartDatePicker(true)}
+                >
+                  <Text style={styles.dateText}>
+                    {startDate.toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </Text>
+                </TouchableOpacity>
+                {showStartDatePicker && (
+                  <DateTimePicker
+                    value={startDate}
+                    mode="date"
+                    display="default"
+                    onChange={(event, selectedDate) => {
+                      setShowStartDatePicker(false);
+                      if (selectedDate) setStartDate(selectedDate);
+                    }}
+                  />
+                )}
+                <TouchableOpacity
                   style={[styles.textInput, styles.dateInput]}
-                  placeholder="End date"
-                  value={endDate}
-                  onChangeText={setEndDate}
-                />
+                  onPress={() => setShowEndDatePicker(true)}
+                >
+                  <Text style={styles.dateText}>
+                    {endDate.toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </Text>
+                </TouchableOpacity>
+                {showEndDatePicker && (
+                  <DateTimePicker
+                    value={endDate}
+                    mode="date"
+                    display="default"
+                    onChange={(event, selectedDate) => {
+                      setShowEndDatePicker(false);
+                      if (selectedDate) setEndDate(selectedDate);
+                    }}
+                  />
+                )}
               </View>
             </View>
             <View style={styles.buttonContainer}>
@@ -385,7 +428,12 @@ export default function CalendarScreen() {
                 style={[styles.actionButton, styles.secondaryButton]}
                 onPress={handlePrevious}
               >
-                <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>
+                <Text
+                  style={[
+                    styles.actionButtonText,
+                    styles.secondaryButtonText,
+                  ]}
+                >
                   Previous
                 </Text>
               </TouchableOpacity>
@@ -397,102 +445,151 @@ export default function CalendarScreen() {
     }
   };
 
+  const renderContent = () => (
+    <>
+      <View style={styles.header}>
+        <Text style={styles.greeting}>
+          Good {getTimeOfDay(currentTime)}, User
+        </Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.date}>{formatDate(selectedDate)}</Text>
+          {itineraries.length > 0 && (
+            <View style={styles.itineraryPicker}>
+              <Dropdown
+                style={styles.dropdown}
+                placeholderStyle={styles.placeholderStyle}
+                selectedTextStyle={styles.selectedTextStyle}
+                iconStyle={styles.iconStyle}
+                data={itineraries.map((it) => ({
+                  label: it.name || 'Itinerary',
+                  value: it.id,
+                }))}
+                maxHeight={300}
+                labelField="label"
+                valueField="value"
+                placeholder="Select Itinerary"
+                value={selectedItinerary?.id}
+                onChange={(item) => {
+                  const itinerary = itineraries.find(
+                    (it) => it.id === item.value
+                  );
+                  setSelectedItinerary(itinerary);
+                }}
+                renderRightIcon={() => (
+                  <Text style={styles.dropdownArrow}>▼</Text>
+                )}
+              />
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.calendarContainer}>
+        <View style={styles.dayHeaders}>
+          {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day) => (
+            <View key={day} style={styles.dayHeaderCell}>
+              <Text style={styles.dayHeaderText}>{day}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={styles.datesRow}>
+          {weekDates.map((date, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.dateCell,
+                date.toDateString() === selectedDate.toDateString() &&
+                  styles.selectedDateCell,
+              ]}
+              onPress={() => setSelectedDate(date)}
+            >
+              <Text
+                style={[
+                  styles.dateNumber,
+                  date.toDateString() === selectedDate.toDateString() &&
+                    styles.selectedDateNumber,
+                ]}
+              >
+                {date.getDate()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {selectedItinerary ? (
+        <View style={styles.timelineContainer}>
+          <View style={styles.timelineHeader}>
+            <Text style={styles.timelineTitle}>Timeline</Text>
+          </View>
+          {timeSlots.map((time, index) => (
+            <View key={time} style={styles.timelineRow}>
+              <Text style={styles.timelineTime}>{time}</Text>
+              <View style={styles.timelineDivider}>
+                {index !== timeSlots.length - 1 && (
+                  <View style={styles.timelineLine} />
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>It is empty now.</Text>
+          <Text style={styles.emptySubtitle}>Enter your first</Text>
+          <Text style={styles.emptySubtitle}>itinerary</Text>
+        </View>
+      )}
+    </>
+  );
+
   return (
     <View style={styles.screenContainer}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView
-          contentContainerStyle={styles.container}
-          showsVerticalScrollIndicator={false}
-          bounces={true}
+        {selectedItinerary ? (
+          <ScrollView
+            contentContainerStyle={styles.container}
+            showsVerticalScrollIndicator={false}
+            bounces={true}
+          >
+            {renderContent()}
+          </ScrollView>
+        ) : (
+          <View style={styles.container}>{renderContent()}</View>
+        )}
+
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={handleAddButtonPress}
         >
-          {/* Header Section */}
-          <View style={styles.header}>
-            <Text style={styles.greeting}>
-              Good {getTimeOfDay(currentTime)}, User
-            </Text>
-            <Text style={styles.weather}>
-              Today is one {weatherCondition}, {weatherPhrases[weatherCondition]}
-            </Text>
-            <Text style={styles.date}>{formatDate(currentTime)}</Text>
-          </View>
-          {/* Perfectly Aligned Calendar Grid */}
-          <View style={styles.calendarContainer}>
-            {/* Day Headers */}
-            <View style={styles.dayHeaders}>
-              {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(
-                (day) => (
-                  <View key={day} style={styles.dayHeaderCell}>
-                    <Text style={styles.dayHeaderText}>{day}</Text>
-                  </View>
-                )
-              )}
-            </View>
-            {/* Date Numbers */}
-            <View style={styles.datesRow}>
-              {weekDates.map((date, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.dateCell,
-                    date.toDateString() === selectedDate.toDateString() &&
-                      styles.selectedDateCell,
-                  ]}
-                  onPress={() => setSelectedDate(date)}
-                >
-                  <Text style={[
-                    styles.dateNumber,
-                    date.toDateString() === selectedDate.toDateString() && styles.selectedDateNumber
-                  ]}>
-                    {date.getDate()}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-          {/* Empty State */}
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>It is empty now.</Text>
-            <Text style={styles.emptySubtitle}>Enter your first</Text>
-            <Text style={styles.emptySubtitle}>itinerary</Text>
-          </View>
-        </ScrollView>
+          <Text style={styles.addButtonText}>+</Text>
+        </TouchableOpacity>
       </SafeAreaView>
-      {/* Add Button */}
-      <TouchableOpacity style={styles.addButton} onPress={handleAddButtonPress}>
-        <Text style={styles.addButtonText}>+</Text>
-      </TouchableOpacity>
-      {/* Modal */}
+
       <Modal
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         visible={modalVisible}
         onRequestClose={handleCloseModal}
         statusBarTranslucent={true}
       >
-        <View
-          style={styles.modalOverlay}
-          {...panResponder.panHandlers} // Add pan handlers to overlay
-        >
+        <View style={styles.modalOverlay} {...panResponder.panHandlers}>
           <Animated.View
             style={[
               styles.modalContainer,
               {
                 transform: [{ translateY: panY }],
-                height: currentStep === 1
-                  ? '60%'
-                  : currentStep === 2
-                  ? '85%'
-                  : '70%',
+                height:
+                  currentStep === 1 ? '60%' : currentStep === 2 ? '85%' : '70%',
               },
             ]}
           >
-            {/* Drag handle indicator */}
             <View style={styles.dragHandle}>
               <View style={styles.dragIndicator} />
             </View>
             <ScrollView
               style={styles.modalScrollView}
-              contentContainerStyle={styles.modalContentContainer} // Added for proper button positioning
+              contentContainerStyle={styles.modalContentContainer}
               showsVerticalScrollIndicator={false}
               bounces={false}
             >
@@ -505,21 +602,12 @@ export default function CalendarScreen() {
   );
 }
 
-// Helper functions
-function getTimeOfDay(date: Date) {
+function getTimeOfDay(date) {
   const hours = date.getHours();
   if (hours < 12) return 'Morning';
   if (hours < 17) return 'Afternoon';
   return 'Evening';
 }
-
-const weatherCondition = 'windy';
-const weatherPhrases = {
-  windy: 'perfect for travelling',
-  sunny: 'great for outdoor activities',
-  rainy: 'good for indoor plans',
-  cloudy: 'nice for exploring',
-};
 
 const styles = StyleSheet.create({
   screenContainer: {
@@ -538,25 +626,53 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 30,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+  },
   greeting: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1F2937',
     marginBottom: 8,
   },
-  weather: {
-    fontSize: 16,
-    color: '#4B5563',
-    marginBottom: 4,
-  },
   date: {
     fontSize: 18,
     fontWeight: '500',
     color: '#6B7280',
-    marginTop: 18,
+  },
+  itineraryPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dropdown: {
+    height: 40,
+    width: 150,
+    backgroundColor: '#6366F1',
+    borderRadius: 5,
+    paddingHorizontal: 10,
+  },
+  placeholderStyle: {
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  selectedTextStyle: {
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  iconStyle: {
+    width: 20,
+    height: 20,
+  },
+  dropdownArrow: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginLeft: 5,
   },
   calendarContainer: {
-    marginBottom: 30,
+    marginBottom: 5,
   },
   dayHeaders: {
     flexDirection: 'row',
@@ -595,9 +711,44 @@ const styles = StyleSheet.create({
   selectedDateNumber: {
     color: '#FFFFFF',
   },
+  timelineContainer: {
+    marginTop: 20,
+    paddingLeft: 10,
+  },
+  timelineHeader: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    marginBottom: 10,
+  },
+  timelineTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  timelineTime: {
+    fontSize: 16,
+    color: '#6B7280',
+    width: 80,
+    marginRight: 10,
+  },
+  timelineDivider: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  timelineLine: {
+    width: 2,
+    height: '100%',
+    backgroundColor: '#E5E7EB',
+  },
   emptyState: {
     alignItems: 'center',
-    marginTop: 60,
+    marginBottom: 60,
     padding: 20,
     flex: 1,
     justifyContent: 'center',
@@ -637,7 +788,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 2,
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -651,43 +801,19 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   modalContentContainer: {
-    paddingBottom: 30, // Ensure space for buttons at bottom
-    minHeight: '100%', // Make sure content fills available space
+    paddingBottom: 30,
+    minHeight: '100%',
   },
   modalScrollView: {
     flex: 1,
-  },
-  modalHeader: {
-    padding: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    marginBottom: 20,
-  },
-  modalHeaderTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  modalHeaderSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  modalHeaderDate: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#6B7280',
-    marginTop: 10,
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
     padding: 20,
     paddingTop: 0,
     flex: 1,
-    minHeight: '100%', // Ensure content fills scroll view
-    justifyContent: 'space-between', // Better button positioning
+    minHeight: '100%',
+    justifyContent: 'space-between',
   },
   progressBar: {
     flexDirection: 'row',
@@ -738,9 +864,6 @@ const styles = StyleSheet.create({
     marginRight: 16,
     marginTop: 4,
   },
-  grayIcon: {
-    backgroundColor: '#9CA3AF',
-  },
   optionText: {
     flex: 1,
   },
@@ -787,7 +910,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 20,
   },
-  // Form Styles
   formGroup: {
     marginBottom: 24,
   },
@@ -813,6 +935,11 @@ const styles = StyleSheet.create({
   },
   dateInput: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  dateText: {
+    fontSize: 16,
+    color: '#1F2937',
   },
   dragHandle: {
     width: '100%',

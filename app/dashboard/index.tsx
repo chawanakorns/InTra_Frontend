@@ -1,31 +1,38 @@
-import { useRouter } from 'expo-router';
-import { FlatList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Calendar } from 'react-native-calendars';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import CategoryItem from '../../components/CategoryItem';
+import { useRouter } from "expo-router";
+import {
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { Calendar } from "react-native-calendars";
+import { SafeAreaView } from "react-native-safe-area-context";
+import CategoryItem from "../../components/CategoryItem";
 
 export default function Dashboard() {
-  const currentDate = new Date().toISOString().split('T')[0];
+  const currentDate = new Date().toISOString().split("T")[0];
   const router = useRouter();
-  
+
   const markedDates = {
     [currentDate]: {
       selected: true,
-      selectedColor: '#0066CC',
-    }
+      selectedColor: "#6366F1",
+    },
   };
 
   const popularDestinations = [
-    { id: '1', title: 'Destination 1' },
-    { id: '2', title: 'Destination 2' },
-    { id: '3', title: 'Destination 3' },
-    { id: '4', title: 'Destination 4' },
-    { id: '5', title: 'Destination 5' },
+    { id: "1", title: "Destination 1" },
+    { id: "2", title: "Destination 2" },
+    { id: "3", title: "Destination 3" },
+    { id: "4", title: "Destination 4" },
+    { id: "5", title: "Destination 5" },
   ];
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView 
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
@@ -36,45 +43,41 @@ export default function Dashboard() {
             <Text style={styles.day}>{new Date().getDate()}</Text>
             <View>
               <Text style={styles.month}>
-                {new Date().toLocaleString('default', { month: 'short' })}
+                {new Date().toLocaleString("default", { month: "short" })}
               </Text>
-              <Text style={styles.year}>
-                {new Date().getFullYear()}
-              </Text>
+              <Text style={styles.year}>{new Date().getFullYear()}</Text>
             </View>
           </View>
         </View>
 
         {/* Calendar */}
-        <View style={styles.calendarContainer}>
-          <Calendar
-            current={currentDate}
-            markedDates={markedDates}
-            hideExtraDays
-            disableMonthChange
-            theme={{
-              backgroundColor: '#ffffff',
-              calendarBackground: '#ffffff',
-              textSectionTitleColor: '#666',
-              selectedDayBackgroundColor: '#0066CC',
-              selectedDayTextColor: '#ffffff',
-              todayTextColor: '#0066CC',
-              dayTextColor: '#2d4150',
-              textDisabledColor: '#d9e1e8',
-              dotColor: '#0066CC',
-              selectedDotColor: '#ffffff',
-              arrowColor: '#0066CC',
-              monthTextColor: '#0066CC',
-              textDayFontWeight: '300',
-              textMonthFontWeight: 'bold',
-              textDayHeaderFontWeight: '300',
-              textDayFontSize: 16,
-              textMonthFontSize: 16,
-              textDayHeaderFontSize: 12,
-            }}
-            style={styles.calendar}
-          />
-        </View>
+        <Calendar
+          current={currentDate}
+          markedDates={markedDates}
+          hideExtraDays
+          disableMonthChange
+          theme={{
+            backgroundColor: "#ffffff",
+            calendarBackground: "#ffffff",
+            textSectionTitleColor: "#666",
+            selectedDayBackgroundColor: "#6366F1",
+            selectedDayTextColor: "#ffffff",
+            todayTextColor: "#6366F1",
+            dayTextColor: "#2d4150",
+            textDisabledColor: "#d9e1e8",
+            dotColor: "#6366F1",
+            selectedDotColor: "#ffffff",
+            arrowColor: "#6366F1",
+            monthTextColor: "#6366F1",
+            textDayFontWeight: "300",
+            textMonthFontWeight: "bold",
+            textDayHeaderFontWeight: "300",
+            textDayFontSize: 16,
+            textMonthFontSize: 16,
+            textDayHeaderFontSize: 12,
+          }}
+          style={styles.calendar}
+        />
 
         {/* Search Section */}
         <View style={styles.section}>
@@ -93,13 +96,13 @@ export default function Dashboard() {
           <View style={styles.categoriesContainer}>
             <CategoryItem
               title="Attractions"
-              image={require('../../assets/images/attraction.jpg')}
-              onPress={() => router.push('./recommendations/attractions')}
+              image={require("../../assets/images/attraction.jpg")}
+              onPress={() => router.push("./recommendations/attractions")}
             />
             <CategoryItem
               title="Restaurants"
-              image={require('../../assets/images/attraction.jpg')}
-              onPress={() => router.push('./recommendations/restaurants')}
+              image={require("../../assets/images/attraction.jpg")}
+              onPress={() => router.push("./recommendations/restaurants")}
             />
           </View>
         </View>
@@ -116,11 +119,11 @@ export default function Dashboard() {
               <View style={styles.popularItem}>
                 <CategoryItem
                   title={item.title}
-                  image={require('../../assets/images/attraction.jpg')}
+                  image={require("../../assets/images/attraction.jpg")}
                 />
               </View>
             )}
-            keyExtractor={item => item.id}
+            keyExtractor={(item) => item.id}
           />
         </View>
       </ScrollView>
@@ -131,38 +134,38 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   container: {
     padding: 16,
     paddingBottom: 20, // Reduced bottom padding
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 20,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   day: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginRight: 8,
   },
   month: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   year: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
   },
   calendarContainer: {
     marginBottom: 20,
@@ -175,7 +178,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#eee',
+    backgroundColor: "#eee",
     marginVertical: 16,
   },
   section: {
@@ -183,22 +186,22 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 12,
   },
   searchContainer: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
     borderRadius: 50,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   searchInput: {
     fontSize: 16,
-    color: '#333',
+    color: "#333",
   },
   categoriesContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   popularList: {
     paddingBottom: 10, // Space below the scrollable items
@@ -208,6 +211,6 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   popularCategory: {
-    width: '100%',
+    width: "100%",
   },
 });
