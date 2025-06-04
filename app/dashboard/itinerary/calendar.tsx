@@ -1,5 +1,5 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { useEffect, useRef, useState } from 'react';
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Modal,
@@ -10,27 +10,38 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { Dropdown } from 'react-native-element-dropdown';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from "react-native";
+import { Dropdown } from "react-native-element-dropdown";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+type Itinerary = {
+  id: string;
+  type: string;
+  budget: string;
+  name: string;
+  startDate: Date;
+  endDate: Date;
+  schedule: any[]; // You can replace 'any' with a more specific type if you have one
+};
 
 export default function CalendarScreen() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [weekDates, setWeekDates] = useState([]);
+  const [weekDates, setWeekDates] = useState<Date[]>([]);
   // Itinerary states
-  const [itineraries, setItineraries] = useState([]);
-  const [selectedItinerary, setSelectedItinerary] = useState(null);
+  const [itineraries, setItineraries] = useState<Itinerary[]>([]);
+  const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
   // Modal states
   const [modalVisible, setModalVisible] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedItineraryType, setSelectedItineraryType] = useState('');
-  const [selectedBudget, setSelectedBudget] = useState('');
-  const [itineraryName, setItineraryName] = useState('');
+  const [selectedItineraryType, setSelectedItineraryType] = useState("");
+  const [selectedBudget, setSelectedBudget] = useState("");
+  const [itineraryName, setItineraryName] = useState("");
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Drag to close animation
   const panY = useRef(new Animated.Value(0)).current;
@@ -77,11 +88,11 @@ export default function CalendarScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  const formatDate = (date) => {
-    return date.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
     });
   };
 
@@ -99,9 +110,9 @@ export default function CalendarScreen() {
   const handleCloseModal = () => {
     setModalVisible(false);
     setCurrentStep(1);
-    setSelectedItineraryType('');
-    setSelectedBudget('');
-    setItineraryName('');
+    setSelectedItineraryType("");
+    setSelectedBudget("");
+    setItineraryName("");
     setStartDate(new Date());
     setEndDate(new Date());
     Animated.timing(panY, {
@@ -140,8 +151,8 @@ export default function CalendarScreen() {
 
   const timeSlots = Array.from({ length: 12 }, (_, i) => {
     const hour = 6 + i;
-    return `${hour.toString().padStart(2, '0')}:00 ${
-      hour < 12 ? 'AM' : hour === 12 ? 'PM' : 'PM'
+    return `${hour.toString().padStart(2, "0")}:00 ${
+      hour < 12 ? "AM" : hour === 12 ? "PM" : "PM"
     }`;
   });
 
@@ -159,52 +170,52 @@ export default function CalendarScreen() {
             <TouchableOpacity
               style={[
                 styles.optionCard,
-                selectedItineraryType === 'auto' && styles.selectedOption,
+                selectedItineraryType === "auto" && styles.selectedOption,
               ]}
-              onPress={() => setSelectedItineraryType('auto')}
+              onPress={() => setSelectedItineraryType("auto")}
             >
               <View
                 style={[
                   styles.optionIcon,
                   {
                     backgroundColor:
-                      selectedItineraryType === 'auto'
-                        ? '#1F2937'
-                        : '#9CA3AF',
+                      selectedItineraryType === "auto" ? "#1F2937" : "#9CA3AF",
                   },
                 ]}
               />
               <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>
-                  Auto-generated Itinerary
-                </Text>
+                <Text style={styles.optionTitle}>Auto-generated Itinerary</Text>
                 <Text style={styles.optionDescription}>
-                  AI-powered solution that creates a tailored itinerary — come with completed itinerary that based on your personalized information.
+                  AI-powered solution that creates a tailored itinerary — come
+                  with completed itinerary that based on your personalized
+                  information.
                 </Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.optionCard,
-                selectedItineraryType === 'custom' && styles.selectedOption,
+                selectedItineraryType === "custom" && styles.selectedOption,
               ]}
-              onPress={() => setSelectedItineraryType('custom')}
+              onPress={() => setSelectedItineraryType("custom")}
             >
               <View
                 style={[
                   styles.optionIcon,
                   {
                     backgroundColor:
-                      selectedItineraryType === 'custom'
-                        ? '#1F2937'
-                        : '#9CA3AF',
+                      selectedItineraryType === "custom"
+                        ? "#1F2937"
+                        : "#9CA3AF",
                   },
                 ]}
               />
               <View style={styles.optionText}>
                 <Text style={styles.optionTitle}>Custom Itinerary</Text>
                 <Text style={styles.optionDescription}>
-                  Craft your own adventure with a custom itinerary — come with an empty schedule, you can choose your preferred cuisine and dining experiences freely.
+                  Craft your own adventure with a custom itinerary — come with
+                  an empty schedule, you can choose your preferred cuisine and
+                  dining experiences freely.
                 </Text>
               </View>
             </TouchableOpacity>
@@ -232,84 +243,86 @@ export default function CalendarScreen() {
             <TouchableOpacity
               style={[
                 styles.optionCard,
-                selectedBudget === 'budget-friendly' && styles.selectedOption,
+                selectedBudget === "budget-friendly" && styles.selectedOption,
               ]}
-              onPress={() => setSelectedBudget('budget-friendly')}
+              onPress={() => setSelectedBudget("budget-friendly")}
             >
               <View
                 style={[
                   styles.optionIcon,
                   {
                     backgroundColor:
-                      selectedBudget === 'budget-friendly'
-                        ? '#1F2937'
-                        : '#9CA3AF',
+                      selectedBudget === "budget-friendly"
+                        ? "#1F2937"
+                        : "#9CA3AF",
                   },
                 ]}
               />
               <View style={styles.optionText}>
                 <Text style={styles.optionTitle}>
-                  Budget-friendly{' '}
+                  Budget-friendly{" "}
                   <Text style={styles.budgetRange}>(500-1,000 THB)</Text>
                 </Text>
                 <Text style={styles.optionDescription}>
-                  Affordable local eats and free or low-cost attractions — perfect for stretching your budget while still exploring the best sights.
+                  Affordable local eats and free or low-cost attractions —
+                  perfect for stretching your budget while still exploring the
+                  best sights.
                 </Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.optionCard,
-                selectedBudget === 'comfort' && styles.selectedOption,
+                selectedBudget === "comfort" && styles.selectedOption,
               ]}
-              onPress={() => setSelectedBudget('comfort')}
+              onPress={() => setSelectedBudget("comfort")}
             >
               <View
                 style={[
                   styles.optionIcon,
                   {
                     backgroundColor:
-                      selectedBudget === 'comfort'
-                        ? '#1F2937'
-                        : '#9CA3AF',
+                      selectedBudget === "comfort" ? "#1F2937" : "#9CA3AF",
                   },
                 ]}
               />
               <View style={styles.optionText}>
                 <Text style={styles.optionTitle}>
-                  Comfort & Value{' '}
+                  Comfort & Value{" "}
                   <Text style={styles.budgetRange}>(1,500-2,500 THB)</Text>
                 </Text>
                 <Text style={styles.optionDescription}>
-                  Well-rated restaurants and popular attractions that balance quality and price — offering great experiences without breaking the bank.
+                  Well-rated restaurants and popular attractions that balance
+                  quality and price — offering great experiences without
+                  breaking the bank.
                 </Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.optionCard,
-                selectedBudget === 'premium' && styles.selectedOption,
+                selectedBudget === "premium" && styles.selectedOption,
               ]}
-              onPress={() => setSelectedBudget('premium')}
+              onPress={() => setSelectedBudget("premium")}
             >
               <View
                 style={[
                   styles.optionIcon,
                   {
                     backgroundColor:
-                      selectedBudget === 'premium'
-                        ? '#1F2937'
-                        : '#9CA3AF',
+                      selectedBudget === "premium" ? "#1F2937" : "#9CA3AF",
                   },
                 ]}
               />
               <View style={styles.optionText}>
                 <Text style={styles.optionTitle}>
-                  Premium & Luxury{' '}
+                  Premium & Luxury{" "}
                   <Text style={styles.budgetRange}>(3,500-5,000+ THB)</Text>
                 </Text>
                 <Text style={styles.optionDescription}>
-                  High-end dining, exclusive experiences, and premium attractions for travelers seeking the finest and most indulgent options.
+                  High-end dining, exclusive experiences, and premium
+                  attractions for travelers seeking the finest and most
+                  indulgent options.
                 </Text>
               </View>
             </TouchableOpacity>
@@ -329,10 +342,7 @@ export default function CalendarScreen() {
                 onPress={handlePrevious}
               >
                 <Text
-                  style={[
-                    styles.actionButtonText,
-                    styles.secondaryButtonText,
-                  ]}
+                  style={[styles.actionButtonText, styles.secondaryButtonText]}
                 >
                   Previous
                 </Text>
@@ -369,10 +379,10 @@ export default function CalendarScreen() {
                   onPress={() => setShowStartDatePicker(true)}
                 >
                   <Text style={styles.dateText}>
-                    {startDate.toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric',
+                    {startDate.toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
                     })}
                   </Text>
                 </TouchableOpacity>
@@ -392,10 +402,10 @@ export default function CalendarScreen() {
                   onPress={() => setShowEndDatePicker(true)}
                 >
                   <Text style={styles.dateText}>
-                    {endDate.toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric',
+                    {endDate.toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
                     })}
                   </Text>
                 </TouchableOpacity>
@@ -429,10 +439,7 @@ export default function CalendarScreen() {
                 onPress={handlePrevious}
               >
                 <Text
-                  style={[
-                    styles.actionButtonText,
-                    styles.secondaryButtonText,
-                  ]}
+                  style={[styles.actionButtonText, styles.secondaryButtonText]}
                 >
                   Previous
                 </Text>
@@ -461,7 +468,7 @@ export default function CalendarScreen() {
                 selectedTextStyle={styles.selectedTextStyle}
                 iconStyle={styles.iconStyle}
                 data={itineraries.map((it) => ({
-                  label: it.name || 'Itinerary',
+                  label: it.name || "Itinerary",
                   value: it.id,
                 }))}
                 maxHeight={300}
@@ -469,14 +476,23 @@ export default function CalendarScreen() {
                 valueField="value"
                 placeholder="Select Itinerary"
                 value={selectedItinerary?.id}
+                onFocus={() => setIsDropdownOpen(true)}
+                onBlur={() => setIsDropdownOpen(false)}
                 onChange={(item) => {
                   const itinerary = itineraries.find(
                     (it) => it.id === item.value
                   );
-                  setSelectedItinerary(itinerary);
+                  setSelectedItinerary(itinerary ?? null);
                 }}
                 renderRightIcon={() => (
-                  <Text style={styles.dropdownArrow}>▼</Text>
+                  <Text
+                    style={[
+                      styles.dropdownArrow,
+                      isDropdownOpen && styles.dropdownArrowOpen,
+                    ]}
+                  >
+                    ▼
+                  </Text>
                 )}
               />
             </View>
@@ -486,7 +502,7 @@ export default function CalendarScreen() {
 
       <View style={styles.calendarContainer}>
         <View style={styles.dayHeaders}>
-          {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day) => (
+          {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => (
             <View key={day} style={styles.dayHeaderCell}>
               <Text style={styles.dayHeaderText}>{day}</Text>
             </View>
@@ -580,7 +596,7 @@ export default function CalendarScreen() {
               {
                 transform: [{ translateY: panY }],
                 height:
-                  currentStep === 1 ? '60%' : currentStep === 2 ? '85%' : '70%',
+                  currentStep === 1 ? "60%" : currentStep === 2 ? "85%" : "70%",
               },
             ]}
           >
@@ -602,114 +618,117 @@ export default function CalendarScreen() {
   );
 }
 
-function getTimeOfDay(date) {
+function getTimeOfDay(date: Date) {
   const hours = date.getHours();
-  if (hours < 12) return 'Morning';
-  if (hours < 17) return 'Afternoon';
-  return 'Evening';
+  if (hours < 12) return "Morning";
+  if (hours < 17) return "Afternoon";
+  return "Evening";
 }
 
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    position: 'relative',
+    position: "relative",
   },
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   container: {
     padding: 20,
     paddingBottom: 100,
-    minHeight: '100%',
+    minHeight: "100%",
   },
   header: {
     marginBottom: 30,
   },
   headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 10,
   },
   greeting: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontWeight: "bold",
+    color: "#1F2937",
     marginBottom: 8,
   },
   date: {
     fontSize: 18,
-    fontWeight: '500',
-    color: '#6B7280',
+    fontWeight: "500",
+    color: "#6B7280",
   },
   itineraryPicker: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   dropdown: {
     height: 40,
     width: 150,
-    backgroundColor: '#6366F1',
+    backgroundColor: "#6366F1",
     borderRadius: 5,
     paddingHorizontal: 10,
   },
   placeholderStyle: {
     fontSize: 16,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   selectedTextStyle: {
     fontSize: 16,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   iconStyle: {
     width: 20,
     height: 20,
   },
   dropdownArrow: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
     marginLeft: 5,
+  },
+  dropdownArrowOpen: {
+    transform: [{ rotate: "180deg" }],
   },
   calendarContainer: {
     marginBottom: 5,
   },
   dayHeaders: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 10,
   },
   dayHeaderCell: {
     width: 40,
-    alignItems: 'center',
+    alignItems: "center",
   },
   dayHeaderText: {
     fontSize: 12,
-    fontWeight: '500',
-    color: '#6B7280',
-    textTransform: 'uppercase',
+    fontWeight: "500",
+    color: "#6B7280",
+    textTransform: "uppercase",
   },
   datesRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   dateCell: {
     width: 40,
     height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: 20,
   },
   selectedDateCell: {
-    backgroundColor: '#6366F1',
+    backgroundColor: "#6366F1",
   },
   dateNumber: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#1F2937',
+    fontWeight: "500",
+    color: "#1F2937",
   },
   selectedDateNumber: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   timelineContainer: {
     marginTop: 20,
@@ -718,144 +737,144 @@ const styles = StyleSheet.create({
   timelineHeader: {
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
     marginBottom: 10,
   },
   timelineTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontWeight: "bold",
+    color: "#1F2937",
   },
   timelineRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 20,
   },
   timelineTime: {
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
     width: 80,
     marginRight: 10,
   },
   timelineDivider: {
     flex: 1,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   timelineLine: {
     width: 2,
-    height: '100%',
-    backgroundColor: '#E5E7EB',
+    height: "100%",
+    backgroundColor: "#E5E7EB",
   },
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 60,
     padding: 20,
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   emptyTitle: {
     fontSize: 16,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   emptySubtitle: {
     fontSize: 36,
-    color: '#1F2937',
-    fontWeight: 'bold',
-    textAlign: 'center',
+    color: "#1F2937",
+    fontWeight: "bold",
+    textAlign: "center",
     lineHeight: 34,
   },
   addButton: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 30,
     right: 30,
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#6366F1',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#6366F1",
+    justifyContent: "center",
+    alignItems: "center",
     elevation: 5,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
   },
   addButtonText: {
     fontSize: 30,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
+    color: "#FFFFFF",
+    fontWeight: "bold",
     marginBottom: 2,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   modalContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: 700,
-    width: '100%',
+    width: "100%",
   },
   modalContentContainer: {
     paddingBottom: 30,
-    minHeight: '100%',
+    minHeight: "100%",
   },
   modalScrollView: {
     flex: 1,
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     padding: 20,
     paddingTop: 0,
     flex: 1,
-    minHeight: '100%',
-    justifyContent: 'space-between',
+    minHeight: "100%",
+    justifyContent: "space-between",
   },
   progressBar: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 30,
     gap: 8,
   },
   progressSegment: {
     flex: 1,
     height: 3,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: "#E5E7EB",
     borderRadius: 2,
   },
   activeProgress: {
-    backgroundColor: '#6366F1',
+    backgroundColor: "#6366F1",
   },
   modalTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontWeight: "bold",
+    color: "#1F2937",
     marginBottom: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalSubtitle: {
     fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
+    color: "#6B7280",
+    textAlign: "center",
     marginBottom: 30,
     opacity: 0.9,
   },
   optionCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   selectedOption: {
     borderWidth: 2,
-    borderColor: '#6366F1',
+    borderColor: "#6366F1",
   },
   optionIcon: {
     width: 40,
@@ -869,42 +888,42 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontWeight: "bold",
+    color: "#1F2937",
     marginBottom: 8,
   },
   budgetRange: {
-    fontWeight: 'normal',
+    fontWeight: "normal",
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   optionDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     lineHeight: 20,
   },
   actionButton: {
-    backgroundColor: '#6366F1',
+    backgroundColor: "#6366F1",
     borderRadius: 25,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 12,
   },
   disabledButton: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: "#E5E7EB",
   },
   secondaryButton: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderWidth: 2,
-    borderColor: '#6366F1',
+    borderColor: "#6366F1",
   },
   actionButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   secondaryButtonText: {
-    color: '#6366F1',
+    color: "#6366F1",
   },
   buttonContainer: {
     marginTop: 20,
@@ -915,41 +934,41 @@ const styles = StyleSheet.create({
   },
   formLabel: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: "600",
+    color: "#1F2937",
     marginBottom: 8,
   },
   textInput: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#1F2937',
+    color: "#1F2937",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   dateInputContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   dateInput: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   dateText: {
     fontSize: 16,
-    color: '#1F2937',
+    color: "#1F2937",
   },
   dragHandle: {
-    width: '100%',
-    alignItems: 'center',
+    width: "100%",
+    alignItems: "center",
     paddingVertical: 10,
   },
   dragIndicator: {
     width: 40,
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: "#E5E7EB",
     borderRadius: 2,
   },
 });

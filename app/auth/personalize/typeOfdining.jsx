@@ -15,27 +15,27 @@ import {
 const data = [
   {
     id: "1",
-    label: "Sightseeing",
-    image: require("./../../assets/images/adventurous.jpg"),
+    label: "Riverside Dining",
+    image: require("../../../assets/images/adventurous.jpg"),
   },
   {
     id: "2",
-    label: "Nature",
-    image: require("./../../assets/images/relaxed.jpg"),
+    label: "Night Market Vibes",
+    image: require("../../../assets/images/relaxed.jpg"),
   },
   {
     id: "3",
-    label: "Shopping",
-    image: require("./../../assets/images/cultural.jpg"),
+    label: "Quiet Cafes",
+    image: require("../../../assets/images/cultural.jpg"),
   },
   {
     id: "4",
-    label: "Museum",
-    image: require("./../../assets/images/foodie.jpg"),
+    label: "Scenic Views",
+    image: require("../../../assets/images/foodie.jpg"),
   },
 ];
 
-export default function typeOfactivities() {
+export default function typeOfdining() {
   const router = useRouter();
   const navigation = useNavigation();
   const [selected, setSelected] = useState([]); // Array for multiple selections
@@ -79,7 +79,7 @@ export default function typeOfactivities() {
       </Text>
 
       <Text style={styles.question}>
-        What types of activities interest you?
+        What types of dining experiences interest you?
       </Text>
 
       <FlatList
@@ -92,7 +92,7 @@ export default function typeOfactivities() {
       />
 
       <TouchableOpacity
-        onPress={() => router.replace("personalize/kindOfcuisine")}
+        onPress={() => router.replace("./prefersTimes")}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -115,7 +115,7 @@ export default function typeOfactivities() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => router.replace("/personalize/kindOfusers")}
+        onPress={() => router.replace("./kindOfcuisine")}
         style={{
           padding: 15,
           borderRadius: 15,

@@ -16,22 +16,22 @@ const data = [
   {
     id: "1",
     label: "Local",
-    image: require("./../../assets/images/adventurous.jpg"),
+    image: require("../../../assets/images/adventurous.jpg"),
   },
   {
     id: "2",
     label: "International",
-    image: require("./../../assets/images/relaxed.jpg"),
+    image: require("../../../assets/images/relaxed.jpg"),
   },
   {
     id: "3",
     label: "Street Food",
-    image: require("./../../assets/images/cultural.jpg"),
+    image: require("../../../assets/images/cultural.jpg"),
   },
   {
     id: "4",
     label: "Vegetarian",
-    image: require("./../../assets/images/foodie.jpg"),
+    image: require("../../../assets/images/foodie.jpg"),
   },
 ];
 
@@ -90,7 +90,7 @@ export default function kindOfcuisine() {
       />
 
       <TouchableOpacity
-        onPress={() => router.replace("/personalize/typeOfdining")}
+        onPress={() => router.replace("./typeOfdining")}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -113,7 +113,7 @@ export default function kindOfcuisine() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => router.replace("/personalize/typeOfactivities")}
+        onPress={() => router.replace("./typeOfactivities")}
         style={{
           padding: 15,
           borderRadius: 15,

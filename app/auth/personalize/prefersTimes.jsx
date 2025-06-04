@@ -15,27 +15,17 @@ import {
 const data = [
   {
     id: "1",
-    label: "Riverside Dining",
-    image: require("./../../assets/images/adventurous.jpg"),
+    label: "Daytime",
+    image: require("../../../assets/images/adventurous.jpg"),
   },
   {
     id: "2",
-    label: "Night Market Vibes",
-    image: require("./../../assets/images/relaxed.jpg"),
-  },
-  {
-    id: "3",
-    label: "Quiet Cafes",
-    image: require("./../../assets/images/cultural.jpg"),
-  },
-  {
-    id: "4",
-    label: "Scenic Views",
-    image: require("./../../assets/images/foodie.jpg"),
+    label: "Nighttime",
+    image: require("../../../assets/images/relaxed.jpg"),
   },
 ];
 
-export default function typeOfdining() {
+export default function prefersTimes() {
   const router = useRouter();
   const navigation = useNavigation();
   const [selected, setSelected] = useState([]); // Array for multiple selections
@@ -78,9 +68,7 @@ export default function typeOfdining() {
         itinerary plans.
       </Text>
 
-      <Text style={styles.question}>
-        What types of dining experiences interest you?
-      </Text>
+      <Text style={styles.question}>What is your prefers times to travel?</Text>
 
       <FlatList
         data={data}
@@ -92,7 +80,7 @@ export default function typeOfdining() {
       />
 
       <TouchableOpacity
-        onPress={() => router.replace("/personalize/prefersTimes")}
+        onPress={() => router.replace("dashboard")}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -110,12 +98,12 @@ export default function typeOfdining() {
             textAlign: "center",
           }}
         >
-          Next
+          Finished
         </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => router.replace("/personalize/kindOfcuisine")}
+        onPress={() => router.replace("./typeOfdining")}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -166,7 +154,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.WHITE,
     fontFamily: "outfit-bold",
-    marginTop: 30,
+    marginTop: 120,
   },
   card: {
     width: CARD_SIZE,

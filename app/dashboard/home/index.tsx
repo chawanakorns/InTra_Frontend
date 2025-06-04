@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { SafeAreaView } from "react-native-safe-area-context";
-import CategoryItem from "../../components/CategoryItem";
+import CategoryItem from "../../../components/CategoryItem";
 
 export default function Dashboard() {
   const currentDate = new Date().toISOString().split("T")[0];
@@ -96,13 +96,13 @@ export default function Dashboard() {
           <View style={styles.categoriesContainer}>
             <CategoryItem
               title="Attractions"
-              image={require("../../assets/images/attraction.jpg")}
-              onPress={() => router.push("./recommendations/attractions")}
+              image={require("../../../assets/images/attraction.jpg")}
+              onPress={() => router.push("/dashboard/home/recommendations/attractions")}
             />
             <CategoryItem
               title="Restaurants"
-              image={require("../../assets/images/attraction.jpg")}
-              onPress={() => router.push("./recommendations/restaurants")}
+              image={require("../../../assets/images/attraction.jpg")}
+              onPress={() => router.push("/dashboard/home/recommendations/restaurants")}
             />
           </View>
         </View>
@@ -119,7 +119,7 @@ export default function Dashboard() {
               <View style={styles.popularItem}>
                 <CategoryItem
                   title={item.title}
-                  image={require("../../assets/images/attraction.jpg")}
+                  image={require("../../../assets/images/attraction.jpg")}
                 />
               </View>
             )}

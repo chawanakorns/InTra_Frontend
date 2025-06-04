@@ -15,17 +15,27 @@ import {
 const data = [
   {
     id: "1",
-    label: "Daytime",
-    image: require("./../../assets/images/adventurous.jpg"),
+    label: "Adventurous",
+    image: require("../../../assets/images/adventurous.jpg")
   },
   {
     id: "2",
-    label: "Nighttime",
-    image: require("./../../assets/images/relaxed.jpg"),
+    label: "Relaxed",
+    image: require("../../../assets/images/relaxed.jpg"),
+  },
+  {
+    id: "3",
+    label: "Cultural",
+    image: require("../../../assets/images/cultural.jpg"),
+  },
+  {
+    id: "4",
+    label: "Foodie",
+    image: require("../../../assets/images/foodie.jpg"),
   },
 ];
 
-export default function prefersTimes() {
+export default function kindOfUsers() {
   const router = useRouter();
   const navigation = useNavigation();
   const [selected, setSelected] = useState([]); // Array for multiple selections
@@ -68,7 +78,7 @@ export default function prefersTimes() {
         itinerary plans.
       </Text>
 
-      <Text style={styles.question}>What is your prefers times to travel?</Text>
+      <Text style={styles.question}>What kind of tourists are you?</Text>
 
       <FlatList
         data={data}
@@ -80,7 +90,7 @@ export default function prefersTimes() {
       />
 
       <TouchableOpacity
-        onPress={() => router.replace("dashboard")}
+        onPress={() => router.replace("./typeOfactivities")}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -98,12 +108,12 @@ export default function prefersTimes() {
             textAlign: "center",
           }}
         >
-          Finished
+          Next
         </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => router.replace("/personalize/typeOfdining")}
+        onPress={() => router.replace("auth/sign-in")}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -120,7 +130,7 @@ export default function prefersTimes() {
             textAlign: "center",
           }}
         >
-          Previous
+          Back
         </Text>
       </TouchableOpacity>
     </View>
@@ -154,7 +164,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.WHITE,
     fontFamily: "outfit-bold",
-    marginTop: 120,
+    marginTop: 30,
   },
   card: {
     width: CARD_SIZE,

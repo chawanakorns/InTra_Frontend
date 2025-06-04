@@ -1,7 +1,7 @@
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+
 
 export default function RootLayout() {
   const insets = useSafeAreaInsets();
@@ -11,44 +11,55 @@ export default function RootLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#0066CC',
+          tabBarActiveTintColor: '#6366F1',
           tabBarInactiveTintColor: '#666',
           tabBarStyle: {
-            height: 30 + insets.bottom,
+            height: 40 + insets.bottom,
             paddingBottom: 8 + insets.bottom,
+            paddingTop: 8,
           },
         }}
       >
         <Tabs.Screen
-          name="index"
+          name="home/index"
           options={{
             title: 'Home',
             tabBarIcon: ({ color }) => <Feather name="home" size={24} color={color} />,
-            headerShown: false,
           }}
         />
         <Tabs.Screen
-          name="calendar"
+          name="itinerary/calendar"
           options={{
             title: 'Calendar',
             tabBarIcon: ({ color }) => <Feather name="calendar" size={24} color={color} />,
-            headerShown: false,
           }}
         />
         <Tabs.Screen
-          name="bookmarks"
+          name="bookmark/bookmarks"
           options={{
             title: 'Bookmarks',
             tabBarIcon: ({ color }) => <MaterialIcons name="bookmark" size={24} color={color} />,
-            headerShown: false,
           }}
         />
         <Tabs.Screen
-          name="profile"
+          name="profile/profile"
           options={{
             title: 'Profile',
             tabBarIcon: ({ color }) => <Feather name="user" size={24} color={color} />,
-            headerShown: false,
+          }}
+        />
+        
+        {/* Hide other routes from tabs */}
+        <Tabs.Screen
+          name="home/recommendations"
+          options={{
+            href: null, // This hides it from the tab bar
+          }}
+        />
+        <Tabs.Screen
+          name="profile/setting"
+          options={{
+            href: null,
           }}
         />
       </Tabs>

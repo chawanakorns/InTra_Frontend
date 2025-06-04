@@ -14,12 +14,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import RestaurantCard from '../../components/RestaurantCard';
+import AttractionCard from '../../../../components/AttractionCard';
 
 const BACKEND_API_URL = Platform.select({
-  android: 'http://10.0.2.2:8000/api/recommendations/restaurants',
-  ios: 'http://localhost:8000/api/recommendations/restaurants',
-  default: 'http://localhost:8000/api/recommendations/restaurants'
+  android: 'http://10.0.2.2:8000/api/recommendations/attractions',
+  ios: 'http://localhost:8000/api/recommendations/attractions',
+  default: 'http://localhost:8000/api/recommendations/attractions'
 });
 
 interface Place {
@@ -36,7 +36,7 @@ interface Place {
 
 export default function RecommendationsScreen() {
   const router = useRouter();
-  const [restaurants, setRestaurants] = useState<Place[]>([]);
+  const [attractions, setAttractions] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredPlaces, setFilteredPlaces] = useState<Place[]>([]);
@@ -48,15 +48,15 @@ export default function RecommendationsScreen() {
 
   useEffect(() => {
     if (searchQuery.trim() === '') {
-      setFilteredPlaces(restaurants);
+      setFilteredPlaces(attractions);
     } else {
-      const filtered = restaurants.filter(place =>
+      const filtered = attractions.filter(place =>
         place.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         place.address?.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredPlaces(filtered);
     }
-  }, [searchQuery, restaurants]);
+  }, [searchQuery, attractions]);
 
   const loadPlaces = async () => {
     try {
@@ -66,7 +66,7 @@ export default function RecommendationsScreen() {
       const { status } = await Location.requestForegroundPermissionsAsync();
       
       if (status !== 'granted') {
-        setError('Please enable location permissions to find nearby restaurants');
+        setError('Please enable location permissions to find nearby attractions');
         setLoading(false);
         return;
       }
@@ -94,7 +94,7 @@ export default function RecommendationsScreen() {
       
       const data = await response.json();
       console.log('Received data:', data);
-      setRestaurants(data);
+      setAttractions(data);
       setFilteredPlaces(data);
       
     } catch (error) {
@@ -107,7 +107,7 @@ export default function RecommendationsScreen() {
 
   const handlePlacePress = (place: Place) => {
     router.push({
-      pathname: './restaurantDetail',
+      pathname: './attractionDetail',
       params: {
         placeId: place.id,
         placeName: place.name,
@@ -117,8 +117,8 @@ export default function RecommendationsScreen() {
   };
 
   const renderPlace = ({ item }: { item: Place }) => (
-    <RestaurantCard
-      restaurant={item}
+    <AttractionCard
+      attraction={item}
       onPress={() => handlePlacePress(item)}
       style={styles.cardStyle}
     />
@@ -128,14 +128,14 @@ export default function RecommendationsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.push('/dashboard/home')}>
             <MaterialIcons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Restaurants</Text>
+          <Text style={styles.headerTitle}>Attractions</Text>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#6366F1" />
-          <Text style={styles.loadingText}>Finding nearby restaurants...</Text>
+          <Text style={styles.loadingText}>Finding nearby attractions...</Text>
         </View>
       </SafeAreaView>
     );
@@ -147,7 +147,7 @@ export default function RecommendationsScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Restaurants</Text>
+        <Text style={styles.headerTitle}>Attractions</Text>
         <TouchableOpacity onPress={loadPlaces} style={styles.refreshButton}>
           <MaterialIcons name="refresh" size={24} color="#6366F1" />
         </TouchableOpacity>
@@ -155,7 +155,7 @@ export default function RecommendationsScreen() {
 
       <TextInput 
         style={styles.search} 
-        placeholder="Search restaurants..."
+        placeholder="Search attractions..."
         placeholderTextColor="#888"
         value={searchQuery}
         onChangeText={setSearchQuery}
@@ -170,7 +170,7 @@ export default function RecommendationsScreen() {
         </View>
       ) : (
         <Text style={styles.resultCount}>
-          {filteredPlaces.length} restaurant{filteredPlaces.length !== 1 ? 's' : ''} found
+          {filteredPlaces.length} attraction{filteredPlaces.length !== 1 ? 's' : ''} found
         </Text>
       )}
 
@@ -186,8 +186,8 @@ export default function RecommendationsScreen() {
           !error
             ? (
               <View style={styles.emptyContainer}>
-                <MaterialIcons name="restaurant" size={60} color="#ccc" />
-                <Text style={styles.emptyText}>No restaurants found</Text>
+                <MaterialIcons name="attractions" size={60} color="#ccc" />
+                <Text style={styles.emptyText}>No Attractions found</Text>
                 <TouchableOpacity style={styles.retryButton} onPress={loadPlaces}>
                   <Text style={styles.retryButtonText}>Try Again</Text>
                 </TouchableOpacity>

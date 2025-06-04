@@ -112,7 +112,7 @@ export default function SignIn() {
 
       {/*Sign in Button */}
       <TouchableOpacity
-        onPress={() => router.replace("/personalize/kindOfusers")}
+        onPress={() => router.replace("auth/personalize/kindOfusers")}
         style={{
           padding: 15,
           borderRadius: 15,

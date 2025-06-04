@@ -13,5 +13,5 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-, "app/index.tsx"  ]
+, "app/index.tsx", "app/auth/personalize/kindOfcuisine.jsx", "app/auth/personalize/kindOfusers.jsx", "app/auth/personalize/prefersTimes.jsx", "app/auth/personalize/typeOfactivities.jsx", "app/auth/personalize/typeOfdining.jsx", "app/auth/personalize/kindOfcuisine.jsx", "app/auth/personalize/kindOfusers.jsx"  ]
 }

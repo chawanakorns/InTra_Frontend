@@ -4,23 +4,26 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation, useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  Modal,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { Dropdown } from 'react-native-element-dropdown';
 
 export default function SignUp() {
   const navigation = useNavigation();
   const router = useRouter();
   const [gender, setGender] = useState('Male');
-  const [showGenderDropdown, setShowGenderDropdown] = useState(false);
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  const genders = ['Male', 'Female', 'Other', 'Prefer not to say'];
+  const genders = [
+    { label: 'Male', value: 'Male' },
+    { label: 'Female', value: 'Female' },
+    { label: 'Other', value: 'Other' },
+    { label: 'Prefer not to say', value: 'Prefer not to say' },
+  ];
 
   const onChangeDate = (event, selectedDate) => {
     setShowDatePicker(false);
@@ -97,6 +100,7 @@ export default function SignUp() {
             backgroundColor: Colors.WHITE,
           }}
           onChangeText={(value) => setFullName(value)}
+          placeholder="Enter Your Full Name"
         />
       </View>
 
@@ -167,76 +171,52 @@ export default function SignUp() {
           >
             Gender
           </Text>
-          <TouchableOpacity
+          <Dropdown
             style={{
               padding: 15,
               borderWidth: 1,
               borderRadius: 15,
               borderColor: Colors.GRAY,
               backgroundColor: Colors.WHITE,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
             }}
-            onPress={() => setShowGenderDropdown(true)}
-          >
-            <Text>{gender}</Text>
-            <Ionicons 
-              name={showGenderDropdown ? "chevron-up" : "chevron-down"} 
-              size={20} 
-              color={Colors.GRAY}
-            />
-          </TouchableOpacity>
+            placeholderStyle={{
+              fontFamily: "outfit",
+              fontSize: 16,
+              color: Colors.BLACK,
+            }}
+            selectedTextStyle={{
+              fontFamily: "outfit",
+              fontSize: 16,
+              color: Colors.BLACK,
+            }}
+            inputSearchStyle={{
+              height: 40,
+              fontSize: 16,
+            }}
+            iconStyle={{
+              width: 20,
+              height: 20,
+            }}
+            data={genders}
+            search={false}
+            maxHeight={300}
+            labelField="label"
+            valueField="value"
+            placeholder="Select Gender"
+            value={gender}
+            onChange={item => {
+              setGender(item.value);
+            }}
+            renderRightIcon={() => (
+              <Ionicons 
+                name="chevron-down" 
+                size={20} 
+                color={Colors.GRAY}
+              />
+            )}
+          />
         </View>
       </View>
-
-      {/* Gender Dropdown Modal */}
-      <Modal
-        transparent={true}
-        visible={showGenderDropdown}
-        onRequestClose={() => setShowGenderDropdown(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowGenderDropdown(false)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} />
-        </TouchableWithoutFeedback>
-        <View
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            backgroundColor: Colors.WHITE,
-            borderTopLeftRadius: 15,
-            borderTopRightRadius: 15,
-            padding: 15,
-          }}
-        >
-          {genders.map((item) => (
-            <TouchableOpacity
-              key={item}
-              style={{
-                padding: 15,
-                borderBottomWidth: 1,
-                borderBottomColor: Colors.GRAY,
-              }}
-              onPress={() => {
-                setGender(item);
-                setShowGenderDropdown(false);
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: "outfit",
-                  fontSize: 16,
-                  color: Colors.BLACK,
-                }}
-              >
-                {item}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </Modal>
 
       {/* Email */}
       <View
@@ -265,6 +245,7 @@ export default function SignUp() {
           onChangeText={(value) => setEmail(value)}
           keyboardType="email-address"
           autoCapitalize="none"
+          placeholder="Enter Your E-mail"
         />
       </View>
 
@@ -294,6 +275,7 @@ export default function SignUp() {
             backgroundColor: Colors.WHITE,
           }}
           onChangeText={(value) => setPassword(value)}
+          placeholder="Enter Your Password"
         />
       </View>
 
@@ -323,12 +305,13 @@ export default function SignUp() {
             backgroundColor: Colors.WHITE,
           }}
           onChangeText={(value) => setConfirmPassword(value)}
+          placeholder="Enter Confirm Password"
         />
       </View>
 
       {/* Sign Up Button */}
       <TouchableOpacity
-        onPress={() => router.replace("/personalize/kindOfusers")}
+        onPress={() => router.replace("auth/personalize/kindOfusers")}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -345,7 +328,7 @@ export default function SignUp() {
             textAlign: "center",
           }}
         >
-          Sign Up!
+          Sign Up
         </Text>
       </TouchableOpacity>
 
@@ -369,7 +352,7 @@ export default function SignUp() {
               fontSize: 16,
               color: Colors.WHITE,
             }}
-          >
+            >
             Login
           </Text>
         </TouchableOpacity>

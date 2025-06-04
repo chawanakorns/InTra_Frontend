@@ -15,27 +15,27 @@ import {
 const data = [
   {
     id: "1",
-    label: "Adventurous",
-    image: require("./../../assets/images/adventurous.jpg"),
+    label: "Sightseeing",
+    image: require("../../../assets/images/adventurous.jpg"),
   },
   {
     id: "2",
-    label: "Relaxed",
-    image: require("./../../assets/images/relaxed.jpg"),
+    label: "Nature",
+    image: require("../../../assets/images/relaxed.jpg"),
   },
   {
     id: "3",
-    label: "Cultural",
-    image: require("./../../assets/images/cultural.jpg"),
+    label: "Shopping",
+    image: require("../../../assets/images/cultural.jpg"),
   },
   {
     id: "4",
-    label: "Foodie",
-    image: require("./../../assets/images/foodie.jpg"),
+    label: "Museum",
+    image: require("../../../assets/images/foodie.jpg"),
   },
 ];
 
-export default function kindOfUsers() {
+export default function typeOfactivities() {
   const router = useRouter();
   const navigation = useNavigation();
   const [selected, setSelected] = useState([]); // Array for multiple selections
@@ -78,7 +78,9 @@ export default function kindOfUsers() {
         itinerary plans.
       </Text>
 
-      <Text style={styles.question}>What kind of tourists are you?</Text>
+      <Text style={styles.question}>
+        What types of activities interest you?
+      </Text>
 
       <FlatList
         data={data}
@@ -90,7 +92,7 @@ export default function kindOfUsers() {
       />
 
       <TouchableOpacity
-        onPress={() => router.replace("/personalize/typeOfactivities")}
+        onPress={() => router.replace("./kindOfcuisine")}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -113,7 +115,7 @@ export default function kindOfUsers() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => router.replace("auth/sign-in")}
+        onPress={() => router.replace("./kindOfusers")}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -130,7 +132,7 @@ export default function kindOfUsers() {
             textAlign: "center",
           }}
         >
-          Back
+          Previous
         </Text>
       </TouchableOpacity>
     </View>

@@ -1,19 +1,19 @@
+import { Colors } from "@/constants/Colors";
+import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useRef, useState } from 'react';
 import {
+  Animated,
   Image,
   ImageBackground,
+  Modal,
+  PanResponder,
   SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Modal,
-  Animated,
-  PanResponder,
 } from 'react-native';
-import React, { useRef, useState } from 'react';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { Colors } from "@/constants/Colors";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -62,7 +62,7 @@ export default function ProfileScreen() {
   // Handle menu item press
   const handleMenuItemPress = (action: string) => {
     if (action === 'Settings') {
-      router.push('/profile/settings');
+      router.push('./settings');
       handleCloseModal();
     } else {
       console.log(`Selected: ${action}`);
@@ -145,7 +145,7 @@ export default function ProfileScreen() {
 
         {/* Popup menu as Modal */}
         <Modal
-          animationType="slide"
+          animationType="fade"
           transparent={true}
           visible={menuVisible}
           onRequestClose={handleCloseModal}
@@ -175,7 +175,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuItem}
-                  onPress={() => router.push('/setting')}
+                  onPress={() => router.push('./setting/setting')}
 
                 >
                   <MaterialIcons name="settings" size={24} color="#4B5563" />
@@ -191,16 +191,6 @@ export default function ProfileScreen() {
                     Log out
                   </Text>
                   <MaterialIcons name="chevron-right" size={24} color="#EF4444" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.secondaryButton]}
-                  onPress={handleCloseModal}
-                >
-                  <Text
-                    style={[styles.actionButtonText, styles.secondaryButtonText]}
-                  >
-                    Cancel
-                  </Text>
                 </TouchableOpacity>
               </View>
             </Animated.View>
@@ -223,7 +213,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 50,
     right: 20,
-    backgroundColor: 'rgba(138, 43, 226, 0.8)',
+    backgroundColor: '#6366F1',
     borderRadius: 20,
     width: 40,
     height: 40,
