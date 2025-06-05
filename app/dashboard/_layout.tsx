@@ -62,7 +62,10 @@ export default function RootLayout() {
             href: null,
           }}
         />
+
       </Tabs>
+
+      
     </SafeAreaProvider>
   );
 }
