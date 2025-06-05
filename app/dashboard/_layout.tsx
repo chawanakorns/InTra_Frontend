@@ -63,6 +63,20 @@ export default function RootLayout() {
           }}
         />
 
+        <Tabs.Screen
+      name="home/notification"
+      options={{
+    href: null, // hides it from the tab bar
+  }}
+/>
+
+        <Tabs.Screen
+      name="notification"
+      options={{
+    href: null, // hides it from the tab bar
+  }}
+/>
+
       </Tabs>
 
       

@@ -88,21 +88,21 @@ export default function Dashboard() {
               </View>
             </View>
             <TouchableOpacity onPress={handleBellClick} style={styles.bellIconContainer}>
-              <Animated.View style={{ transform: [{ scale: bellScale }] }}>
-                <Ionicons
-                  name={bellBlink ? "notifications" : "notifications-outline"}
-                  size={36}
-                  color="#6366F1"
-                />
-              </Animated.View>
-              {notificationCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.badgeText}>
-                    {notificationCount > 9 ? "9+" : notificationCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+  <Animated.View style={{ transform: [{ scale: bellScale }] }}>
+    <Ionicons
+      name={bellBlink ? "notifications" : "notifications-outline"}
+      size={36}
+      color="#6366F1"
+    />
+  </Animated.View>
+  {notificationCount > 0 && (
+    <View style={styles.notificationBadge}>
+      <Text style={styles.badgeText}>
+        {notificationCount > 9 ? "9+" : notificationCount}
+      </Text>
+    </View>
+  )}
+</TouchableOpacity>
           </View>
         </View>
 
