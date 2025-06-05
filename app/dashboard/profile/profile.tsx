@@ -62,10 +62,15 @@ export default function ProfileScreen() {
   // Handle menu item press
   const handleMenuItemPress = (action: string) => {
     if (action === 'Settings') {
+      console.log(`Selected: ${action}`);
       router.push('./settings');
       handleCloseModal();
-    } else {
+    } else if (action === 'Edit profile') {
       console.log(`Selected: ${action}`);
+      handleCloseModal();
+    } else if (action === 'Log out') {
+      console.log(`Selected: ${action}`);
+      router.push('/');
       handleCloseModal();
     }
   };
