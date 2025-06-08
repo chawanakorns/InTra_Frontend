@@ -24,7 +24,7 @@ export default function Index() {
           style={styles.button}
           onPress={() => router.push("/auth/sign-in")}
         >
-          <Text style={styles.buttonText}>Let's get started!</Text>
+          <Text style={styles.buttonText}>Let&apos;s get started!</Text>
         </TouchableOpacity>
       </View>
     </View>

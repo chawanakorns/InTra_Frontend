@@ -1,8 +1,10 @@
 import { Colors } from "@/constants/Colors";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useNavigation, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TextInput,
@@ -13,12 +15,89 @@ import {
 export default function SignIn() {
   const navigation = useNavigation();
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     navigation.setOptions({
       headerShown: false,
     });
   }, []);
+
+  const validateForm = () => {
+    if (!email.trim()) {
+      Alert.alert("Error", "Please enter your email address");
+      return false;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert("Error", "Please enter a valid email address");
+      return false;
+    }
+
+    if (!password) {
+      Alert.alert("Error", "Please enter your password");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSignIn = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const API_BASE_URL = "http://10.0.2.2:8000"; // Same as your sign-up endpoint
+
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          username: email.trim().toLowerCase(),
+          password: password,
+        }).toString(),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Successfully logged in
+        // Store the access token securely (you might want to use SecureStore or similar)
+        // For now, we'll just navigate to the next screen
+        router.replace("auth/personalize/kindOfusers");
+      } else {
+        // Handle specific error messages from your FastAPI backend
+        let errorMessage = "Login failed";
+        if (data.detail) {
+          if (typeof data.detail === "string") {
+            errorMessage = data.detail;
+          } else if (Array.isArray(data.detail)) {
+            // Handle validation errors from FastAPI
+            errorMessage = data.detail.map((err) => err.msg).join(", ");
+          }
+        }
+        Alert.alert("Error", errorMessage);
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      Alert.alert(
+        "Error",
+        "Network error. Please check your connection and try again."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <View
       style={{
@@ -40,7 +119,7 @@ export default function SignIn() {
           marginTop: 30,
         }}
       >
-        Let's Sign You In
+        Let&apos;s Sign You In
       </Text>
 
       <Text
@@ -62,7 +141,7 @@ export default function SignIn() {
           marginTop: 5,
         }}
       >
-        You've been missed...
+        You&apos;ve been missed...
       </Text>
 
       <View
@@ -82,8 +161,11 @@ export default function SignIn() {
         </Text>
         <TextInput
           style={style.input}
-          onChangeText={(value) => setEmail(value)}
+          value={email}
+          onChangeText={setEmail}
           placeholder="Enter Email"
+          keyboardType="email-address"
+          autoCapitalize="none"
         />
       </View>
 
@@ -105,22 +187,34 @@ export default function SignIn() {
         <TextInput
           secureTextEntry={true}
           style={style.input}
-          onChangeText={(value) => setPassword(value)}
+          value={password}
+          onChangeText={setPassword}
           placeholder="Enter Password"
         />
       </View>
 
       {/*Sign in Button */}
       <TouchableOpacity
-        onPress={() => router.replace("auth/personalize/kindOfusers")}
+        onPress={handleSignIn}
+        disabled={isLoading}
         style={{
           padding: 15,
           borderRadius: 15,
           marginTop: 40,
           borderWidth: 1,
-          backgroundColor: Colors.PRIMARY,
+          backgroundColor: isLoading ? Colors.GRAY : Colors.PRIMARY,
+          flexDirection: "row",
+          justifyContent: "center",
+          alignItems: "center",
         }}
       >
+        {isLoading && (
+          <ActivityIndicator
+            size="small"
+            color={Colors.WHITE}
+            style={{ marginRight: 10 }}
+          />
+        )}
         <Text
           style={{
             fontFamily: "outfit",
@@ -129,7 +223,7 @@ export default function SignIn() {
             textAlign: "center",
           }}
         >
-          Sign In
+          {isLoading ? "Signing In..." : "Sign In"}
         </Text>
       </TouchableOpacity>
 
@@ -144,7 +238,7 @@ export default function SignIn() {
         <Text
           style={{ fontFamily: "outfit", fontSize: 16, color: Colors.WHITE }}
         >
-          Don't have an account?{" "}
+          Don&apos;t have an account?{" "}
         </Text>
         <TouchableOpacity onPress={() => router.replace("auth/sign-up")}>
           <Text
