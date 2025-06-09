@@ -1,4 +1,5 @@
 import { Colors } from "@/constants/Colors";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -35,22 +36,49 @@ const data = [
   },
 ];
 
-export default function typeOfactivities() {
+export default function TypeOfActivities() {
   const router = useRouter();
   const navigation = useNavigation();
-  const [selected, setSelected] = useState([]); // Array for multiple selections
+  const [selected, setSelected] = useState([]);
 
   useEffect(() => {
     navigation.setOptions({
       headerShown: false,
     });
+
+    const loadSelections = async () => {
+      try {
+        const saved = await AsyncStorage.getItem("preferred_activities");
+        if (saved) {
+          setSelected(JSON.parse(saved));
+        }
+      } catch (error) {
+        console.error("Error loading preferred_activities:", error);
+      }
+    };
+
+    loadSelections();
   }, []);
 
   const toggleSelection = (id) => {
+    console.log("Toggling selection for id:", id); // Debug log
+    let newSelected;
     if (selected.includes(id)) {
-      setSelected(selected.filter((item) => item !== id)); // Deselect if already selected
+      newSelected = selected.filter((item) => item !== id);
     } else {
-      setSelected([...selected, id]); // Add to selection
+      newSelected = [...selected, id];
+    }
+    setSelected(newSelected);
+
+    // Safety check for data.find
+    const label = data.find((item) => item.id === id)?.label;
+    if (label) {
+      AsyncStorage.setItem(
+        "preferred_activities",
+        JSON.stringify(newSelected.map((id) => data.find((item) => item.id === id)?.label || ""))
+      );
+    } else {
+      console.warn(`No matching label found for id: ${id}`);
     }
   };
 
@@ -78,9 +106,7 @@ export default function typeOfactivities() {
         itinerary plans.
       </Text>
 
-      <Text style={styles.question}>
-        What types of activities interest you?
-      </Text>
+      <Text style={styles.question}>What activities do you prefer?</Text>
 
       <FlatList
         data={data}

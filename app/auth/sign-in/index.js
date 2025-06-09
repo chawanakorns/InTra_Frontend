@@ -1,6 +1,7 @@
 import { Colors } from "@/constants/Colors";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 import { useNavigation, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -19,6 +20,7 @@ export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isEmailValid, setIsEmailValid] = useState(true);
 
   useEffect(() => {
     navigation.setOptions({
@@ -26,15 +28,28 @@ export default function SignIn() {
     });
   }, []);
 
+  const validateEmail = (emailText) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(emailText);
+  };
+
+  const handleEmailChange = (text) => {
+    setEmail(text);
+    // Only validate if there's text and it's not empty
+    if (text.trim().length > 0) {
+      setIsEmailValid(validateEmail(text.trim()));
+    } else {
+      setIsEmailValid(true); // Don't show error for empty field
+    }
+  };
+
   const validateForm = () => {
     if (!email.trim()) {
       Alert.alert("Error", "Please enter your email address");
       return false;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!validateEmail(email.trim())) {
       Alert.alert("Error", "Please enter a valid email address");
       return false;
     }
@@ -57,40 +72,43 @@ export default function SignIn() {
     try {
       const API_BASE_URL = "http://10.0.2.2:8000";
 
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+        username: email.trim().toLowerCase(),
+        password,
+      }, {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({
-          username: email.trim().toLowerCase(),
-          password: password,
-        }).toString(),
       });
 
-      const data = await response.json();
+      if (response.status === 200) {
+        const token = response.data.access_token;
+        await AsyncStorage.setItem("access_token", token);
+        console.log("Token saved:", token);
 
-      if (response.ok) {
-        // IMPORTANT: Store the token properly
-        await AsyncStorage.setItem("access_token", data.access_token);
-        console.log("Token stored successfully:", data.access_token); // Debug log
-        router.replace("auth/personalize/kindOfusers");
+        const userResponse = await axios.get(`${API_BASE_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (userResponse.data.has_completed_personalization) {
+          router.replace("dashboard");
+        } else {
+          router.replace("auth/personalize/kindOfusers");
+        }
       } else {
-        // Handle error
         let errorMessage = "Login failed";
-        if (data.detail) {
-          errorMessage =
-            typeof data.detail === "string"
-              ? data.detail
-              : data.detail.map((err) => err.msg).join(", ");
+        if (response.data.detail) {
+          errorMessage = typeof response.data.detail === "string"
+            ? response.data.detail
+            : response.data.detail.map((err) => err.msg).join(", ");
         }
         Alert.alert("Error", errorMessage);
       }
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("Login error:", error.response ? error.response.data : error.message);
       Alert.alert(
         "Error",
-        "Network error. Please check your connection and try again."
+        "Network error or invalid credentials. Please try again."
       );
     } finally {
       setIsLoading(false);
@@ -118,7 +136,7 @@ export default function SignIn() {
           marginTop: 30,
         }}
       >
-        Let&apos;s Sign You In
+        Let's Sign You In
       </Text>
 
       <Text
@@ -140,7 +158,7 @@ export default function SignIn() {
           marginTop: 5,
         }}
       >
-        You&apos;ve been missed...
+        You've been missed...
       </Text>
 
       <View
@@ -159,13 +177,21 @@ export default function SignIn() {
           Email
         </Text>
         <TextInput
-          style={style.input}
+          style={[
+            style.input,
+            !isEmailValid && style.inputError
+          ]}
           value={email}
-          onChangeText={setEmail}
-          placeholder="Enter Email"
+          onChangeText={handleEmailChange}
+          placeholder="Enter Email (e.g., test@email.com)"
           keyboardType="email-address"
           autoCapitalize="none"
         />
+        {!isEmailValid && (
+          <Text style={style.errorText}>
+            Please enter a valid email address
+          </Text>
+        )}
       </View>
 
       <View
@@ -192,7 +218,6 @@ export default function SignIn() {
         />
       </View>
 
-      {/*Sign in Button */}
       <TouchableOpacity
         onPress={handleSignIn}
         disabled={isLoading}
@@ -226,7 +251,6 @@ export default function SignIn() {
         </Text>
       </TouchableOpacity>
 
-      {/*Create Account Button */}
       <View
         style={{
           flexDirection: "row",
@@ -237,7 +261,7 @@ export default function SignIn() {
         <Text
           style={{ fontFamily: "outfit", fontSize: 16, color: Colors.WHITE }}
         >
-          Don&apos;t have an account?{" "}
+          Don't have an account?{" "}
         </Text>
         <TouchableOpacity onPress={() => router.replace("auth/sign-up")}>
           <Text
@@ -262,5 +286,15 @@ const style = StyleSheet.create({
     borderRadius: 15,
     borderColor: Colors.GRAY,
     backgroundColor: Colors.WHITE,
+  },
+  inputError: {
+    borderColor: '#FF0000',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#FF0000',
+    fontSize: 12,
+    fontFamily: 'outfit',
+    marginTop: 5,
   },
 });

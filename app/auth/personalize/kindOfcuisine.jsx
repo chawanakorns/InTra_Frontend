@@ -1,4 +1,5 @@
 import { Colors } from "@/constants/Colors";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -35,22 +36,49 @@ const data = [
   },
 ];
 
-export default function kindOfcuisine() {
+export default function KindOfCuisine() {
   const router = useRouter();
   const navigation = useNavigation();
-  const [selected, setSelected] = useState([]); // Array for multiple selections
+  const [selected, setSelected] = useState([]);
 
   useEffect(() => {
     navigation.setOptions({
       headerShown: false,
     });
+
+    const loadSelections = async () => {
+      try {
+        const saved = await AsyncStorage.getItem("preferred_cuisines");
+        if (saved) {
+          setSelected(JSON.parse(saved));
+        }
+      } catch (error) {
+        console.error("Error loading preferred_cuisines:", error);
+      }
+    };
+
+    loadSelections();
   }, []);
 
   const toggleSelection = (id) => {
+    console.log("Toggling selection for id:", id); // Debug log
+    let newSelected;
     if (selected.includes(id)) {
-      setSelected(selected.filter((item) => item !== id)); // Deselect if already selected
+      newSelected = selected.filter((item) => item !== id);
     } else {
-      setSelected([...selected, id]); // Add to selection
+      newSelected = [...selected, id];
+    }
+    setSelected(newSelected);
+
+    // Safety check for data.find
+    const label = data.find((item) => item.id === id)?.label;
+    if (label) {
+      AsyncStorage.setItem(
+        "preferred_cuisines",
+        JSON.stringify(newSelected.map((id) => data.find((item) => item.id === id)?.label || ""))
+      );
+    } else {
+      console.warn(`No matching label found for id: ${id}`);
     }
   };
 

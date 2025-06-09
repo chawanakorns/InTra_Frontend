@@ -32,7 +32,6 @@ export default function ProfileScreen() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Animation setup for drag-to-close
   const panY = useRef(new Animated.Value(0)).current;
   const panResponder = useRef(
     PanResponder.create({
@@ -60,19 +59,14 @@ export default function ProfileScreen() {
     })
   ).current;
 
-  // Fetch user profile data
   const fetchUserProfile = async () => {
     try {
-      // Debug: List all stored keys
-      const allKeys = await AsyncStorage.getAllKeys();
-      console.log("All stored keys:", allKeys);
-
       const token = await AsyncStorage.getItem("access_token");
-      console.log("Retrieved token:", token); // Debug log
+      console.log("Retrieved token:", token);
 
       if (!token) {
         Alert.alert("Error", "No authentication token found");
-        router.push("/");
+        router.replace("/auth/sign-in");
         return;
       }
 
@@ -84,19 +78,17 @@ export default function ProfileScreen() {
         },
       });
 
-      console.log("Response status:", response.status); // Debug log
-
       if (response.ok) {
         const userData = await response.json();
-        console.log("User data:", userData); // Debug log
+        console.log("User data:", userData);
         setUserProfile(userData);
       } else if (response.status === 401) {
         Alert.alert("Session Expired", "Please log in again");
         await AsyncStorage.removeItem("access_token");
-        router.push("/");
+        router.replace("/auth/sign-in");
       } else {
         const errorData = await response.json();
-        console.log("Error response:", errorData); // Debug log
+        console.log("Error response:", errorData);
         Alert.alert("Error", "Failed to fetch profile data");
       }
     } catch (error) {
@@ -111,7 +103,6 @@ export default function ProfileScreen() {
     fetchUserProfile();
   }, []);
 
-  // Handle closing modal
   const handleCloseModal = () => {
     Animated.timing(panY, {
       toValue: 500,
@@ -123,12 +114,10 @@ export default function ProfileScreen() {
     });
   };
 
-  // Handle logout
   const handleLogout = async () => {
     try {
       const token = await AsyncStorage.getItem("access_token");
       if (token) {
-        // Call logout endpoint
         await fetch("http://10.0.2.2:8000/auth/logout", {
           method: "POST",
           headers: {
@@ -140,17 +129,15 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      // Clear token regardless of API call success
       await AsyncStorage.removeItem("access_token");
-      router.push("/");
+      router.replace("/auth/sign-in");
     }
   };
 
-  // Handle menu item press
   const handleMenuItemPress = (action: string) => {
     if (action === "Settings") {
       console.log(`Selected: ${action}`);
-      router.push("./settings");
+      router.push("/dashboard/profile/setting/setting");
       handleCloseModal();
     } else if (action === "Edit profile") {
       console.log(`Selected: ${action}`);
@@ -171,14 +158,13 @@ export default function ProfileScreen() {
     }
   };
 
-  // Format date for display
-  const formatDate = (dateString?: string) => {
+  const formatDate = (dateString: string | number | Date | undefined): string => {
     if (!dateString) return "Not specified";
     try {
       const date = new Date(dateString);
       return date.toLocaleDateString();
     } catch {
-      return dateString;
+      return String(dateString);
     }
   };
 
@@ -217,22 +203,20 @@ export default function ProfileScreen() {
         }}
         style={styles.backgroundImage}
       >
-        {/* Top right menu button */}
         <TouchableOpacity
           style={styles.menuButton}
           onPress={() => {
-            panY.setValue(0); // Reset animation
+            panY.setValue(0);
             setMenuVisible(true);
           }}
         >
           <Text style={styles.menuDots}>⋯</Text>
         </TouchableOpacity>
 
-        {/* Profile card */}
         <View style={styles.profileCardContainer}>
           <View style={styles.profilePhotoContainer}>
             <Image
-              source={require('../../../assets/images/defaultprofile.png')}
+              source={require("../../../assets/images/defaultprofile.png")}
               style={styles.profilePhoto}
             />
           </View>
@@ -243,8 +227,7 @@ export default function ProfileScreen() {
             <View style={styles.aboutSection}>
               <Text style={styles.sectionTitle}>About Me</Text>
               <View style={styles.aboutTextContainer}>
-                <Text style={styles.aboutText}>
-                </Text>
+                <Text style={styles.aboutText}></Text>
               </View>
             </View>
 
@@ -281,7 +264,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Popup menu as Modal */}
         <Modal
           animationType="fade"
           transparent={true}
@@ -317,7 +299,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuItem}
-                  onPress={() => router.push("./setting/setting")}
+                  onPress={() => handleMenuItemPress("Settings")}
                 >
                   <MaterialIcons name="settings" size={24} color="#4B5563" />
                   <Text style={styles.menuItemText}>Settings</Text>
@@ -486,7 +468,6 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
     flex: 1,
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",

@@ -93,7 +93,7 @@ export default function RecommendationsScreen() {
       }
       
       const data = await response.json();
-      console.log('Received data:', data);
+      console.log('Data fetched');
       setRestaurants(data);
       setFilteredPlaces(data);
       

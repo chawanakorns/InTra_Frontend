@@ -1,5 +1,6 @@
 import { Colors } from "@/constants/Colors";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useNavigation, useRouter } from "expo-router";
 import { useState } from "react";
@@ -7,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -18,7 +20,6 @@ export default function SignUp() {
   const navigation = useNavigation();
   const router = useRouter();
 
-  // Form state
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,6 +28,7 @@ export default function SignUp() {
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isEmailValid, setIsEmailValid] = useState(true);
 
   const genders = [
     { label: "Male", value: "Male" },
@@ -34,6 +36,21 @@ export default function SignUp() {
     { label: "Other", value: "Other" },
     { label: "Prefer not to say", value: "Prefer not to say" },
   ];
+
+  const validateEmail = (emailText) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(emailText);
+  };
+
+  const handleEmailChange = (text) => {
+    setEmail(text);
+    // Only validate if there's text and it's not empty
+    if (text.trim().length > 0) {
+      setIsEmailValid(validateEmail(text.trim()));
+    } else {
+      setIsEmailValid(true); // Don't show error for empty field
+    }
+  };
 
   const onChangeDate = (event, selectedDate) => {
     setShowDatePicker(false);
@@ -55,7 +72,7 @@ export default function SignUp() {
   };
 
   const formatDateForAPI = (date) => {
-    return date.toISOString().split("T")[0]; // YYYY-MM-DD format
+    return date.toISOString().split("T")[0];
   };
 
   const validateForm = () => {
@@ -69,9 +86,7 @@ export default function SignUp() {
       return false;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!validateEmail(email.trim())) {
       Alert.alert("Error", "Please enter a valid email address");
       return false;
     }
@@ -110,7 +125,6 @@ export default function SignUp() {
         password: password,
       };
 
-      // Update this with your actual server URL
       const API_BASE_URL = "http://10.0.2.2:8000";
 
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
@@ -124,20 +138,16 @@ export default function SignUp() {
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert("Success", "Account created successfully!", [
-          {
-            text: "OK",
-            onPress: () => router.replace("auth/personalize/kindOfusers"),
-          },
-        ]);
+        const token = data.access_token; // Extract token from response
+        await AsyncStorage.setItem("access_token", token); // Store token
+        console.log("Token saved:", token);
+        router.replace("auth/personalize/kindOfusers"); // Redirect to personalization
       } else {
-        // Handle specific error messages from your FastAPI backend
         let errorMessage = "Registration failed";
         if (data.detail) {
           if (typeof data.detail === "string") {
             errorMessage = data.detail;
           } else if (Array.isArray(data.detail)) {
-            // Handle validation errors from FastAPI
             errorMessage = data.detail.map((err) => err.msg).join(", ");
           }
         }
@@ -189,7 +199,6 @@ export default function SignUp() {
         Setting up your own account now!
       </Text>
 
-      {/* Full Name */}
       <View
         style={{
           marginTop: 30,
@@ -206,13 +215,7 @@ export default function SignUp() {
           Full Name
         </Text>
         <TextInput
-          style={{
-            padding: 15,
-            borderWidth: 1,
-            borderRadius: 15,
-            borderColor: Colors.GRAY,
-            backgroundColor: Colors.WHITE,
-          }}
+          style={styles.input}
           value={fullName}
           onChangeText={setFullName}
           placeholder="Enter Your Full Name"
@@ -220,7 +223,6 @@ export default function SignUp() {
         />
       </View>
 
-      {/* Date of Birth and Gender */}
       <View
         style={{
           flexDirection: "row",
@@ -228,7 +230,6 @@ export default function SignUp() {
           marginTop: 10,
         }}
       >
-        {/* Date of Birth */}
         <View style={{ width: "48%" }}>
           <Text
             style={{
@@ -265,7 +266,6 @@ export default function SignUp() {
               onChange={onChangeDate}
               maximumDate={new Date()}
               minimumDate={new Date(1900, 0, 1)}
-              // Android specific props for better year selection
               {...(Platform.OS === "android" && {
                 display: "spinner",
               })}
@@ -273,7 +273,6 @@ export default function SignUp() {
           )}
         </View>
 
-        {/* Gender */}
         <View
           style={{
             width: "48%",
@@ -332,7 +331,6 @@ export default function SignUp() {
         </View>
       </View>
 
-      {/* Email */}
       <View
         style={{
           marginTop: 10,
@@ -349,22 +347,23 @@ export default function SignUp() {
           Email Address
         </Text>
         <TextInput
-          style={{
-            padding: 15,
-            borderWidth: 1,
-            borderRadius: 15,
-            borderColor: Colors.GRAY,
-            backgroundColor: Colors.WHITE,
-          }}
+          style={[
+            styles.input,
+            !isEmailValid && styles.inputError
+          ]}
           value={email}
-          onChangeText={setEmail}
+          onChangeText={handleEmailChange}
           keyboardType="email-address"
           autoCapitalize="none"
-          placeholder="Enter Your E-mail"
+          placeholder="Enter Your E-mail (e.g., test@email.com)"
         />
+        {!isEmailValid && (
+          <Text style={styles.errorText}>
+            Please enter a valid email address
+          </Text>
+        )}
       </View>
 
-      {/* Password */}
       <View
         style={{
           marginTop: 10,
@@ -382,20 +381,13 @@ export default function SignUp() {
         </Text>
         <TextInput
           secureTextEntry={true}
-          style={{
-            padding: 15,
-            borderWidth: 1,
-            borderRadius: 15,
-            borderColor: Colors.GRAY,
-            backgroundColor: Colors.WHITE,
-          }}
+          style={styles.input}
           value={password}
           onChangeText={setPassword}
           placeholder="Enter Your Password"
         />
       </View>
 
-      {/* Confirm Password */}
       <View
         style={{
           marginTop: 10,
@@ -413,20 +405,13 @@ export default function SignUp() {
         </Text>
         <TextInput
           secureTextEntry={true}
-          style={{
-            padding: 15,
-            borderWidth: 1,
-            borderRadius: 15,
-            borderColor: Colors.GRAY,
-            backgroundColor: Colors.WHITE,
-          }}
+          style={styles.input}
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           placeholder="Enter Confirm Password"
         />
       </View>
 
-      {/* Sign Up Button */}
       <TouchableOpacity
         onPress={handleSignUp}
         disabled={isLoading}
@@ -460,7 +445,6 @@ export default function SignUp() {
         </Text>
       </TouchableOpacity>
 
-      {/* Login Link */}
       <View
         style={{
           flexDirection: "row",
@@ -488,3 +472,23 @@ export default function SignUp() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  input: {
+    padding: 15,
+    borderWidth: 1,
+    borderRadius: 15,
+    borderColor: Colors.GRAY,
+    backgroundColor: Colors.WHITE,
+  },
+  inputError: {
+    borderColor: '#FF0000',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#FF0000',
+    fontSize: 12,
+    fontFamily: 'outfit',
+    marginTop: 5,
+  },
+});
