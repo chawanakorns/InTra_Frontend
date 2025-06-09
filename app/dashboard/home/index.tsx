@@ -104,7 +104,7 @@ export default function Dashboard() {
             />
             <CategoryItem
               title="Restaurants"
-              image={require("../../../assets/images/attraction.jpg")}
+              image={require("../../../assets/images/restaurant.jpg")}
               onPress={() =>
                 router.push("/dashboard/home/recommendations/restaurants")
               }
@@ -121,12 +121,12 @@ export default function Dashboard() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.popularList}
             renderItem={({ item }) => (
-              <View style={styles.popularItem}>
+                <View style={styles.popularItem}>
                 <CategoryItem
                   title={item.title}
                   image={require("../../../assets/images/attraction.jpg")}
                 />
-              </View>
+                </View>
             )}
             keyExtractor={(item) => item.id}
           />

@@ -1,5 +1,6 @@
 import { Colors } from "@/constants/Colors";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -54,7 +55,7 @@ export default function SignIn() {
     setIsLoading(true);
 
     try {
-      const API_BASE_URL = "http://10.0.2.2:8000"; // Same as your sign-up endpoint
+      const API_BASE_URL = "http://10.0.2.2:8000";
 
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
@@ -70,20 +71,18 @@ export default function SignIn() {
       const data = await response.json();
 
       if (response.ok) {
-        // Successfully logged in
-        // Store the access token securely (you might want to use SecureStore or similar)
-        // For now, we'll just navigate to the next screen
+        // IMPORTANT: Store the token properly
+        await AsyncStorage.setItem("access_token", data.access_token);
+        console.log("Token stored successfully:", data.access_token); // Debug log
         router.replace("auth/personalize/kindOfusers");
       } else {
-        // Handle specific error messages from your FastAPI backend
+        // Handle error
         let errorMessage = "Login failed";
         if (data.detail) {
-          if (typeof data.detail === "string") {
-            errorMessage = data.detail;
-          } else if (Array.isArray(data.detail)) {
-            // Handle validation errors from FastAPI
-            errorMessage = data.detail.map((err) => err.msg).join(", ");
-          }
+          errorMessage =
+            typeof data.detail === "string"
+              ? data.detail
+              : data.detail.map((err) => err.msg).join(", ");
         }
         Alert.alert("Error", errorMessage);
       }
