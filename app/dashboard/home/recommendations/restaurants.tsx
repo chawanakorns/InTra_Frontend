@@ -1,7 +1,7 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { MaterialIcons } from "@expo/vector-icons";
+import * as Location from "expo-location";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -10,17 +10,19 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import RestaurantCard from '../../../../components/RestaurantCard';
+import RestaurantCard from "../../../../components/RestaurantCard";
 
 const BACKEND_API_URL = Platform.select({
-  android: 'http://10.0.2.2:8000/api/recommendations/restaurants',
-  ios: 'http://localhost:8000/api/recommendations/restaurants',
-  default: 'http://localhost:8000/api/recommendations/restaurants'
+  android: "http://10.0.2.2:8000/api/recommendations/restaurants",
+  ios: "http://localhost:8000/api/recommendations/restaurants",
+  default: "http://localhost:8000/api/recommendations/restaurants",
 });
+
+const REQUEST_TIMEOUT = 5000; // 5 seconds timeout
 
 interface Place {
   id: string;
@@ -38,7 +40,7 @@ export default function RecommendationsScreen() {
   const router = useRouter();
   const [restaurants, setRestaurants] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [filteredPlaces, setFilteredPlaces] = useState<Place[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,26 +49,46 @@ export default function RecommendationsScreen() {
   }, []);
 
   useEffect(() => {
-    if (searchQuery.trim() === '') {
+    if (searchQuery.trim() === "") {
       setFilteredPlaces(restaurants);
     } else {
-      const filtered = restaurants.filter(place =>
-        place.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        place.address?.toLowerCase().includes(searchQuery.toLowerCase())
+      const filtered = restaurants.filter(
+        (place) =>
+          place.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          place.address?.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredPlaces(filtered);
     }
   }, [searchQuery, restaurants]);
 
+  // Function to create a timeout promise
+  const createTimeoutPromise = (timeout: number) => {
+    return new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Request timed out after ${timeout / 1000} seconds`));
+      }, timeout);
+    });
+  };
+
+  // Function to fetch with timeout
+  const fetchWithTimeout = async (url: string, options: RequestInit = {}) => {
+    const fetchPromise = fetch(url, options);
+    const timeoutPromise = createTimeoutPromise(REQUEST_TIMEOUT);
+    
+    return Promise.race([fetchPromise, timeoutPromise]) as Promise<Response>;
+  };
+
   const loadPlaces = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (status !== 'granted') {
-        setError('Please enable location permissions to find nearby restaurants');
+
+      if (status !== "granted") {
+        setError(
+          "Please enable location permissions to find nearby restaurants"
+        );
         setLoading(false);
         return;
       }
@@ -74,32 +96,47 @@ export default function RecommendationsScreen() {
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+
+      const apiUrl = `${BACKEND_API_URL}?latitude=${location.coords.latitude}&longitude=${location.coords.longitude}`;
       
-      console.log('Fetching from:', `${BACKEND_API_URL}?latitude=${location.coords.latitude}&longitude=${location.coords.longitude}`);
-      
-      const response = await fetch(
-        `${BACKEND_API_URL}?latitude=${location.coords.latitude}&longitude=${location.coords.longitude}`,
-        {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
+      console.log("Fetching from:", apiUrl);
+
+      const response = await fetchWithTimeout(apiUrl, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      });
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Server returned ${response.status}`);
+        throw new Error(
+          errorData.detail || `Server returned ${response.status}`
+        );
       }
-      
+
       const data = await response.json();
-      console.log('Data fetched');
+      console.log("Data fetched");
       setRestaurants(data);
       setFilteredPlaces(data);
-      
     } catch (error) {
-      console.error('Network Error:', error);
-      setError(`Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error("Network Error:", error);
+      
+      let errorMessage = "Connection failed: ";
+      
+      if (error instanceof Error) {
+        if (error.message.includes("timed out")) {
+          errorMessage += "Request timed out. Please check your connection and try again.";
+        } else if (error.message.includes("Network request failed")) {
+          errorMessage += "Cannot reach server. Please check your connection.";
+        } else {
+          errorMessage += error.message;
+        }
+      } else {
+        errorMessage += "Unknown error";
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -107,12 +144,12 @@ export default function RecommendationsScreen() {
 
   const handlePlacePress = (place: Place) => {
     router.push({
-      pathname: './restaurantDetail',
+      pathname: "./placeDetail",
       params: {
         placeId: place.id,
         placeName: place.name,
-        placeData: JSON.stringify(place)
-      }
+        placeData: JSON.stringify(place),
+      },
     });
   };
 
@@ -128,7 +165,7 @@ export default function RecommendationsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.push('/dashboard/home')}>
+          <TouchableOpacity onPress={() => router.push("/dashboard/home")}>
             <MaterialIcons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Restaurants</Text>
@@ -153,8 +190,8 @@ export default function RecommendationsScreen() {
         </TouchableOpacity>
       </View>
 
-      <TextInput 
-        style={styles.search} 
+      <TextInput
+        style={styles.search}
         placeholder="Search restaurants..."
         placeholderTextColor="#888"
         value={searchQuery}
@@ -170,7 +207,8 @@ export default function RecommendationsScreen() {
         </View>
       ) : (
         <Text style={styles.resultCount}>
-          {filteredPlaces.length} restaurant{filteredPlaces.length !== 1 ? 's' : ''} found
+          {filteredPlaces.length} restaurant
+          {filteredPlaces.length !== 1 ? "s" : ""} found
         </Text>
       )}
 
@@ -183,17 +221,15 @@ export default function RecommendationsScreen() {
         onRefresh={loadPlaces}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          !error
-            ? (
-              <View style={styles.emptyContainer}>
-                <MaterialIcons name="restaurant" size={60} color="#ccc" />
-                <Text style={styles.emptyText}>No restaurants found</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={loadPlaces}>
-                  <Text style={styles.retryButtonText}>Try Again</Text>
-                </TouchableOpacity>
-              </View>
-            )
-            : null
+          !error ? (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="restaurant" size={60} color="#ccc" />
+              <Text style={styles.emptyText}>No restaurants found</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={loadPlaces}>
+                <Text style={styles.retryButtonText}>Try Again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null
         }
       />
     </SafeAreaView>
@@ -201,46 +237,46 @@ export default function RecommendationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F9FAFB', 
-    padding: 16 
+  container: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+    padding: 16,
   },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between',
-    marginBottom: 20 
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
-  headerTitle: { 
-    fontSize: 20, 
-    fontWeight: 'bold',
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
     flex: 1,
     marginLeft: 16,
-    color: '#1F2937'
+    color: "#1F2937",
   },
   refreshButton: {
-    padding: 4
+    padding: 4,
   },
   search: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 14,
     borderRadius: 12,
     marginBottom: 16,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     elevation: 1,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
   },
   resultCount: {
-    color: '#6B7280',
+    color: "#6B7280",
     fontSize: 14,
     marginBottom: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   listContainer: {
     paddingBottom: 20,
@@ -250,48 +286,48 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center'
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
     marginTop: 16,
-    color: '#6B7280',
-    fontSize: 16
+    color: "#6B7280",
+    fontSize: 16,
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 60
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 60,
   },
   emptyText: {
-    color: '#6B7280',
+    color: "#6B7280",
     fontSize: 16,
     marginTop: 16,
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   errorContainer: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: "#FEE2E2",
     padding: 16,
     borderRadius: 8,
     marginBottom: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   errorText: {
-    color: '#B91C1C',
+    color: "#B91C1C",
     fontSize: 14,
     marginBottom: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   retryButton: {
-    backgroundColor: '#6366F1',
+    backgroundColor: "#6366F1",
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8
+    borderRadius: 8,
   },
   retryButtonText: {
-    color: '#fff',
-    fontWeight: '600'
-  }
+    color: "#fff",
+    fontWeight: "600",
+  },
 });
