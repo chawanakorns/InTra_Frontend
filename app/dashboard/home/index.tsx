@@ -1,19 +1,57 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   FlatList,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryItem from "../../../components/CategoryItem";
+import { notificationsData } from "../notifacation/notification";
 
 export default function Dashboard() {
   const currentDate = new Date().toISOString().split("T")[0];
   const router = useRouter();
+
+  const [notificationCount, setNotificationCount] = useState(notificationsData.length);
+  const [bellBlink, setBellBlink] = useState(false);
+
+  const bellScale = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 700,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const handleBellClick = () => {
+    setBellBlink(true);
+    Animated.sequence([
+      Animated.timing(bellScale, {
+        toValue: 1.3,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bellScale, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setBellBlink(false);
+      router.push("/dashboard/notification");
+    });
+  };
 
   const markedDates = {
     [currentDate]: {
@@ -49,6 +87,22 @@ export default function Dashboard() {
                 <Text style={styles.year}>{new Date().getFullYear()}</Text>
               </View>
             </View>
+            <TouchableOpacity onPress={handleBellClick} style={styles.bellIconContainer}>
+  <Animated.View style={{ transform: [{ scale: bellScale }] }}>
+    <Ionicons
+      name={bellBlink ? "notifications" : "notifications-outline"}
+      size={36}
+      color="#6366F1"
+    />
+  </Animated.View>
+  {notificationCount > 0 && (
+    <View style={styles.notificationBadge}>
+      <Text style={styles.badgeText}>
+        {notificationCount > 9 ? "9+" : notificationCount}
+      </Text>
+    </View>
+  )}
+</TouchableOpacity>
           </View>
         </View>
 
@@ -91,46 +145,50 @@ export default function Dashboard() {
             />
           </View>
         </View>
-        {/* Categories */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Categories</Text>
-          <View style={styles.categoriesContainer}>
-            <CategoryItem
-              title="Attractions"
-              image={require("../../../assets/images/attraction.jpg")}
-              onPress={() =>
-                router.push("/dashboard/home/recommendations/attractions")
-              }
-            />
-            <CategoryItem
-              title="Restaurants"
-              image={require("../../../assets/images/attraction.jpg")}
-              onPress={() =>
-                router.push("/dashboard/home/recommendations/restaurants")
-              }
+
+        {/* Fade-in Section */}
+        <Animated.View style={{ opacity: fadeAnim }}>
+          {/* Categories */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Categories</Text>
+            <View style={styles.categoriesContainer}>
+              <CategoryItem
+                title="Attractions"
+                image={require("../../../assets/images/attraction.jpg")}
+                onPress={() =>
+                  router.push("/dashboard/home/recommendations/attractions")
+                }
+              />
+              <CategoryItem
+                title="Restaurants"
+                image={require("../../../assets/images/attraction.jpg")}
+                onPress={() =>
+                  router.push("/dashboard/home/recommendations/restaurants")
+                }
+              />
+            </View>
+          </View>
+
+          {/* Popular Destinations */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Popular Destinations</Text>
+            <FlatList
+              data={popularDestinations}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.popularList}
+              renderItem={({ item }) => (
+                <View style={styles.popularItem}>
+                  <CategoryItem
+                    title={item.title}
+                    image={require("../../../assets/images/attraction.jpg")}
+                  />
+                </View>
+              )}
+              keyExtractor={(item) => item.id}
             />
           </View>
-        </View>
-
-        {/* Popular Destinations */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Popular Destinations</Text>
-          <FlatList
-            data={popularDestinations}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.popularList}
-            renderItem={({ item }) => (
-              <View style={styles.popularItem}>
-                <CategoryItem
-                  title={item.title}
-                  image={require("../../../assets/images/attraction.jpg")}
-                />
-              </View>
-            )}
-            keyExtractor={(item) => item.id}
-          />
-        </View>
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );

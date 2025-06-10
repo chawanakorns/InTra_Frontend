@@ -21,17 +21,15 @@ type Itinerary = {
   name: string;
   startDate: Date;
   endDate: Date;
-  schedule: any[]; // You can replace 'any' with a more specific type if you have one
+  schedule: any[];
 };
 
 export default function CalendarScreen() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [weekDates, setWeekDates] = useState<Date[]>([]);
-  // Itinerary states
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
-  // Modal states
   const [modalVisible, setModalVisible] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedItineraryType, setSelectedItineraryType] = useState("");
@@ -42,8 +40,9 @@ export default function CalendarScreen() {
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [notification, setNotification] = useState({ visible: false, title: "", message: "" });
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Drag to close animation
   const panY = useRef(new Animated.Value(0)).current;
   const panResponder = useRef(
     PanResponder.create({
@@ -134,7 +133,7 @@ export default function CalendarScreen() {
     }
   };
 
-  const handleCreateItinerary = () => {
+  const handleCreateItinerary = async () => {
     const newItinerary = {
       id: Date.now().toString(),
       type: selectedItineraryType,
@@ -147,13 +146,27 @@ export default function CalendarScreen() {
     setItineraries([...itineraries, newItinerary]);
     setSelectedItinerary(newItinerary);
     handleCloseModal();
+
+    // Show success notification
+    setNotification({ visible: true, title: "InTra", message: "Successfully to create itinerary" });
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setTimeout(() => {
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }).start(() => setNotification({ visible: false, title: "", message: "" }));
+      }, 3000);
+    });
   };
 
   const timeSlots = Array.from({ length: 12 }, (_, i) => {
     const hour = 6 + i;
-    return `${hour.toString().padStart(2, "0")}:00 ${
-      hour < 12 ? "AM" : hour === 12 ? "PM" : "PM"
-    }`;
+    return `${hour.toString().padStart(2, "0")}:00 ${hour < 12 ? "AM" : hour === 12 ? "PM" : "PM"}`;
   });
 
   const renderModalContent = () => {
@@ -580,6 +593,27 @@ export default function CalendarScreen() {
         >
           <Text style={styles.addButtonText}>+</Text>
         </TouchableOpacity>
+
+        {notification.visible && (
+          <Animated.View style={[styles.notification, { opacity: fadeAnim }]}>
+            <View style={styles.notificationContent}>
+              <Text style={styles.notificationTitle}>{notification.title}</Text>
+              <Text style={styles.notificationMessage}>{notification.message}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.notificationClose}
+              onPress={() => {
+                Animated.timing(fadeAnim, {
+                  toValue: 0,
+                  duration: 300,
+                  useNativeDriver: true,
+                }).start(() => setNotification({ visible: false, title: "", message: "" }));
+              }}
+            >
+              <Text style={styles.notificationCloseText}>×</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
       </SafeAreaView>
 
       <Modal
@@ -970,5 +1004,40 @@ const styles = StyleSheet.create({
     height: 4,
     backgroundColor: "#E5E7EB",
     borderRadius: 2,
+  },
+  notification: {
+    position: "absolute",
+    top: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    padding: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  notificationContent: {
+    flex: 1,
+  },
+  notificationTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1F2937",
+  },
+  notificationMessage: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  notificationClose: {
+    padding: 5,
+  },
+  notificationCloseText: {
+    fontSize: 18,
+    color: "#9CA3AF",
   },
 });
