@@ -63,27 +63,27 @@ export default function SignIn() {
   };
 
   const handleSignIn = async () => {
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setIsLoading(true);
-
     try {
       const API_BASE_URL = "http://10.0.2.2:8000";
-
-      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
-        username: email.trim().toLowerCase(),
-        password,
-      }, {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+      const response = await axios.post(
+        `${API_BASE_URL}/auth/login`,
+        {
+          username: email.trim().toLowerCase(),
+          password,
         },
-      });
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+        }
+      );
 
       if (response.status === 200) {
         const token = response.data.access_token;
-        await AsyncStorage.setItem("access_token", token);
+        await AsyncStorage.setItem("access_token", token); // Correct key
         console.log("Token saved:", token);
 
         const userResponse = await axios.get(`${API_BASE_URL}/auth/me`, {
@@ -95,17 +95,12 @@ export default function SignIn() {
         } else {
           router.replace("auth/personalize/kindOfusers");
         }
-      } else {
-        let errorMessage = "Login failed";
-        if (response.data.detail) {
-          errorMessage = typeof response.data.detail === "string"
-            ? response.data.detail
-            : response.data.detail.map((err) => err.msg).join(", ");
-        }
-        Alert.alert("Error", errorMessage);
       }
     } catch (error) {
-      console.error("Login error:", error.response ? error.response.data : error.message);
+      console.error(
+        "Login error:",
+        error.response ? error.response.data : error.message
+      );
       Alert.alert(
         "Error",
         "Network error or invalid credentials. Please try again."
@@ -177,10 +172,7 @@ export default function SignIn() {
           Email
         </Text>
         <TextInput
-          style={[
-            style.input,
-            !isEmailValid && style.inputError
-          ]}
+          style={[style.input, !isEmailValid && style.inputError]}
           value={email}
           onChangeText={handleEmailChange}
           placeholder="Enter Email (e.g., test@email.com)"
@@ -288,13 +280,13 @@ const style = StyleSheet.create({
     backgroundColor: Colors.WHITE,
   },
   inputError: {
-    borderColor: '#FF0000',
+    borderColor: "#FF0000",
     borderWidth: 2,
   },
   errorText: {
-    color: '#FF0000',
+    color: "#FF0000",
     fontSize: 12,
-    fontFamily: 'outfit',
+    fontFamily: "outfit",
     marginTop: 5,
   },
 });

@@ -1,4 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -13,7 +14,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
 import AttractionCard from "../../../../components/AttractionCard";
 
 const BACKEND_API_URL = Platform.select({
@@ -21,8 +21,6 @@ const BACKEND_API_URL = Platform.select({
   ios: "http://localhost:8000/api/recommendations/attractions",
   default: "http://localhost:8000/api/recommendations/attractions",
 });
-
-const REQUEST_TIMEOUT = 5000; // 5 seconds timeout
 
 interface Place {
   id: string;
@@ -34,9 +32,10 @@ interface Place {
   isOpen?: boolean;
   types?: string[];
   placeId: string;
+  relevance_score?: number;
 }
 
-export default function RecommendationsScreen() {
+export default function AttractionsScreen() {
   const router = useRouter();
   const [attractions, setAttractions] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +48,7 @@ export default function RecommendationsScreen() {
   }, []);
 
   useEffect(() => {
-    if (searchQuery.trim() === "") {
+    if (!searchQuery.trim()) {
       setFilteredPlaces(attractions);
     } else {
       const filtered = attractions.filter(
@@ -61,82 +60,60 @@ export default function RecommendationsScreen() {
     }
   }, [searchQuery, attractions]);
 
-  // Function to create a timeout promise
-  const createTimeoutPromise = (timeout: number) => {
-    return new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`Request timed out after ${timeout / 1000} seconds`));
-      }, timeout);
-    });
-  };
-
-  // Function to fetch with timeout
-  const fetchWithTimeout = async (url: string, options: RequestInit = {}) => {
-    const fetchPromise = fetch(url, options);
-    const timeoutPromise = createTimeoutPromise(REQUEST_TIMEOUT);
-    
-    return Promise.race([fetchPromise, timeoutPromise]) as Promise<Response>;
-  };
-
   const loadPlaces = async () => {
     try {
       setLoading(true);
       setError(null);
 
       const { status } = await Location.requestForegroundPermissionsAsync();
-
       if (status !== "granted") {
-        setError(
-          "Please enable location permissions to find nearby attractions"
-        );
-        setLoading(false);
+        setError("Please enable location permissions to find nearby attractions");
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const apiUrl = `${BACKEND_API_URL}?latitude=${location.coords.latitude}&longitude=${location.coords.longitude}`;
-      
-      console.log("Fetching from:", apiUrl);
+      console.log("Fetching attractions from:", apiUrl);
 
-      const response = await fetchWithTimeout(apiUrl, {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-      });
+      const token = await AsyncStorage.getItem('access_token');
+      console.log("Auth token found:", token ? "Yes" : "No");
+
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+        console.log("Added Authorization header for attractions");
+      }
+
+      const response = await fetch(apiUrl, { method: 'GET', headers });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.detail || `Server returned ${response.status}`
-        );
+        throw new Error(errorData.detail || `Server returned ${response.status}`);
       }
 
       const data = await response.json();
-      console.log("Data fetched");
+      console.log("Attraction data fetched:", data.length, "places found");
+
+      if (!Array.isArray(data)) {
+        throw new Error("Received non-array data from server");
+      }
+
       setAttractions(data);
       setFilteredPlaces(data);
-    } catch (error) {
-      console.error("Network Error:", error);
-      
-      let errorMessage = "Connection failed: ";
-      
-      if (error instanceof Error) {
-        if (error.message.includes("timed out")) {
-          errorMessage += "Request timed out. Please check your connection and try again.";
-        } else if (error.message.includes("Network request failed")) {
-          errorMessage += "Cannot reach server. Please check your connection.";
-        } else {
-          errorMessage += error.message;
-        }
-      } else {
-        errorMessage += "Unknown error";
+
+    } catch (err) {
+      console.error("Error fetching attractions:", err);
+      let message = "Failed to load attractions.";
+
+      if (err instanceof Error) {
+        message += ` ${err.message}`;
       }
-      
-      setError(errorMessage);
+
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -164,12 +141,6 @@ export default function RecommendationsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.push("/dashboard/home")}>
-            <MaterialIcons name="arrow-back" size={24} color="#1F2937" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Attractions</Text>
-        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#6366F1" />
           <Text style={styles.loadingText}>Finding nearby attractions...</Text>
@@ -193,22 +164,22 @@ export default function RecommendationsScreen() {
       <TextInput
         style={styles.search}
         placeholder="Search attractions..."
-        placeholderTextColor="#888"
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
 
-      {error ? (
+      {error && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadPlaces}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      ) : (
+      )}
+
+      {!error && (
         <Text style={styles.resultCount}>
-          {filteredPlaces.length} attraction
-          {filteredPlaces.length !== 1 ? "s" : ""} found
+          {filteredPlaces.length} attraction{filteredPlaces.length !== 1 ? "s" : ""}
         </Text>
       )}
 
@@ -217,14 +188,11 @@ export default function RecommendationsScreen() {
         keyExtractor={(item) => item.id}
         renderItem={renderPlace}
         contentContainerStyle={styles.listContainer}
-        refreshing={loading}
-        onRefresh={loadPlaces}
-        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           !error ? (
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="attractions" size={60} color="#ccc" />
-              <Text style={styles.emptyText}>No Attractions found</Text>
+              <MaterialIcons name="place" size={60} color="#ccc" />
+              <Text style={styles.emptyText}>No attractions found</Text>
               <TouchableOpacity style={styles.retryButton} onPress={loadPlaces}>
                 <Text style={styles.retryButtonText}>Try Again</Text>
               </TouchableOpacity>
