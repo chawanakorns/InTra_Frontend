@@ -1,18 +1,27 @@
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { useEffect, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Animated,
-  Modal,
   PanResponder,
+  Platform,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ItineraryModal from "../../../components/ItineraryModal";
+
+const BACKEND_API_URL = Platform.select({
+  android: "http://10.0.2.2:8000/api/itineraries",
+  ios: "http://localhost:8000/api/itineraries",
+  default: "http://localhost:8000/api/itineraries",
+});
 
 type Itinerary = {
   id: string;
@@ -21,46 +30,43 @@ type Itinerary = {
   name: string;
   startDate: Date;
   endDate: Date;
-  schedule: any[]; // You can replace 'any' with a more specific type if you have one
+  schedule: any[];
 };
 
 export default function CalendarScreen() {
+  const router = useRouter();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [weekDates, setWeekDates] = useState<Date[]>([]);
-  // Itinerary states
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
-  const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
-  // Modal states
+  const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(
+    null
+  );
   const [modalVisible, setModalVisible] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
-  const [selectedItineraryType, setSelectedItineraryType] = useState("");
-  const [selectedBudget, setSelectedBudget] = useState("");
-  const [itineraryName, setItineraryName] = useState("");
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Drag to close animation
   const panY = useRef(new Animated.Value(0)).current;
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gestureState) => {
+      onPanResponderMove: (_: any, gestureState: { dy: number }) => {
         if (gestureState.dy > 0) {
           panY.setValue(gestureState.dy);
         }
       },
-      onPanResponderRelease: (_, gestureState) => {
+      onPanResponderRelease: (
+        _: any,
+        gestureState: { dy: number; vy: number }
+      ) => {
         if (gestureState.dy > 100 || gestureState.vy > 0.5) {
           Animated.timing(panY, {
             toValue: 500,
             duration: 200,
             useNativeDriver: true,
-          }).start(handleCloseModal);
+          }).start(() => setModalVisible(false));
         } else {
           Animated.spring(panY, {
             toValue: 0,
@@ -71,22 +77,138 @@ export default function CalendarScreen() {
     })
   ).current;
 
+  const resetModal = () => {
+    panY.setValue(0);
+  };
+
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
+
     const today = new Date();
     const dayOfWeek = today.getDay();
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - dayOfWeek);
+
     const initialWeekDates = Array.from({ length: 7 }, (_, i) => {
       const date = new Date(startOfWeek);
       date.setDate(startOfWeek.getDate() + i);
       return date;
     });
+
     setWeekDates(initialWeekDates);
     return () => clearInterval(timer);
   }, []);
+
+  const fetchItineraries = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token) {
+        throw new Error("Authentication token not found");
+      }
+
+      const response = await fetch(`${BACKEND_API_URL}/`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Server returned ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!Array.isArray(data)) {
+        throw new Error("Invalid response format - expected array");
+      }
+
+      const fetchedItineraries = data.map((it: any) => ({
+        id: it.id.toString(),
+        type: it.type,
+        budget: it.budget,
+        name: it.name,
+        startDate: new Date(it.start_date),
+        endDate: new Date(it.end_date),
+        schedule: it.schedule || [],
+      }));
+
+      setItineraries(fetchedItineraries);
+
+      if (fetchedItineraries.length > 0 && !selectedItinerary) {
+        setSelectedItinerary(fetchedItineraries[0]);
+      }
+    } catch (err) {
+      console.error("Error fetching itineraries:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load itineraries"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchItineraries();
+  }, []);
+
+  const handleCreateItinerary = async (newItinerary: Itinerary) => {
+    try {
+      console.log("[Create] Starting itinerary creation");
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token) {
+        throw new Error("Authentication token not found");
+      }
+
+      const response = await fetch(BACKEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          type: newItinerary.type,
+          budget: newItinerary.budget,
+          name: newItinerary.name,
+          start_date: newItinerary.startDate.toISOString().split("T")[0],
+          end_date: newItinerary.endDate.toISOString().split("T")[0],
+        }),
+      });
+
+      console.log(`[Create] Response status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to create itinerary");
+      }
+
+      const createdItinerary = await response.json();
+      console.log("[Create] Created itinerary:", createdItinerary);
+
+      const formattedItinerary = {
+        ...newItinerary,
+        id: createdItinerary.id.toString(),
+      };
+
+      setItineraries([...itineraries, formattedItinerary]);
+      setSelectedItinerary(formattedItinerary);
+      setModalVisible(false);
+    } catch (err) {
+      console.error("[Error] Create itinerary failed:", err);
+      Alert.alert(
+        "Error",
+        err instanceof Error ? err.message : "Failed to create itinerary"
+      );
+    }
+  };
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("en-US", {
@@ -96,57 +218,11 @@ export default function CalendarScreen() {
     });
   };
 
-  const handleAddButtonPress = () => {
-    Animated.timing(panY, {
-      toValue: 0,
-      duration: 0,
-      useNativeDriver: true,
-    }).start(() => {
-      setModalVisible(true);
-      setCurrentStep(1);
-    });
-  };
-
-  const handleCloseModal = () => {
-    setModalVisible(false);
-    setCurrentStep(1);
-    setSelectedItineraryType("");
-    setSelectedBudget("");
-    setItineraryName("");
-    setStartDate(new Date());
-    setEndDate(new Date());
-    Animated.timing(panY, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleNext = () => {
-    if (currentStep < 3) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleCreateItinerary = () => {
-    const newItinerary = {
-      id: Date.now().toString(),
-      type: selectedItineraryType,
-      budget: selectedBudget,
-      name: itineraryName,
-      startDate,
-      endDate,
-      schedule: [],
-    };
-    setItineraries([...itineraries, newItinerary]);
-    setSelectedItinerary(newItinerary);
-    handleCloseModal();
+  const getTimeOfDay = (date: Date) => {
+    const hours = date.getHours();
+    if (hours < 12) return "Morning";
+    if (hours < 17) return "Afternoon";
+    return "Evening";
   };
 
   const timeSlots = Array.from({ length: 12 }, (_, i) => {
@@ -156,408 +232,137 @@ export default function CalendarScreen() {
     }`;
   });
 
-  const renderModalContent = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          <View style={styles.modalContent}>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressSegment, styles.activeProgress]} />
-              <View style={styles.progressSegment} />
-              <View style={styles.progressSegment} />
-            </View>
-            <Text style={styles.modalTitle}>Select ways to create</Text>
-            <TouchableOpacity
-              style={[
-                styles.optionCard,
-                selectedItineraryType === "auto" && styles.selectedOption,
-              ]}
-              onPress={() => setSelectedItineraryType("auto")}
-            >
-              <View
-                style={[
-                  styles.optionIcon,
-                  {
-                    backgroundColor:
-                      selectedItineraryType === "auto" ? "#1F2937" : "#9CA3AF",
-                  },
-                ]}
-              />
-              <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>Auto-generated Itinerary</Text>
-                <Text style={styles.optionDescription}>
-                  AI-powered solution that creates a tailored itinerary — come
-                  with completed itinerary that based on your personalized
-                  information.
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.optionCard,
-                selectedItineraryType === "custom" && styles.selectedOption,
-              ]}
-              onPress={() => setSelectedItineraryType("custom")}
-            >
-              <View
-                style={[
-                  styles.optionIcon,
-                  {
-                    backgroundColor:
-                      selectedItineraryType === "custom"
-                        ? "#1F2937"
-                        : "#9CA3AF",
-                  },
-                ]}
-              />
-              <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>Custom Itinerary</Text>
-                <Text style={styles.optionDescription}>
-                  Craft your own adventure with a custom itinerary — come with
-                  an empty schedule, you can choose your preferred cuisine and
-                  dining experiences freely.
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                !selectedItineraryType && styles.disabledButton,
-              ]}
-              onPress={handleNext}
-              disabled={!selectedItineraryType}
-            >
-              <Text style={styles.actionButtonText}>Next</Text>
-            </TouchableOpacity>
-          </View>
-        );
-      case 2:
-        return (
-          <View style={styles.modalContent}>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressSegment, styles.activeProgress]} />
-              <View style={[styles.progressSegment, styles.activeProgress]} />
-              <View style={styles.progressSegment} />
-            </View>
-            <Text style={styles.modalTitle}>Select a budget</Text>
-            <TouchableOpacity
-              style={[
-                styles.optionCard,
-                selectedBudget === "budget-friendly" && styles.selectedOption,
-              ]}
-              onPress={() => setSelectedBudget("budget-friendly")}
-            >
-              <View
-                style={[
-                  styles.optionIcon,
-                  {
-                    backgroundColor:
-                      selectedBudget === "budget-friendly"
-                        ? "#1F2937"
-                        : "#9CA3AF",
-                  },
-                ]}
-              />
-              <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>
-                  Budget-friendly{" "}
-                  <Text style={styles.budgetRange}>(500-1,000 THB)</Text>
-                </Text>
-                <Text style={styles.optionDescription}>
-                  Affordable local eats and free or low-cost attractions —
-                  perfect for stretching your budget while still exploring the
-                  best sights.
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.optionCard,
-                selectedBudget === "comfort" && styles.selectedOption,
-              ]}
-              onPress={() => setSelectedBudget("comfort")}
-            >
-              <View
-                style={[
-                  styles.optionIcon,
-                  {
-                    backgroundColor:
-                      selectedBudget === "comfort" ? "#1F2937" : "#9CA3AF",
-                  },
-                ]}
-              />
-              <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>
-                  Comfort & Value{" "}
-                  <Text style={styles.budgetRange}>(1,500-2,500 THB)</Text>
-                </Text>
-                <Text style={styles.optionDescription}>
-                  Well-rated restaurants and popular attractions that balance
-                  quality and price — offering great experiences without
-                  breaking the bank.
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.optionCard,
-                selectedBudget === "premium" && styles.selectedOption,
-              ]}
-              onPress={() => setSelectedBudget("premium")}
-            >
-              <View
-                style={[
-                  styles.optionIcon,
-                  {
-                    backgroundColor:
-                      selectedBudget === "premium" ? "#1F2937" : "#9CA3AF",
-                  },
-                ]}
-              />
-              <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>
-                  Premium & Luxury{" "}
-                  <Text style={styles.budgetRange}>(3,500-5,000+ THB)</Text>
-                </Text>
-                <Text style={styles.optionDescription}>
-                  High-end dining, exclusive experiences, and premium
-                  attractions for travelers seeking the finest and most
-                  indulgent options.
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  !selectedBudget && styles.disabledButton,
-                ]}
-                onPress={handleNext}
-                disabled={!selectedBudget}
-              >
-                <Text style={styles.actionButtonText}>Next</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.secondaryButton]}
-                onPress={handlePrevious}
-              >
-                <Text
-                  style={[styles.actionButtonText, styles.secondaryButtonText]}
-                >
-                  Previous
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        );
-      case 3:
-        return (
-          <View style={styles.modalContent}>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressSegment, styles.activeProgress]} />
-              <View style={[styles.progressSegment, styles.activeProgress]} />
-              <View style={[styles.progressSegment, styles.activeProgress]} />
-            </View>
-            <Text style={styles.modalTitle}>Create new itinerary</Text>
-            <Text style={styles.modalSubtitle}>
-              Build an itinerary and map out your upcoming travel plans
-            </Text>
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Name</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="e.g., Museum tour, Food & Drink"
-                value={itineraryName}
-                onChangeText={setItineraryName}
-              />
-            </View>
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Trip dates</Text>
-              <View style={styles.dateInputContainer}>
-                <TouchableOpacity
-                  style={[styles.textInput, styles.dateInput]}
-                  onPress={() => setShowStartDatePicker(true)}
-                >
-                  <Text style={styles.dateText}>
-                    {startDate.toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </Text>
-                </TouchableOpacity>
-                {showStartDatePicker && (
-                  <DateTimePicker
-                    value={startDate}
-                    mode="date"
-                    display="default"
-                    onChange={(event, selectedDate) => {
-                      setShowStartDatePicker(false);
-                      if (selectedDate) setStartDate(selectedDate);
-                    }}
-                  />
-                )}
-                <TouchableOpacity
-                  style={[styles.textInput, styles.dateInput]}
-                  onPress={() => setShowEndDatePicker(true)}
-                >
-                  <Text style={styles.dateText}>
-                    {endDate.toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </Text>
-                </TouchableOpacity>
-                {showEndDatePicker && (
-                  <DateTimePicker
-                    value={endDate}
-                    mode="date"
-                    display="default"
-                    onChange={(event, selectedDate) => {
-                      setShowEndDatePicker(false);
-                      if (selectedDate) setEndDate(selectedDate);
-                    }}
-                  />
-                )}
-              </View>
-            </View>
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  (!itineraryName || !startDate || !endDate) &&
-                    styles.disabledButton,
-                ]}
-                onPress={handleCreateItinerary}
-                disabled={!itineraryName || !startDate || !endDate}
-              >
-                <Text style={styles.actionButtonText}>Create Itinerary</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.secondaryButton]}
-                onPress={handlePrevious}
-              >
-                <Text
-                  style={[styles.actionButtonText, styles.secondaryButtonText]}
-                >
-                  Previous
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        );
-      default:
-        return null;
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#6366F1" />
+          <Text style={styles.loadingText}>Loading your itineraries...</Text>
+        </View>
+      );
     }
-  };
 
-  const renderContent = () => (
-    <>
-      <View style={styles.header}>
-        <Text style={styles.greeting}>
-          Good {getTimeOfDay(currentTime)}, User
-        </Text>
-        <View style={styles.headerRow}>
-          <Text style={styles.date}>{formatDate(selectedDate)}</Text>
-          {itineraries.length > 0 && (
-            <View style={styles.itineraryPicker}>
-              <Dropdown
-                style={styles.dropdown}
-                placeholderStyle={styles.placeholderStyle}
-                selectedTextStyle={styles.selectedTextStyle}
-                iconStyle={styles.iconStyle}
-                data={itineraries.map((it) => ({
-                  label: it.name || "Itinerary",
-                  value: it.id,
-                }))}
-                maxHeight={300}
-                labelField="label"
-                valueField="value"
-                placeholder="Select Itinerary"
-                value={selectedItinerary?.id}
-                onFocus={() => setIsDropdownOpen(true)}
-                onBlur={() => setIsDropdownOpen(false)}
-                onChange={(item) => {
-                  const itinerary = itineraries.find(
-                    (it) => it.id === item.value
-                  );
-                  setSelectedItinerary(itinerary ?? null);
-                }}
-                renderRightIcon={() => (
-                  <Text
-                    style={[
-                      styles.dropdownArrow,
-                      isDropdownOpen && styles.dropdownArrowOpen,
-                    ]}
-                  >
-                    ▼
-                  </Text>
-                )}
-              />
-            </View>
-          )}
+    if (error) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchItineraries}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
         </View>
-      </View>
+      );
+    }
 
-      <View style={styles.calendarContainer}>
-        <View style={styles.dayHeaders}>
-          {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => (
-            <View key={day} style={styles.dayHeaderCell}>
-              <Text style={styles.dayHeaderText}>{day}</Text>
-            </View>
-          ))}
-        </View>
-        <View style={styles.datesRow}>
-          {weekDates.map((date, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.dateCell,
-                date.toDateString() === selectedDate.toDateString() &&
-                  styles.selectedDateCell,
-              ]}
-              onPress={() => setSelectedDate(date)}
-            >
-              <Text
-                style={[
-                  styles.dateNumber,
-                  date.toDateString() === selectedDate.toDateString() &&
-                    styles.selectedDateNumber,
-                ]}
-              >
-                {date.getDate()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {selectedItinerary ? (
-        <View style={styles.timelineContainer}>
-          <View style={styles.timelineHeader}>
-            <Text style={styles.timelineTitle}>Timeline</Text>
-          </View>
-          {timeSlots.map((time, index) => (
-            <View key={time} style={styles.timelineRow}>
-              <Text style={styles.timelineTime}>{time}</Text>
-              <View style={styles.timelineDivider}>
-                {index !== timeSlots.length - 1 && (
-                  <View style={styles.timelineLine} />
-                )}
+    return (
+      <>
+        <View style={styles.header}>
+          <Text style={styles.greeting}>
+            Good {getTimeOfDay(currentTime)}, User
+          </Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.date}>{formatDate(selectedDate)}</Text>
+            {itineraries.length > 0 && (
+              <View style={styles.itineraryPicker}>
+                <Dropdown
+                  style={styles.dropdown}
+                  placeholderStyle={styles.placeholderStyle}
+                  selectedTextStyle={styles.selectedTextStyle}
+                  iconStyle={styles.iconStyle}
+                  data={itineraries.map((it) => ({
+                    label: it.name || "Itinerary",
+                    value: it.id,
+                  }))}
+                  maxHeight={300}
+                  labelField="label"
+                  valueField="value"
+                  placeholder="Select Itinerary"
+                  value={selectedItinerary?.id}
+                  onFocus={() => setIsDropdownOpen(true)}
+                  onBlur={() => setIsDropdownOpen(false)}
+                  onChange={(item) => {
+                    const itinerary = itineraries.find(
+                      (it) => it.id === item.value
+                    );
+                    setSelectedItinerary(itinerary ?? null);
+                  }}
+                  renderRightIcon={() => (
+                    <Text
+                      style={[
+                        styles.dropdownArrow,
+                        isDropdownOpen && styles.dropdownArrowOpen,
+                      ]}
+                    >
+                      ▼
+                    </Text>
+                  )}
+                />
               </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.calendarContainer}>
+          <View style={styles.dayHeaders}>
+            {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => (
+              <View key={day} style={styles.dayHeaderCell}>
+                <Text style={styles.dayHeaderText}>{day}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.datesRow}>
+            {weekDates.map((date, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.dateCell,
+                  date.toDateString() === selectedDate.toDateString() &&
+                    styles.selectedDateCell,
+                ]}
+                onPress={() => setSelectedDate(date)}
+              >
+                <Text
+                  style={[
+                    styles.dateNumber,
+                    date.toDateString() === selectedDate.toDateString() &&
+                      styles.selectedDateNumber,
+                  ]}
+                >
+                  {date.getDate()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {selectedItinerary ? (
+          <View style={styles.timelineContainer}>
+            <View style={styles.timelineHeader}>
+              <Text style={styles.timelineTitle}>Timeline</Text>
             </View>
-          ))}
-        </View>
-      ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>It is empty now.</Text>
-          <Text style={styles.emptySubtitle}>Enter your first</Text>
-          <Text style={styles.emptySubtitle}>itinerary</Text>
-        </View>
-      )}
-    </>
-  );
+            {timeSlots.map((time, index) => (
+              <View key={time} style={styles.timelineRow}>
+                <Text style={styles.timelineTime}>{time}</Text>
+                <View style={styles.timelineDivider}>
+                  {index !== timeSlots.length - 1 && (
+                    <View style={styles.timelineLine} />
+                  )}
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>It is empty now.</Text>
+            <Text style={styles.emptySubtitle}>Enter your first</Text>
+            <Text style={styles.emptySubtitle}>itinerary</Text>
+          </View>
+        )}
+      </>
+    );
+  };
 
   return (
     <View style={styles.screenContainer}>
@@ -576,53 +381,26 @@ export default function CalendarScreen() {
 
         <TouchableOpacity
           style={styles.addButton}
-          onPress={handleAddButtonPress}
+          onPress={() => {
+            resetModal();
+            setModalVisible(true);
+          }}
+          disabled={isLoading}
         >
           <Text style={styles.addButtonText}>+</Text>
         </TouchableOpacity>
       </SafeAreaView>
 
-      <Modal
-        animationType="fade"
-        transparent={true}
+      <ItineraryModal
         visible={modalVisible}
-        onRequestClose={handleCloseModal}
-        statusBarTranslucent={true}
-      >
-        <View style={styles.modalOverlay} {...panResponder.panHandlers}>
-          <Animated.View
-            style={[
-              styles.modalContainer,
-              {
-                transform: [{ translateY: panY }],
-                height:
-                  currentStep === 1 ? "60%" : currentStep === 2 ? "85%" : "70%",
-              },
-            ]}
-          >
-            <View style={styles.dragHandle}>
-              <View style={styles.dragIndicator} />
-            </View>
-            <ScrollView
-              style={styles.modalScrollView}
-              contentContainerStyle={styles.modalContentContainer}
-              showsVerticalScrollIndicator={false}
-              bounces={false}
-            >
-              {renderModalContent()}
-            </ScrollView>
-          </Animated.View>
-        </View>
-      </Modal>
+        onClose={() => setModalVisible(false)}
+        onCreateItinerary={handleCreateItinerary}
+        panY={panY}
+        panResponder={panResponder}
+        token={""}
+      />
     </View>
   );
-}
-
-function getTimeOfDay(date: Date) {
-  const hours = date.getHours();
-  if (hours < 12) return "Morning";
-  if (hours < 17) return "Afternoon";
-  return "Evening";
 }
 
 const styles = StyleSheet.create({
@@ -639,8 +417,41 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
     minHeight: "100%",
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    color: "#6B7280",
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  errorText: {
+    color: "#EF4444",
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: "#6366F1",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "bold",
+  },
   header: {
     marginBottom: 30,
+    paddingTop: 40,
   },
   headerRow: {
     flexDirection: "row",
@@ -806,169 +617,5 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "bold",
     marginBottom: 2,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContainer: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: 700,
-    width: "100%",
-  },
-  modalContentContainer: {
-    paddingBottom: 30,
-    minHeight: "100%",
-  },
-  modalScrollView: {
-    flex: 1,
-  },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    padding: 20,
-    paddingTop: 0,
-    flex: 1,
-    minHeight: "100%",
-    justifyContent: "space-between",
-  },
-  progressBar: {
-    flexDirection: "row",
-    marginBottom: 30,
-    gap: 8,
-  },
-  progressSegment: {
-    flex: 1,
-    height: 3,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 2,
-  },
-  activeProgress: {
-    backgroundColor: "#6366F1",
-  },
-  modalTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1F2937",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  modalSubtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-    textAlign: "center",
-    marginBottom: 30,
-    opacity: 0.9,
-  },
-  optionCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  selectedOption: {
-    borderWidth: 2,
-    borderColor: "#6366F1",
-  },
-  optionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 16,
-    marginTop: 4,
-  },
-  optionText: {
-    flex: 1,
-  },
-  optionTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1F2937",
-    marginBottom: 8,
-  },
-  budgetRange: {
-    fontWeight: "normal",
-    fontSize: 14,
-    color: "#6B7280",
-  },
-  optionDescription: {
-    fontSize: 14,
-    color: "#6B7280",
-    lineHeight: 20,
-  },
-  actionButton: {
-    backgroundColor: "#6366F1",
-    borderRadius: 25,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  disabledButton: {
-    backgroundColor: "#E5E7EB",
-  },
-  secondaryButton: {
-    backgroundColor: "transparent",
-    borderWidth: 2,
-    borderColor: "#6366F1",
-  },
-  actionButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  secondaryButtonText: {
-    color: "#6366F1",
-  },
-  buttonContainer: {
-    marginTop: 20,
-    marginBottom: 20,
-  },
-  formGroup: {
-    marginBottom: 24,
-  },
-  formLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 8,
-  },
-  textInput: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: "#1F2937",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  dateInputContainer: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  dateInput: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  dateText: {
-    fontSize: 16,
-    color: "#1F2937",
-  },
-  dragHandle: {
-    width: "100%",
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  dragIndicator: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 2,
   },
 });
