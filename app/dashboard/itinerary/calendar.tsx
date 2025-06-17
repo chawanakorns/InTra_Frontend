@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { isSameDay, parse } from 'date-fns';
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -23,6 +24,18 @@ const BACKEND_API_URL = Platform.select({
   default: "http://localhost:8000/api/itineraries",
 });
 
+type ScheduleItem = {
+  place_id: string;
+  place_name: string;
+  place_type?: string;
+  place_address?: string;
+  place_rating?: number;
+  place_image?: string;
+  scheduled_date: string; // Keep as string, format: "YYYY-MM-DD"
+  scheduled_time: string;
+  duration_minutes: number;
+};
+
 type Itinerary = {
   id: string;
   type: string;
@@ -30,7 +43,7 @@ type Itinerary = {
   name: string;
   startDate: Date;
   endDate: Date;
-  schedule: any[];
+  schedule_items: ScheduleItem[];
 };
 
 export default function CalendarScreen() {
@@ -139,7 +152,7 @@ export default function CalendarScreen() {
         name: it.name,
         startDate: new Date(it.start_date),
         endDate: new Date(it.end_date),
-        schedule: it.schedule || [],
+        schedule_items: it.schedule_items || [], // Ensure schedule_items is always an array
       }));
 
       setItineraries(fetchedItineraries);
@@ -197,6 +210,30 @@ export default function CalendarScreen() {
       hour < 12 ? "AM" : hour === 12 ? "PM" : "PM"
     }`;
   });
+
+  const getScheduleItemsForTimeSlot = (timeSlot: string): ScheduleItem[] => {
+    if (!selectedItinerary) return [];
+  
+    const [time, ampm] = timeSlot.split(' ');
+    const [hourStr] = time.split(':');
+    let hour = parseInt(hourStr, 10);
+  
+    if (ampm === 'PM' && hour !== 12) {
+      hour += 12;
+    } else if (ampm === 'AM' && hour === 12) {
+      hour = 0; // Midnight
+    }
+  
+    return selectedItinerary.schedule_items.filter(item => {
+      const itemDate = parse(item.scheduled_date, 'yyyy-MM-dd', new Date());
+      if (!isSameDay(itemDate, selectedDate)) {
+        return false;
+      }
+  
+      const [itemHour] = item.scheduled_time.split(':').map(Number);
+      return itemHour === hour;
+    });
+  };
 
   const renderContent = () => {
     if (isLoading) {
@@ -301,7 +338,7 @@ export default function CalendarScreen() {
                           styles.dateCell,
                           date.toDateString() === selectedDate.toDateString() &&
                           styles.selectedDateCell,
-                          isWithinItinerary ? styles.itineraryDateCell : null, // Add this line
+                          isWithinItinerary ? styles.itineraryDateCell : null,
                       ]}
                       onPress={() => setSelectedDate(date)}
                   >
@@ -310,7 +347,7 @@ export default function CalendarScreen() {
                               styles.dateNumber,
                               date.toDateString() === selectedDate.toDateString() &&
                               styles.selectedDateNumber,
-                              isWithinItinerary ? styles.itineraryDateNumber : null, //Add this line
+                              isWithinItinerary ? styles.itineraryDateNumber : null,
                           ]}
                       >
                           {date.getDate()}
@@ -326,16 +363,48 @@ export default function CalendarScreen() {
             <View style={styles.timelineHeader}>
               <Text style={styles.timelineTitle}>Timeline</Text>
             </View>
-            {timeSlots.map((time, index) => (
-              <View key={time} style={styles.timelineRow}>
-                <Text style={styles.timelineTime}>{time}</Text>
-                <View style={styles.timelineDivider}>
-                  {index !== timeSlots.length - 1 && (
+            {timeSlots.map((time, index) => {
+              const scheduleItems = getScheduleItemsForTimeSlot(time);
+
+              return (
+                <View key={time} style={styles.timelineRow}>
+                  <Text style={styles.timelineTime}>{time}</Text>
+                  <View style={styles.timelineDivider}>
                     <View style={styles.timelineLine} />
-                  )}
+                    <View style={styles.cardsContainer}>
+                      {scheduleItems.map((item, itemIndex) => {
+                        const formatScheduleTime = (timeStr: string) => {
+                          const [h, m] = timeStr.split(":");
+                          const hour = parseInt(h, 10);
+                          const ampm = hour >= 12 ? "PM" : "AM";
+                          const formattedHour = hour % 12 || 12;
+                          return `${formattedHour}:${m} ${ampm}`;
+                        };
+
+                        return (
+                          <View
+                            key={itemIndex}
+                            style={styles.scheduleItemCard}
+                          >
+                            <View>
+                              <Text style={styles.scheduleItemText}>
+                                {item.place_name}
+                              </Text>
+                              <Text style={styles.scheduleItemDetails}>
+                                {item.place_type || "Scheduled Activity"}
+                              </Text>
+                            </View>
+                            <Text style={styles.scheduleItemTimeText}>
+                              {formatScheduleTime(item.scheduled_time)}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         ) : (
           <View style={styles.emptyState}>
@@ -381,14 +450,12 @@ export default function CalendarScreen() {
         onCreateItinerary={handleCreateItinerary}
         panY={panY}
         panResponder={panResponder}
-        // Pass the token here
         backendApiUrl={BACKEND_API_URL}
       />
     </View>
   );
 }
 
-// Define a type for the styles object to include the new styles.
 interface Styles {
   screenContainer: any;
   safeArea: any;
@@ -433,6 +500,11 @@ interface Styles {
   addButtonText: any;
   itineraryDateCell: any;
   itineraryDateNumber: any;
+  scheduleItemCard: any;
+  scheduleItemText: any;
+  cardsContainer: any;
+  scheduleItemDetails: any;
+  scheduleItemTimeText: any;
 }
 
 const styles = StyleSheet.create<Styles>({
@@ -590,8 +662,8 @@ const styles = StyleSheet.create<Styles>({
   },
   timelineRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 20,
+    alignItems: "stretch",
+    minHeight: 60,
   },
   timelineTime: {
     fontSize: 16,
@@ -601,11 +673,15 @@ const styles = StyleSheet.create<Styles>({
   },
   timelineDivider: {
     flex: 1,
-    alignItems: "flex-start",
+    position: "relative",
+    paddingLeft: 15,
   },
   timelineLine: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
     width: 2,
-    height: "100%",
     backgroundColor: "#E5E7EB",
   },
   emptyState: {
@@ -655,5 +731,33 @@ const styles = StyleSheet.create<Styles>({
   },
   itineraryDateNumber: {
     fontWeight: 'bold',
+  },
+  scheduleItemCard: {
+    backgroundColor: "#E6F4EA",
+    padding: 12,
+    borderRadius: 8,
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  scheduleItemText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#374151",
+  },
+  cardsContainer: {
+    flex: 1,
+  },
+  scheduleItemDetails: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  scheduleItemTimeText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#374151",
   },
 } as const);
