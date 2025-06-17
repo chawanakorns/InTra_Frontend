@@ -9,7 +9,7 @@ interface ItineraryDetailsStepProps {
   setStartDate: (date: Date) => void;
   endDate: Date;
   setEndDate: (date: Date) => void;
-  onCreate: () => void;
+  onCreate: () => Promise<void>;
   onPrevious: () => void;
   isCreating: boolean;
 }
@@ -39,7 +39,7 @@ const ItineraryDetailsStep: React.FC<ItineraryDetailsStepProps> = ({
       <Text style={styles.modalSubtitle}>
         Build an itinerary and map out your upcoming travel plans
       </Text>
-      
+
       <View style={styles.formGroup}>
         <Text style={styles.formLabel}>Name</Text>
         <TextInput
@@ -76,7 +76,7 @@ const ItineraryDetailsStep: React.FC<ItineraryDetailsStepProps> = ({
               }}
             />
           )}
-          
+
           <TouchableOpacity
             style={[styles.textInput, styles.dateInput]}
             onPress={() => setShowEndDatePicker(true)}
@@ -109,7 +109,7 @@ const ItineraryDetailsStep: React.FC<ItineraryDetailsStepProps> = ({
             styles.actionButton,
             (!itineraryName || !startDate || !endDate || isCreating) && styles.disabledButton,
           ]}
-          onPress={onCreate}
+          onPress={onCreate} // Call the passed-in function
           disabled={!itineraryName || !startDate || !endDate || isCreating}
         >
           <Text style={styles.actionButtonText}>

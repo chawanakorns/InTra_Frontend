@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useEffect, useState } from 'react';
 import { Alert, Animated, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import BudgetStep from './BudgetStep';
 import ItineraryDetailsStep from './ItineraryDetailsStep';
@@ -10,7 +11,7 @@ interface ItineraryModalProps {
   onCreateItinerary: (itinerary: any) => void;
   panY: Animated.Value;
   panResponder: any;
-  token: string;
+  backendApiUrl: string; // Receive the backend URL
 }
 
 const ItineraryModal: React.FC<ItineraryModalProps> = ({
@@ -19,7 +20,7 @@ const ItineraryModal: React.FC<ItineraryModalProps> = ({
   onCreateItinerary,
   panY,
   panResponder,
-  token,
+  backendApiUrl,
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedType, setSelectedType] = useState('');
@@ -28,14 +29,55 @@ const ItineraryModal: React.FC<ItineraryModalProps> = ({
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
   const [isCreating, setIsCreating] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
 
   const handleNext = () => setCurrentStep(currentStep + 1);
   const handlePrevious = () => setCurrentStep(currentStep - 1);
 
+  // Fetch the token when the modal is opened (visible)
+  useEffect(() => {
+    const fetchToken = async () => {
+      try {
+        const storedToken = await AsyncStorage.getItem("access_token");
+        if (storedToken) {
+          setToken(storedToken);
+        } else {
+          Alert.alert("Authentication Error", "No access token found.");
+          onClose(); // Close modal if no token
+        }
+      } catch (error) {
+        console.error("Error fetching token:", error);
+        Alert.alert(
+          "Error",
+          "Failed to retrieve authentication token. Please try again."
+        );
+        onClose();
+      }
+    };
+
+    if (visible) {
+      fetchToken();
+    } else {
+      // Reset token when modal is closed
+      setToken(null);
+    }
+  }, [visible, onClose]);
+
   const handleCreate = async () => {
     setIsCreating(true);
+
+    if (!token) {
+      Alert.alert(
+        "Authentication Error",
+        "No access token available. Please log in again."
+      );
+      setIsCreating(false);
+      onClose();
+      return;
+    }
+
     try {
-      const response = await fetch('http://10.0.2.2:8000/api/itineraries/', {
+      const response = await fetch(`${backendApiUrl}/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -52,7 +94,8 @@ const ItineraryModal: React.FC<ItineraryModalProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to create itinerary');
+        const errorMessage = errorData.detail || `Failed to create itinerary. Server returned ${response.status}`;
+        throw new Error(errorMessage);
       }
 
       const responseData = await response.json();
@@ -66,7 +109,6 @@ const ItineraryModal: React.FC<ItineraryModalProps> = ({
         endDate,
         schedule: [],
       };
-      
       onCreateItinerary(newItinerary);
       onClose();
       resetForm();
@@ -120,7 +162,7 @@ const ItineraryModal: React.FC<ItineraryModalProps> = ({
           <View style={styles.dragHandle}>
             <View style={styles.dragIndicator} />
           </View>
-          
+
           <ScrollView
             style={styles.modalScrollView}
             contentContainerStyle={styles.modalContentContainer}
@@ -134,7 +176,7 @@ const ItineraryModal: React.FC<ItineraryModalProps> = ({
                 onNext={handleNext}
               />
             )}
-            
+
             {currentStep === 2 && (
               <BudgetStep
                 selectedBudget={selectedBudget}
@@ -143,7 +185,7 @@ const ItineraryModal: React.FC<ItineraryModalProps> = ({
                 onPrevious={handlePrevious}
               />
             )}
-            
+
             {currentStep === 3 && (
               <ItineraryDetailsStep
                 itineraryName={itineraryName}
@@ -152,7 +194,7 @@ const ItineraryModal: React.FC<ItineraryModalProps> = ({
                 setStartDate={setStartDate}
                 endDate={endDate}
                 setEndDate={setEndDate}
-                onCreate={handleCreate}
+                onCreate={handleCreate} // Pass the handleCreate function
                 onPrevious={handlePrevious}
                 isCreating={isCreating}
               />

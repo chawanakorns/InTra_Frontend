@@ -46,6 +46,7 @@ export default function CalendarScreen() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [creatingItinerary, setCreatingItinerary] = useState(false);
 
   const panY = useRef(new Animated.Value(0)).current;
   const panResponder = useRef(
@@ -162,44 +163,9 @@ export default function CalendarScreen() {
 
   const handleCreateItinerary = async (newItinerary: Itinerary) => {
     try {
-      console.log("[Create] Starting itinerary creation");
-      const token = await AsyncStorage.getItem("access_token");
-      if (!token) {
-        throw new Error("Authentication token not found");
-      }
-
-      const response = await fetch(BACKEND_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          type: newItinerary.type,
-          budget: newItinerary.budget,
-          name: newItinerary.name,
-          start_date: newItinerary.startDate.toISOString().split("T")[0],
-          end_date: newItinerary.endDate.toISOString().split("T")[0],
-        }),
-      });
-
-      console.log(`[Create] Response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Failed to create itinerary");
-      }
-
-      const createdItinerary = await response.json();
-      console.log("[Create] Created itinerary:", createdItinerary);
-
-      const formattedItinerary = {
-        ...newItinerary,
-        id: createdItinerary.id.toString(),
-      };
-
-      setItineraries([...itineraries, formattedItinerary]);
-      setSelectedItinerary(formattedItinerary);
+      // Optimistically update the state
+      setItineraries([...itineraries, newItinerary]);
+      setSelectedItinerary(newItinerary);
       setModalVisible(false);
     } catch (err) {
       console.error("[Error] Create itinerary failed:", err);
@@ -313,27 +279,45 @@ export default function CalendarScreen() {
             ))}
           </View>
           <View style={styles.datesRow}>
-            {weekDates.map((date, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.dateCell,
-                  date.toDateString() === selectedDate.toDateString() &&
-                    styles.selectedDateCell,
-                ]}
-                onPress={() => setSelectedDate(date)}
-              >
-                <Text
-                  style={[
-                    styles.dateNumber,
-                    date.toDateString() === selectedDate.toDateString() &&
-                      styles.selectedDateNumber,
-                  ]}
-                >
-                  {date.getDate()}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {weekDates.map((date, index) => {
+              const normalizedDate = new Date(date);
+              normalizedDate.setHours(0, 0, 0, 0);
+
+              const normalizedEndDate = new Date(selectedItinerary?.endDate || new Date());
+              normalizedEndDate.setHours(0, 0, 0, 0);
+
+              const normalizedStartDate = new Date(selectedItinerary?.startDate || new Date());
+              normalizedStartDate.setHours(0, 0, 0, 0);
+
+
+              const isWithinItinerary = selectedItinerary &&
+                  normalizedDate >= normalizedStartDate &&
+                  normalizedDate <= normalizedEndDate;
+
+              return (
+                  <TouchableOpacity
+                      key={index}
+                      style={[
+                          styles.dateCell,
+                          date.toDateString() === selectedDate.toDateString() &&
+                          styles.selectedDateCell,
+                          isWithinItinerary ? styles.itineraryDateCell : null, // Add this line
+                      ]}
+                      onPress={() => setSelectedDate(date)}
+                  >
+                      <Text
+                          style={[
+                              styles.dateNumber,
+                              date.toDateString() === selectedDate.toDateString() &&
+                              styles.selectedDateNumber,
+                              isWithinItinerary ? styles.itineraryDateNumber : null, //Add this line
+                          ]}
+                      >
+                          {date.getDate()}
+                      </Text>
+                  </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
@@ -381,7 +365,7 @@ export default function CalendarScreen() {
 
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => {
+          onPress={async () => {
             resetModal();
             setModalVisible(true);
           }}
@@ -397,13 +381,61 @@ export default function CalendarScreen() {
         onCreateItinerary={handleCreateItinerary}
         panY={panY}
         panResponder={panResponder}
-        token={""}
+        // Pass the token here
+        backendApiUrl={BACKEND_API_URL}
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+// Define a type for the styles object to include the new styles.
+interface Styles {
+  screenContainer: any;
+  safeArea: any;
+  container: any;
+  loadingContainer: any;
+  loadingText: any;
+  errorContainer: any;
+  errorText: any;
+  retryButton: any;
+  retryButtonText: any;
+  header: any;
+  headerRow: any;
+  greeting: any;
+  date: any;
+  itineraryPicker: any;
+  dropdown: any;
+  placeholderStyle: any;
+  selectedTextStyle: any;
+  iconStyle: any;
+  dropdownArrow: any;
+  dropdownArrowOpen: any;
+  calendarContainer: any;
+  dayHeaders: any;
+  dayHeaderCell: any;
+  dayHeaderText: any;
+  datesRow: any;
+  dateCell: any;
+  selectedDateCell: any;
+  dateNumber: any;
+  selectedDateNumber: any;
+  timelineContainer: any;
+  timelineHeader: any;
+  timelineTitle: any;
+  timelineRow: any;
+  timelineTime: any;
+  timelineDivider: any;
+  timelineLine: any;
+  emptyState: any;
+  emptyTitle: any;
+  emptySubtitle: any;
+  addButton: any;
+  addButtonText: any;
+  itineraryDateCell: any;
+  itineraryDateNumber: any;
+}
+
+const styles = StyleSheet.create<Styles>({
   screenContainer: {
     flex: 1,
     position: "relative",
@@ -618,4 +650,10 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 2,
   },
-});
+  itineraryDateCell: {
+    backgroundColor: 'rgba(100, 102, 241, 0.3)',
+  },
+  itineraryDateNumber: {
+    fontWeight: 'bold',
+  },
+} as const);

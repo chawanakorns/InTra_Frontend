@@ -2,7 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react'; // Import useCallback
 import {
   ActivityIndicator,
   Alert,
@@ -23,7 +23,7 @@ const BACKEND_API_URL = Platform.select({
 });
 
 interface Itinerary {
-  id: number;
+  id: number; // Changed to number
   name: string;
   start_date: string;
   end_date: string;
@@ -70,99 +70,100 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
     return `The atmosphere at ${placeName} is nice these days. The al fresco area is vibrant, and soft jazz music is playing. We recommend trying the local specialties!`;
   };
 
-  const fetchItineraries = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Authentication required');
-      }
+    const fetchItineraries = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError(null);
 
-      const response = await fetch(`${BACKEND_API_URL}/api/itineraries`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+            const token = await AsyncStorage.getItem('access_token');
+            if (!token) {
+              setError('Authentication required. Please log in.');
+              return;  // Exit early if no token
+            }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Server returned ${response.status}`);
-      }
+            const response = await fetch(`${BACKEND_API_URL}/api/itineraries/`, {  // add / to the end
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
+                },
+            });
 
-      const data = await response.json();
-      setItineraries(data);
-    } catch (err) {
-      console.error('Error fetching itineraries:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load itineraries');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || `Server returned ${response.status}`);
+            }
 
-  const handleAddToItinerary = async () => {
-    if (!selectedItinerary) return;
-    
-    try {
-      setLoading(true);
-      setError(null);
-
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      // Validate date is within itinerary range
-      const itineraryStart = new Date(selectedItinerary.start_date);
-      const itineraryEnd = new Date(selectedItinerary.end_date);
-      if (date < itineraryStart || date > itineraryEnd) {
-        throw new Error('Selected date must be within itinerary date range');
-      }
-
-      const scheduleItem = {
-        place_id: placeId,
-        place_name: placeName,
-        place_type: place.types ? place.types[0] : null,
-        place_address: place.address || null,
-        place_rating: place.rating || null,
-        place_image: place.image || null,
-        place_data: place,
-        scheduled_date: date.toISOString().split('T')[0],
-        scheduled_time: time,
-        duration_minutes: 60,
-      };
-
-      const response = await fetch(
-        `${BACKEND_API_URL}/api/itineraries/${selectedItinerary.id}/items`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(scheduleItem),
+            const data = await response.json();
+            setItineraries(data);
+        } catch (err) {
+            console.error('Error fetching itineraries:', err);
+            setError(err instanceof Error ? err.message : 'Failed to load itineraries');
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
         }
-      );
+    }, []);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Server returned ${response.status}`);
-      }
+    const handleAddToItinerary = async () => {
+        if (!selectedItinerary) return;
 
-      const newItem = await response.json();
-      
-      router.back();
-      Alert.alert('Success', `Successfully added to ${selectedItinerary.name} itinerary!`);
-    } catch (err) {
-      console.error('Error adding to itinerary:', err);
-      setError(err instanceof Error ? err.message : 'Failed to add to itinerary');
-    } finally {
-      setLoading(false);
-    }
-  };
+        try {
+            setLoading(true);
+            setError(null);
+
+            const token = await AsyncStorage.getItem('access_token');
+            if (!token) {
+                throw new Error('Authentication required');
+            }
+
+            // Validate date is within itinerary range
+            const itineraryStart = new Date(selectedItinerary.start_date);
+            const itineraryEnd = new Date(selectedItinerary.end_date);
+            if (date < itineraryStart || date > itineraryEnd) {
+                throw new Error('Selected date must be within itinerary date range');
+            }
+
+            const scheduleItem = {
+                place_id: placeId,
+                place_name: placeName,
+                place_type: place.types ? place.types[0] : null,
+                place_address: place.address || null,
+                place_rating: place.rating || null,
+                place_image: place.image || null,
+                place_data: place,
+                scheduled_date: date.toISOString().split('T')[0],
+                scheduled_time: time,
+                duration_minutes: 60,
+            };
+
+            const response = await fetch(
+                `${BACKEND_API_URL}/api/itineraries/${selectedItinerary.id}/items`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(scheduleItem),
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || `Server returned ${response.status}`);
+            }
+
+            const newItem = await response.json();
+
+            router.back();
+            Alert.alert('Success', `Successfully added to ${selectedItinerary.name} itinerary!`);
+        } catch (err) {
+            console.error('Error adding to itinerary:', err);
+            setError(err instanceof Error ? err.message : 'Failed to add to itinerary');
+        } finally {
+            setLoading(false);
+        }
+    };
 
   const onChangeDate = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
@@ -186,10 +187,10 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
   };
 
   useEffect(() => {
-    if (showItineraryModal) {
-      fetchItineraries();
-    }
-  }, [showItineraryModal]);
+        if (showItineraryModal) {
+            fetchItineraries(); // Fetch when modal is opened
+        }
+    }, [showItineraryModal, fetchItineraries]); // Depend on fetchItineraries
 
   return (
     <View style={styles.container}>
