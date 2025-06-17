@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Image,
   PanResponder,
   Platform,
   SafeAreaView,
@@ -152,7 +153,7 @@ export default function CalendarScreen() {
         name: it.name,
         startDate: new Date(it.start_date),
         endDate: new Date(it.end_date),
-        schedule_items: it.schedule_items || [], // Ensure schedule_items is always an array
+        schedule_items: it.schedule_items || [],
       }));
 
       setItineraries(fetchedItineraries);
@@ -160,6 +161,7 @@ export default function CalendarScreen() {
       if (fetchedItineraries.length > 0 && !selectedItinerary) {
         setSelectedItinerary(fetchedItineraries[0]);
       }
+      return fetchedItineraries;
     } catch (err) {
       console.error("Error fetching itineraries:", err);
       setError(
@@ -174,12 +176,18 @@ export default function CalendarScreen() {
     fetchItineraries();
   }, []);
 
-  const handleCreateItinerary = async (newItinerary: Itinerary) => {
+  const handleCreateItinerary = async (newItineraryFromResponse: Itinerary) => {
     try {
-      // Optimistically update the state
-      setItineraries([...itineraries, newItinerary]);
-      setSelectedItinerary(newItinerary);
       setModalVisible(false);
+      const allItineraries = await fetchItineraries();
+
+      if (allItineraries) {
+        const newlyCreated = allItineraries.find(it => it.id === newItineraryFromResponse.id);
+        if (newlyCreated) {
+          setSelectedItinerary(newlyCreated);
+        }
+      }
+
     } catch (err) {
       console.error("[Error] Create itinerary failed:", err);
       Alert.alert(
@@ -221,7 +229,7 @@ export default function CalendarScreen() {
     if (ampm === 'PM' && hour !== 12) {
       hour += 12;
     } else if (ampm === 'AM' && hour === 12) {
-      hour = 0; // Midnight
+      hour = 0;
     }
   
     return selectedItinerary.schedule_items.filter(item => {
@@ -363,8 +371,28 @@ export default function CalendarScreen() {
             <View style={styles.timelineHeader}>
               <Text style={styles.timelineTitle}>Timeline</Text>
             </View>
-            {timeSlots.map((time, index) => {
+            {timeSlots.map((time) => {
               const scheduleItems = getScheduleItemsForTimeSlot(time);
+
+              const formatTimeRange = (startTimeStr: string, duration: number) => {
+                const [h, m] = startTimeStr.split(':').map(Number);
+                const startDate = new Date();
+                startDate.setHours(h, m, 0, 0);
+              
+                const endDate = new Date(startDate.getTime() + duration * 60000);
+              
+                const formatTime = (date: Date) => {
+                  let hours = date.getHours();
+                  const minutes = date.getMinutes();
+                  const ampm = hours >= 12 ? 'PM' : 'AM';
+                  hours %= 12;
+                  hours = hours || 12;
+                  const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+                  return `${hours}:${minutesStr} ${ampm}`;
+                };
+              
+                return `Time: ${formatTime(startDate)} - ${formatTime(endDate)}`;
+              };
 
               return (
                 <View key={time} style={styles.timelineRow}>
@@ -372,34 +400,23 @@ export default function CalendarScreen() {
                   <View style={styles.timelineDivider}>
                     <View style={styles.timelineLine} />
                     <View style={styles.cardsContainer}>
-                      {scheduleItems.map((item, itemIndex) => {
-                        const formatScheduleTime = (timeStr: string) => {
-                          const [h, m] = timeStr.split(":");
-                          const hour = parseInt(h, 10);
-                          const ampm = hour >= 12 ? "PM" : "AM";
-                          const formattedHour = hour % 12 || 12;
-                          return `${formattedHour}:${m} ${ampm}`;
-                        };
-
-                        return (
-                          <View
-                            key={itemIndex}
-                            style={styles.scheduleItemCard}
-                          >
-                            <View>
-                              <Text style={styles.scheduleItemText}>
-                                {item.place_name}
-                              </Text>
-                              <Text style={styles.scheduleItemDetails}>
-                                {item.place_type || "Scheduled Activity"}
-                              </Text>
-                            </View>
-                            <Text style={styles.scheduleItemTimeText}>
-                              {formatScheduleTime(item.scheduled_time)}
-                            </Text>
+                      {scheduleItems.map((item, itemIndex) => (
+                          <View key={itemIndex} style={styles.scheduleItemCard}>
+                              <Image 
+                                  source={item.place_image ? { uri: item.place_image } : require('../../../assets/images/icon.png')}
+                                  style={styles.cardImage}
+                              />
+                              <View style={styles.cardContent}>
+                                  <Text style={styles.scheduleItemText}>{item.place_name}</Text>
+                                  <Text style={styles.scheduleItemDetails}>
+                                      {item.place_type || "Scheduled Activity"}
+                                  </Text>
+                                  <Text style={styles.scheduleItemTimeText}>
+                                      {formatTimeRange(item.scheduled_time, item.duration_minutes)}
+                                  </Text>
+                              </View>
                           </View>
-                        );
-                      })}
+                      ))}
                     </View>
                   </View>
                 </View>
@@ -505,6 +522,8 @@ interface Styles {
   cardsContainer: any;
   scheduleItemDetails: any;
   scheduleItemTimeText: any;
+  cardImage: any;
+  cardContent: any;
 }
 
 const styles = StyleSheet.create<Styles>({
@@ -733,19 +752,17 @@ const styles = StyleSheet.create<Styles>({
     fontWeight: 'bold',
   },
   scheduleItemCard: {
-    backgroundColor: "#E6F4EA",
-    padding: 12,
+    backgroundColor: '#F0F4F8',
     borderRadius: 8,
+    marginBottom: 15,
     width: "100%",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
+    overflow: 'hidden',
   },
   scheduleItemText: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#374151",
+    color: "#1F2937",
+    marginBottom: 4,
   },
   cardsContainer: {
     flex: 1,
@@ -753,11 +770,20 @@ const styles = StyleSheet.create<Styles>({
   scheduleItemDetails: {
     fontSize: 14,
     color: "#6B7280",
-    marginTop: 2,
+    marginBottom: 8,
   },
   scheduleItemTimeText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "bold",
     color: "#374151",
+  },
+  cardImage: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#E5E7EB',
+  },
+  cardContent: {
+    padding: 12,
+    backgroundColor: 'rgba(230, 244, 234, 0.8)',
   },
 } as const);
