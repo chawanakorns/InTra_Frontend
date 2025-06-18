@@ -1,32 +1,134 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
+// Import useMemo for synchronous calculation
+import React, { useCallback, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
 } from "react-native";
-import { Calendar } from "react-native-calendars";
+import { Calendar, DateData } from "react-native-calendars";
+import { MarkedDates } from "react-native-calendars/src/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryItem from "../../../components/CategoryItem";
 
-export default function Dashboard() {
-  const currentDate = new Date().toISOString().split("T")[0];
-  const router = useRouter();
+// API URL definition
+const API_URL = Platform.select({
+  android: "http://10.0.2.2:8000",
+  default: "http://127.0.0.1:8000",
+});
 
-  const markedDates = {
-    [currentDate]: {
-      selected: true,
-      selectedColor: "#6366F1",
-    },
+// Itinerary type definition
+interface Itinerary {
+  id: number;
+  start_date: string;
+  end_date: string;
+  name: string;
+}
+
+// Helper function to get dates in a range
+const getDatesInRange = (startDateStr: string, endDateStr: string): string[] => {
+  const dates = [];
+  let currentDate = new Date(`${startDateStr}T00:00:00Z`);
+  const endDate = new Date(`${endDateStr}T00:00:00Z`);
+
+  while (currentDate <= endDate) {
+    dates.push(currentDate.toISOString().split("T")[0]);
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  return dates;
+};
+
+// Helper function to check if a date belongs to the current displayed month
+const isDateInCurrentMonth = (dateStr: string, currentMonthStr: string): boolean => {
+  return dateStr.substring(0, 7) === currentMonthStr.substring(0, 7);
+};
+
+export default function Dashboard() {
+  const router = useRouter();
+  const todayDateString = new Date().toISOString().split("T")[0];
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentCalendarMonth, setCurrentCalendarMonth] = useState(todayDateString);
+  const [itineraries, setItineraries] = useState<Itinerary[]>([]);
+
+  // Fetches data ONCE per page visit.
+  const fetchItineraries = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token) throw new Error("Authentication token not found.");
+      
+      const response = await fetch(`${API_URL}/api/itineraries/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error("Failed to fetch itineraries");
+      
+      const fetchedItineraries: Itinerary[] = await response.json();
+      setItineraries(fetchedItineraries);
+    } catch (error) {
+      console.error("Error fetching itineraries:", error);
+      setItineraries([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Calls the fetch function once when the screen is entered.
+  useFocusEffect(
+    useCallback(() => {
+      fetchItineraries();
+    }, [fetchItineraries])
+  );
+
+  // The useMemo hook calculates markedDates during the render, eliminating the "flash".
+  // It only re-calculates when its dependencies (itineraries or the month) change.
+  const markedDates = useMemo(() => {
+    const newMarkedDates: MarkedDates = {};
+    const baseColor = "#6366F1";
+    const lighterColor = "#A5B4FC";
+
+    itineraries.forEach(({ start_date, end_date }) => {
+      const datesInRange = getDatesInRange(start_date, end_date);
+      if (datesInRange.length === 0) return;
+
+      datesInRange.forEach((date, index) => {
+        const isInCurrentMonth = isDateInCurrentMonth(date, currentCalendarMonth);
+        const color = isInCurrentMonth ? baseColor : lighterColor;
+
+        const marking: any = { color: color, textColor: "white" };
+
+        if (datesInRange.length === 1) {
+          marking.startingDay = true;
+          marking.endingDay = true;
+        } else if (index === 0) {
+          marking.startingDay = true;
+        } else if (index === datesInRange.length - 1) {
+          marking.endingDay = true;
+        } else {
+          marking.disableTouchEvent = true;
+        }
+        newMarkedDates[date] = marking;
+      });
+    });
+
+    return newMarkedDates;
+  }, [itineraries, currentCalendarMonth]);
+
+  // Handler for when the month changes in the calendar.
+  const handleMonthChange = (month: DateData) => {
+    setCurrentCalendarMonth(month.dateString);
   };
 
   const popularDestinations = [
-    { id: "1", title: "Destination 1" },
-    { id: "2", title: "Destination 2" },
-    { id: "3", title: "Destination 3" },
-    { id: "4", title: "Destination 4" },
+    { id: "1", title: "Destination 1" }, { id: "2", title: "Destination 2" },
+    { id: "3", title: "Destination 3" }, { id: "4", title: "Destination 4" },
     { id: "5", title: "Destination 5" },
   ];
 
@@ -53,33 +155,38 @@ export default function Dashboard() {
         </View>
 
         {/* Calendar */}
-        <Calendar
-          current={currentDate}
-          markedDates={markedDates}
-          hideExtraDays
-          disableMonthChange
-          theme={{
-            backgroundColor: "#ffffff",
-            calendarBackground: "#ffffff",
-            textSectionTitleColor: "#666",
-            selectedDayBackgroundColor: "#6366F1",
-            selectedDayTextColor: "#ffffff",
-            todayTextColor: "#6366F1",
-            dayTextColor: "#2d4150",
-            textDisabledColor: "#d9e1e8",
-            dotColor: "#6366F1",
-            selectedDotColor: "#ffffff",
-            arrowColor: "#6366F1",
-            monthTextColor: "#6366F1",
-            textDayFontWeight: "300",
-            textMonthFontWeight: "bold",
-            textDayHeaderFontWeight: "300",
-            textDayFontSize: 16,
-            textMonthFontSize: 16,
-            textDayHeaderFontSize: 12,
-          }}
-          style={styles.calendar}
-        />
+        {isLoading ? (
+          <View style={styles.calendarLoader}>
+            <ActivityIndicator size="large" color="#6366F1" />
+          </View>
+        ) : (
+          <Calendar
+            key={currentCalendarMonth}
+            current={currentCalendarMonth}
+            markedDates={markedDates}
+            markingType={"period"}
+            onMonthChange={handleMonthChange}
+            theme={{
+              backgroundColor: "#ffffff",
+              calendarBackground: "#ffffff",
+              textSectionTitleColor: "#b6c1cd",
+              selectedDayBackgroundColor: "#6366F1",
+              selectedDayTextColor: "#ffffff",
+              todayTextColor: "#6366F1",
+              dayTextColor: "#2d4150",
+              textDisabledColor: "#d9e1e8",
+              arrowColor: "#6366F1",
+              monthTextColor: "#2d4150",
+              textDayFontWeight: "300",
+              textMonthFontWeight: "bold",
+              textDayHeaderFontWeight: "300",
+              textDayFontSize: 16,
+              textMonthFontSize: 16,
+              textDayHeaderFontSize: 14,
+            }}
+            style={styles.calendar}
+          />
+        )}
 
         {/* Search Section */}
         <View style={styles.section}>
@@ -91,7 +198,8 @@ export default function Dashboard() {
             />
           </View>
         </View>
-        {/* Categories */}
+        
+        {/* Categories Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Categories</Text>
           <View style={styles.categoriesContainer}>
@@ -112,7 +220,7 @@ export default function Dashboard() {
           </View>
         </View>
 
-        {/* Popular Destinations */}
+        {/* Popular Destinations Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Popular Destinations</Text>
           <FlatList
@@ -121,12 +229,12 @@ export default function Dashboard() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.popularList}
             renderItem={({ item }) => (
-                <View style={styles.popularItem}>
+              <View style={styles.popularItem}>
                 <CategoryItem
                   title={item.title}
                   image={require("../../../assets/images/attraction.jpg")}
                 />
-                </View>
+              </View>
             )}
             keyExtractor={(item) => item.id}
           />
@@ -136,100 +244,89 @@ export default function Dashboard() {
   );
 }
 
+// Styles (unchanged)
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  container: {
-    padding: 16,
-    paddingBottom: 20,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  dateContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  day: {
-    fontSize: 32,
-    fontWeight: "bold",
-    marginRight: 8,
-  },
-  month: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  year: {
-    fontSize: 14,
-    color: "#666",
-  },
-  bellIconContainer: {
-    padding: 8,
-  },
-  notificationBadge: {
-    position: "absolute",
-    right: 4,
-    top: 4,
-    backgroundColor: "red",
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    minWidth: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badgeText: {
-    color: "white",
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  calendar: {
-    borderRadius: 10,
-    elevation: 0,
-    shadowOpacity: 0,
-    borderWidth: 0,
-  },
-  section: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 12,
-  },
-  searchContainer: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 50,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  searchInput: {
-    fontSize: 16,
-    color: "#333",
-  },
-  categoriesContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  popularList: {
-    paddingBottom: 10,
-  },
-  popularItem: {
-    width: 160,
-    marginRight: 12,
-  },
-});
+    safeArea: {
+      flex: 1,
+      backgroundColor: "#fff",
+    },
+    container: {
+      padding: 16,
+      paddingBottom: 20,
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: "bold",
+    },
+    headerRight: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    dateContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginRight: 12,
+    },
+    day: {
+      fontSize: 32,
+      fontWeight: "bold",
+      marginRight: 8,
+    },
+    month: {
+      fontSize: 16,
+      fontWeight: "bold",
+    },
+    year: {
+      fontSize: 14,
+      color: "#666",
+    },
+    calendar: {
+      borderRadius: 10,
+      elevation: 0,
+      shadowOpacity: 0,
+      borderWidth: 0,
+      marginBottom: 10,
+    },
+    calendarLoader: {
+        height: 370,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    section: {
+      marginTop: 10,
+      marginBottom: 20,
+    },
+    sectionTitle: {
+      fontSize: 24,
+      fontWeight: "bold",
+      marginBottom: 12,
+    },
+    searchContainer: {
+      backgroundColor: "#f5f5f5",
+      borderRadius: 50,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+    },
+    searchInput: {
+      fontSize: 16,
+      color: "#333",
+    },
+    categoriesContainer: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    popularList: {
+      paddingBottom: 10,
+    },
+    popularItem: {
+      width: 160,
+      marginRight: 12,
+    },
+  });
