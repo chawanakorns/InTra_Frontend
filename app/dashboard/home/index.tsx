@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-// Import useMemo for synchronous calculation
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,14 +16,14 @@ import { Calendar, DateData } from "react-native-calendars";
 import { MarkedDates } from "react-native-calendars/src/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryItem from "../../../components/CategoryItem";
+// Import the new card component
+import PopularDestinationCard from "../../../components/PopularDestinationCard";
 
-// API URL definition
 const API_URL = Platform.select({
   android: "http://10.0.2.2:8000",
   default: "http://127.0.0.1:8000",
 });
 
-// Itinerary type definition
 interface Itinerary {
   id: number;
   start_date: string;
@@ -32,8 +31,15 @@ interface Itinerary {
   name: string;
 }
 
-// Helper function to get dates in a range
-const getDatesInRange = (startDateStr: string, endDateStr: string): string[] => {
+// Add a type for the Place data you expect
+interface Place {
+  id: string;
+  name: string;
+  rating: number;
+  image: string | null;
+}
+
+const getDatesInRange = (startDateStr: string, endDateStr:string): string[] => {
   const dates = [];
   let currentDate = new Date(`${startDateStr}T00:00:00Z`);
   const endDate = new Date(`${endDateStr}T00:00:00Z`);
@@ -45,7 +51,6 @@ const getDatesInRange = (startDateStr: string, endDateStr: string): string[] => 
   return dates;
 };
 
-// Helper function to check if a date belongs to the current displayed month
 const isDateInCurrentMonth = (dateStr: string, currentMonthStr: string): boolean => {
   return dateStr.substring(0, 7) === currentMonthStr.substring(0, 7);
 };
@@ -57,38 +62,47 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState(todayDateString);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
+  // Add state for popular destinations
+  const [popularDestinations, setPopularDestinations] = useState<Place[]>([]);
+  const [isLoadingPopular, setIsLoadingPopular] = useState(true);
 
-  // Fetches data ONCE per page visit.
-  const fetchItineraries = useCallback(async () => {
+  const fetchItinerariesAndPopularDestinations = useCallback(async () => {
     setIsLoading(true);
+    setIsLoadingPopular(true);
     try {
       const token = await AsyncStorage.getItem("access_token");
       if (!token) throw new Error("Authentication token not found.");
       
-      const response = await fetch(`${API_URL}/api/itineraries/`, {
+      // Fetch Itineraries
+      const itinerariesResponse = await fetch(`${API_URL}/api/itineraries/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) throw new Error("Failed to fetch itineraries");
-      
-      const fetchedItineraries: Itinerary[] = await response.json();
+      if (!itinerariesResponse.ok) throw new Error("Failed to fetch itineraries");
+      const fetchedItineraries: Itinerary[] = await itinerariesResponse.json();
       setItineraries(fetchedItineraries);
+
+      // Fetch Popular Destinations
+      const popularResponse = await fetch(`${API_URL}/api/recommendations/popular`);
+      if (!popularResponse.ok) throw new Error("Failed to fetch popular destinations");
+      const fetchedPopular: Place[] = await popularResponse.json();
+      setPopularDestinations(fetchedPopular);
+
     } catch (error) {
-      console.error("Error fetching itineraries:", error);
+      console.error("Error fetching data:", error);
       setItineraries([]);
+      setPopularDestinations([]);
     } finally {
       setIsLoading(false);
+      setIsLoadingPopular(false);
     }
   }, []);
 
-  // Calls the fetch function once when the screen is entered.
   useFocusEffect(
     useCallback(() => {
-      fetchItineraries();
-    }, [fetchItineraries])
+      fetchItinerariesAndPopularDestinations();
+    }, [fetchItinerariesAndPopularDestinations])
   );
 
-  // The useMemo hook calculates markedDates during the render, eliminating the "flash".
-  // It only re-calculates when its dependencies (itineraries or the month) change.
   const markedDates = useMemo(() => {
     const newMarkedDates: MarkedDates = {};
     const baseColor = "#6366F1";
@@ -101,7 +115,6 @@ export default function Dashboard() {
       datesInRange.forEach((date, index) => {
         const isInCurrentMonth = isDateInCurrentMonth(date, currentCalendarMonth);
         const color = isInCurrentMonth ? baseColor : lighterColor;
-
         const marking: any = { color: color, textColor: "white" };
 
         if (datesInRange.length === 1) {
@@ -117,20 +130,12 @@ export default function Dashboard() {
         newMarkedDates[date] = marking;
       });
     });
-
     return newMarkedDates;
   }, [itineraries, currentCalendarMonth]);
 
-  // Handler for when the month changes in the calendar.
   const handleMonthChange = (month: DateData) => {
     setCurrentCalendarMonth(month.dateString);
   };
-
-  const popularDestinations = [
-    { id: "1", title: "Destination 1" }, { id: "2", title: "Destination 2" },
-    { id: "3", title: "Destination 3" }, { id: "4", title: "Destination 4" },
-    { id: "5", title: "Destination 5" },
-  ];
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -167,22 +172,22 @@ export default function Dashboard() {
             markingType={"period"}
             onMonthChange={handleMonthChange}
             theme={{
-              backgroundColor: "#ffffff",
-              calendarBackground: "#ffffff",
-              textSectionTitleColor: "#b6c1cd",
-              selectedDayBackgroundColor: "#6366F1",
-              selectedDayTextColor: "#ffffff",
-              todayTextColor: "#6366F1",
-              dayTextColor: "#2d4150",
-              textDisabledColor: "#d9e1e8",
-              arrowColor: "#6366F1",
-              monthTextColor: "#2d4150",
-              textDayFontWeight: "300",
-              textMonthFontWeight: "bold",
-              textDayHeaderFontWeight: "300",
-              textDayFontSize: 16,
-              textMonthFontSize: 16,
-              textDayHeaderFontSize: 14,
+                backgroundColor: "#ffffff",
+                calendarBackground: "#ffffff",
+                textSectionTitleColor: "#b6c1cd",
+                selectedDayBackgroundColor: "#6366F1",
+                selectedDayTextColor: "#ffffff",
+                todayTextColor: "#6366F1",
+                dayTextColor: "#2d4150",
+                textDisabledColor: "#d9e1e8",
+                arrowColor: "#6366F1",
+                monthTextColor: "#2d4150",
+                textDayFontWeight: "300",
+                textMonthFontWeight: "bold",
+                textDayHeaderFontWeight: "300",
+                textDayFontSize: 16,
+                textMonthFontSize: 16,
+                textDayHeaderFontSize: 14,
             }}
             style={styles.calendar}
           />
@@ -223,28 +228,35 @@ export default function Dashboard() {
         {/* Popular Destinations Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Popular Destinations</Text>
-          <FlatList
-            data={popularDestinations}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.popularList}
-            renderItem={({ item }) => (
-              <View style={styles.popularItem}>
-                <CategoryItem
-                  title={item.title}
-                  image={require("../../../assets/images/attraction.jpg")}
-                />
-              </View>
-            )}
-            keyExtractor={(item) => item.id}
-          />
+          {isLoadingPopular ? (
+            <View style={styles.popularLoader}>
+              <ActivityIndicator size="large" color="#6366F1" />
+            </View>
+          ) : (
+            <FlatList
+              data={popularDestinations}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.popularList}
+              renderItem={({ item }) => (
+                <View style={styles.popularItem}>
+                  <PopularDestinationCard
+                    name={item.name}
+                    image={item.image}
+                    rating={item.rating}
+                  />
+                </View>
+              )}
+              keyExtractor={(item) => item.id}
+            />
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// Styles (unchanged)
+// Add the new styles to your StyleSheet
 const styles = StyleSheet.create({
     safeArea: {
       flex: 1,
@@ -324,9 +336,16 @@ const styles = StyleSheet.create({
     },
     popularList: {
       paddingBottom: 10,
+      // Add padding to the left for the first item
+      paddingLeft: 4, 
     },
     popularItem: {
-      width: 160,
-      marginRight: 12,
+      // Use marginRight for spacing between items
+      marginRight: 16,
+    },
+    popularLoader: {
+        height: 220, // Match the height of the card
+        justifyContent: 'center',
+        alignItems: 'center',
     },
   });
