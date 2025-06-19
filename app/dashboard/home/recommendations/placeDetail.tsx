@@ -196,7 +196,7 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.push('/dashboard/home')} style={styles.backButton}>
           <MaterialIcons name="close" size={24} color="#666" />
         </TouchableOpacity>
       </View>
