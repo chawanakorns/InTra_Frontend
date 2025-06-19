@@ -1,4 +1,3 @@
-// Important: Add useFocusEffect and useCallback to your imports
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { isSameDay, parse } from "date-fns";
@@ -21,10 +20,16 @@ import {
 import { Dropdown } from "react-native-element-dropdown";
 import ItineraryModal from "../../../components/ItineraryModal";
 
-const BACKEND_API_URL = Platform.select({
+const BACKEND_ITINERARY_API_URL = Platform.select({
   android: "http://10.0.2.2:8000/api/itineraries",
   ios: "http://localhost:8000/api/itineraries",
   default: "http://localhost:8000/api/itineraries",
+});
+
+const BACKEND_AUTH_API_URL = Platform.select({
+  android: "http://10.0.2.2:8000/auth",
+  ios: "http://localhost:8000/auth",
+  default: "http://localhost:8000/auth",
 });
 
 type ScheduleItem = {
@@ -53,6 +58,7 @@ export default function CalendarScreen() {
   const router = useRouter();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [displayDate, setDisplayDate] = useState(new Date());
   const [weekDates, setWeekDates] = useState<Date[]>([]);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(
@@ -62,6 +68,7 @@ export default function CalendarScreen() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userName, setUserName] = useState("User");
 
   const panY = useRef(new Animated.Value(0)).current;
   const panResponder = useRef(
@@ -101,23 +108,46 @@ export default function CalendarScreen() {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
+    return () => clearInterval(timer);
+  }, []);
 
-    const today = new Date();
+  useEffect(() => {
+    const today = new Date(displayDate);
     const dayOfWeek = today.getDay();
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - dayOfWeek);
 
-    const initialWeekDates = Array.from({ length: 7 }, (_, i) => {
+    const newWeekDates = Array.from({ length: 7 }, (_, i) => {
       const date = new Date(startOfWeek);
       date.setDate(startOfWeek.getDate() + i);
       return date;
     });
 
-    setWeekDates(initialWeekDates);
-    return () => clearInterval(timer);
+    setWeekDates(newWeekDates);
+  }, [displayDate]);
+
+  // --- CHANGE: Updated function to parse the first name from the full name ---
+  const fetchUserName = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token) return;
+
+      const response = await fetch(`${BACKEND_AUTH_API_URL}/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Split full_name by space and take the first element.
+        // Fallback to 'User' if full_name is missing or empty.
+        const firstName = data.full_name ? data.full_name.split(" ")[0] : "User";
+        setUserName(firstName);
+      }
+    } catch (err) {
+      console.error("Failed to fetch user name:", err);
+    }
   }, []);
 
-  // --- CHANGE 1: Wrap the fetch function in useCallback ---
   const fetchItineraries = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -128,7 +158,7 @@ export default function CalendarScreen() {
         throw new Error("Authentication token not found");
       }
 
-      const response = await fetch(`${BACKEND_API_URL}/`, {
+      const response = await fetch(`${BACKEND_ITINERARY_API_URL}/`, {
         method: "GET",
         headers: {
           Accept: "application/json",
@@ -160,9 +190,6 @@ export default function CalendarScreen() {
 
       setItineraries(fetchedItineraries);
 
-      // --- CHANGE 2: Improve how the selected itinerary is updated ---
-      // This ensures the selected itinerary is refreshed with new data,
-      // or defaults to the first item if the previous selection is gone.
       setSelectedItinerary((current) => {
         if (current) {
           const updatedSelection = fetchedItineraries.find(
@@ -184,23 +211,26 @@ export default function CalendarScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, []); // Empty dependency array means the function itself is memoized
+  }, []);
 
-  // --- CHANGE 3: Use useFocusEffect to fetch data every time the screen is focused ---
   useFocusEffect(
     useCallback(() => {
-      fetchItineraries();
-    }, [fetchItineraries]) // Depends on our memoized fetch function
+      const fetchData = async () => {
+        setIsLoading(true);
+        await Promise.all([fetchItineraries(), fetchUserName()]);
+        setIsLoading(false);
+      };
+
+      fetchData();
+    }, [fetchItineraries, fetchUserName])
   );
 
   const handleCreateItinerary = async (newItineraryFromResponse: Itinerary) => {
     try {
       setModalVisible(false);
-      // fetchItineraries will now update everything correctly
       const allItineraries = await fetchItineraries();
 
       if (allItineraries) {
-        // Find the newly created itinerary and set it as selected
         const newlyCreated = allItineraries.find(
           (it) => it.id === newItineraryFromResponse.id
         );
@@ -217,6 +247,22 @@ export default function CalendarScreen() {
     }
   };
 
+  const handlePreviousWeek = () => {
+    setDisplayDate((current) => {
+      const newDate = new Date(current);
+      newDate.setDate(current.getDate() - 7);
+      return newDate;
+    });
+  };
+
+  const handleNextWeek = () => {
+    setDisplayDate((current) => {
+      const newDate = new Date(current);
+      newDate.setDate(current.getDate() + 7);
+      return newDate;
+    });
+  };
+
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("en-US", {
       month: "long",
@@ -227,9 +273,9 @@ export default function CalendarScreen() {
 
   const getTimeOfDay = (date: Date) => {
     const hours = date.getHours();
-    if (hours < 12) return "Morning";
-    if (hours < 17) return "Afternoon";
-    return "Evening";
+    if (hours < 12) return "Good Morning";
+    if (hours < 17) return "Good Afternoon";
+    return "Good Evening";
   };
 
   const timeSlots = Array.from({ length: 17 }, (_, i) => {
@@ -249,7 +295,6 @@ export default function CalendarScreen() {
     const [hourStr] = time.split(":");
     let hour = parseInt(hourStr, 10);
 
-    // Convert 12-hour dropdown time to 24-hour for comparison
     if (ampm === "PM" && hour !== 12) {
       hour += 12;
     } else if (ampm === "AM" && hour === 12) {
@@ -268,7 +313,6 @@ export default function CalendarScreen() {
   };
 
   const renderContent = () => {
-    // Show loading indicator only on the initial load
     if (isLoading && itineraries.length === 0) {
       return (
         <View style={styles.loadingContainer}>
@@ -284,7 +328,7 @@ export default function CalendarScreen() {
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={fetchItineraries}
+            onPress={() => Promise.all([fetchItineraries(), fetchUserName()])}
           >
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
@@ -296,7 +340,7 @@ export default function CalendarScreen() {
       <>
         <View style={styles.header}>
           <Text style={styles.greeting}>
-            Good {getTimeOfDay(currentTime)}, User
+            {getTimeOfDay(currentTime)}, {userName}
           </Text>
           <View style={styles.headerRow}>
             <Text style={styles.date}>{formatDate(selectedDate)}</Text>
@@ -318,7 +362,6 @@ export default function CalendarScreen() {
                   value={selectedItinerary?.id}
                   onFocus={() => setIsDropdownOpen(true)}
                   onBlur={() => setIsDropdownOpen(false)}
-                  // The dropdown now works with the latest fetched data
                   onChange={(item) => {
                     const itinerary = itineraries.find(
                       (it) => it.id === item.value
@@ -342,57 +385,72 @@ export default function CalendarScreen() {
         </View>
 
         <View style={styles.calendarContainer}>
-          <View style={styles.dayHeaders}>
-            {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((day) => (
-              <View key={day} style={styles.dayHeaderCell}>
-                <Text style={styles.dayHeaderText}>{day}</Text>
-              </View>
-            ))}
-          </View>
-          <View style={styles.datesRow}>
-            {weekDates.map((date, index) => {
-              const normalizedDate = new Date(date);
-              normalizedDate.setHours(0, 0, 0, 0);
+          <View style={styles.weekControlContainer}>
+            <TouchableOpacity
+              onPress={handlePreviousWeek}
+              style={styles.navButton}
+            >
+              <Text style={styles.navButtonText}>{"<"}</Text>
+            </TouchableOpacity>
 
-              const normalizedEndDate = new Date(
-                selectedItinerary?.endDate || new Date()
-              );
-              normalizedEndDate.setHours(0, 0, 0, 0);
+            <View style={styles.datesRow}>
+              {weekDates.map((date, index) => {
+                const dayName = date
+                  .toLocaleDateString("en-US", { weekday: "short" })
+                  .toUpperCase();
+                const isSelected = isSameDay(date, selectedDate);
 
-              const normalizedStartDate = new Date(
-                selectedItinerary?.startDate || new Date()
-              );
-              normalizedStartDate.setHours(0, 0, 0, 0);
+                const normalizedDate = new Date(date);
+                normalizedDate.setHours(0, 0, 0, 0);
+                const normalizedEndDate = new Date(
+                  selectedItinerary?.endDate || new Date()
+                );
+                normalizedEndDate.setHours(0, 0, 0, 0);
+                const normalizedStartDate = new Date(
+                  selectedItinerary?.startDate || new Date()
+                );
+                normalizedStartDate.setHours(0, 0, 0, 0);
 
-              const isWithinItinerary =
-                selectedItinerary &&
-                normalizedDate >= normalizedStartDate &&
-                normalizedDate <= normalizedEndDate;
+                const isWithinItinerary =
+                  selectedItinerary &&
+                  normalizedDate >= normalizedStartDate &&
+                  normalizedDate <= normalizedEndDate;
 
-              return (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.dateCell,
-                    date.toDateString() === selectedDate.toDateString() &&
-                      styles.selectedDateCell,
-                    isWithinItinerary ? styles.itineraryDateCell : null,
-                  ]}
-                  onPress={() => setSelectedDate(date)}
-                >
-                  <Text
+                return (
+                  <TouchableOpacity
+                    key={index}
                     style={[
-                      styles.dateNumber,
-                      date.toDateString() === selectedDate.toDateString() &&
-                        styles.selectedDateNumber,
-                      isWithinItinerary ? styles.itineraryDateNumber : null,
+                      styles.dateCell,
+                      isSelected && styles.selectedDateCell,
+                      isWithinItinerary ? styles.itineraryDateCell : null,
                     ]}
+                    onPress={() => setSelectedDate(date)}
                   >
-                    {date.getDate()}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                    <Text
+                      style={[
+                        styles.dayHeaderText,
+                        isSelected && styles.selectedDateNumber,
+                      ]}
+                    >
+                      {dayName}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.dateNumber,
+                        isSelected && styles.selectedDateNumber,
+                        isWithinItinerary ? styles.itineraryDateNumber : null,
+                      ]}
+                    >
+                      {date.getDate()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity onPress={handleNextWeek} style={styles.navButton}>
+              <Text style={styles.navButtonText}>{">"}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -513,13 +571,13 @@ export default function CalendarScreen() {
         onCreateItinerary={handleCreateItinerary}
         panY={panY}
         panResponder={panResponder}
-        backendApiUrl={BACKEND_API_URL}
+        backendApiUrl={BACKEND_ITINERARY_API_URL}
       />
     </View>
   );
 }
 
-// All styles remain the same...
+// Styles remain the same
 interface Styles {
     screenContainer: any;
     safeArea: any;
@@ -571,6 +629,9 @@ interface Styles {
     scheduleItemTimeText: any;
     cardImage: any;
     cardContent: any;
+    weekControlContainer: any;
+    navButton: any;
+    navButtonText: any;
   }
   
   const styles = StyleSheet.create<Styles>({
@@ -674,28 +735,37 @@ interface Styles {
     calendarContainer: {
       marginBottom: 5,
     },
-    dayHeaders: {
+    weekControlContainer: {
       flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 10,
-    },
-    dayHeaderCell: {
-      width: 40,
       alignItems: "center",
+      justifyContent: "space-between",
     },
+    navButton: {
+      padding: 8,
+    },
+    navButtonText: {
+      fontSize: 22,
+      fontWeight: "bold",
+      color: "#6366F1",
+    },
+    dayHeaders: {},
+    dayHeaderCell: {},
     dayHeaderText: {
       fontSize: 12,
       fontWeight: "500",
       color: "#6B7280",
       textTransform: "uppercase",
+      marginBottom: 6,
     },
     datesRow: {
       flexDirection: "row",
       justifyContent: "space-between",
+      flex: 1,
+      marginHorizontal: 5,
     },
     dateCell: {
-      width: 40,
-      height: 40,
+      width: 42,
+      height: 60,
       justifyContent: "center",
       alignItems: "center",
       borderRadius: 20,
