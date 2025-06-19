@@ -9,8 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  View,
+  View
 } from "react-native";
 import { Calendar, DateData } from "react-native-calendars";
 import { MarkedDates } from "react-native-calendars/src/types";
@@ -31,12 +30,17 @@ interface Itinerary {
   name: string;
 }
 
-// Add a type for the Place data you expect
+// Update the Place interface to match the one in restaurants.tsx for compatibility
 interface Place {
   id: string;
   name: string;
   rating: number;
-  image: string | null;
+  image?: string;
+  address?: string;
+  priceLevel?: number;
+  isOpen?: boolean;
+  types?: string[];
+  placeId: string;
 }
 
 const getDatesInRange = (startDateStr: string, endDateStr:string): string[] => {
@@ -137,6 +141,19 @@ export default function Dashboard() {
     setCurrentCalendarMonth(month.dateString);
   };
 
+  // Add the navigation handler for place cards
+  const handlePlacePress = (place: Place) => {
+    router.push({
+      // Use the correct relative path from home/index.tsx
+      pathname: "/dashboard/home/recommendations/placeDetail",
+      params: {
+        placeId: place.id,
+        placeName: place.name,
+        placeData: JSON.stringify(place),
+      },
+    });
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <ScrollView
@@ -192,17 +209,6 @@ export default function Dashboard() {
             style={styles.calendar}
           />
         )}
-
-        {/* Search Section */}
-        <View style={styles.section}>
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search"
-              placeholderTextColor="#999"
-            />
-          </View>
-        </View>
         
         {/* Categories Section */}
         <View style={styles.section}>
@@ -242,8 +248,9 @@ export default function Dashboard() {
                 <View style={styles.popularItem}>
                   <PopularDestinationCard
                     name={item.name}
-                    image={item.image}
+                    image={item.image ?? null}
                     rating={item.rating}
+                    onPress={() => handlePlacePress(item)}
                   />
                 </View>
               )}
@@ -256,7 +263,7 @@ export default function Dashboard() {
   );
 }
 
-// Add the new styles to your StyleSheet
+// Styles remain the same
 const styles = StyleSheet.create({
     safeArea: {
       flex: 1,
