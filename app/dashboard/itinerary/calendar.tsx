@@ -53,6 +53,11 @@ type Itinerary = {
   schedule_items: ScheduleItem[];
 };
 
+const capitalize = (s: string | undefined): string => {
+  if (!s) return "";
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+};
+
 export default function CalendarScreen() {
   const router = useRouter();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -121,10 +126,8 @@ export default function CalendarScreen() {
     setWeekDates(newWeekDates);
   }, [displayDate]);
 
-  // It is the key to fixing the bug on initial load.
   useEffect(() => {
     if (selectedItinerary) {
-      // Normalize dates to compare days only, ignoring time.
       const selectedDay = new Date(selectedDate);
       selectedDay.setHours(0, 0, 0, 0);
 
@@ -139,9 +142,6 @@ export default function CalendarScreen() {
         setDisplayDate(selectedItinerary.startDate);
       }
     }
-    // We intentionally only listen to `selectedItinerary` changes. This ensures the hook
-    // runs when the itinerary is first loaded or changed, but not when the user
-    // is simply clicking different dates in the calendar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedItinerary]);
 
@@ -243,7 +243,6 @@ export default function CalendarScreen() {
 
     setItineraries(prev => [newItineraryForState, ...prev]);
     setSelectedItinerary(newItineraryForState);
-    // These two lines are already correct, but our new useEffect would handle this anyway
     setSelectedDate(newItineraryForState.startDate);
     setDisplayDate(newItineraryForState.startDate);
   };
@@ -354,8 +353,6 @@ export default function CalendarScreen() {
                     const itinerary = itineraries.find((it) => it.id === item.value);
                     if (itinerary) {
                         setSelectedItinerary(itinerary);
-                        // These updates are now technically redundant because of our new
-                        // useEffect, but they make the UI feel faster on user interaction.
                         setSelectedDate(itinerary.startDate);
                         setDisplayDate(itinerary.startDate);
                     }
@@ -425,15 +422,15 @@ export default function CalendarScreen() {
                 const startDate = new Date();
                 startDate.setHours(h, m, 0, 0);
                 const endDate = new Date(startDate.getTime() + duration * 60000);
-                const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                return `Time: ${formatTime(startDate)} - ${formatTime(endDate)}`;
+                const formatTime = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                return `${formatTime(startDate)} - ${formatTime(endDate)}`;
               };
 
               return (
                 <View key={time} style={styles.timelineRow}>
                   <Text style={styles.timelineTime}>{time}</Text>
                   <View style={styles.timelineDivider}>
-                    <View style={styles.timelineLine} />
+                    {scheduleItems.length > 0 && <View style={styles.timelineDot} />}
                     <View style={styles.cardsContainer}>
                       {scheduleItems.map((item, itemIndex) => (
                         <View key={itemIndex} style={styles.scheduleItemCard}>
@@ -443,7 +440,7 @@ export default function CalendarScreen() {
                           />
                           <View style={styles.cardContent}>
                             <Text style={styles.scheduleItemText} numberOfLines={1}>{item.place_name}</Text>
-                            <Text style={styles.scheduleItemDetails}>{item.place_type || "Activity"}</Text>
+                            <Text style={styles.scheduleItemDetails}>{capitalize(item.place_type) || "Activity"}</Text>
                             <Text style={styles.scheduleItemTimeText}>
                               {formatTimeRange(item.scheduled_time, item.duration_minutes)}
                             </Text>
@@ -504,14 +501,14 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   screenContainer: { flex: 1, position: "relative" },
   safeArea: { flex: 1, backgroundColor: "#FFFFFF" },
-  container: { padding: 20, paddingBottom: 100, minHeight: '100%' },
+  container: { paddingHorizontal: 20, paddingTop: 70, paddingBottom: 70, minHeight: '100%' },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   loadingText: { marginTop: 16, color: "#6B7280", fontSize: 16 },
   errorContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
   errorText: { color: "#EF4444", fontSize: 16, textAlign: "center", marginBottom: 20 },
   retryButton: { backgroundColor: "#6366F1", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
   retryButtonText: { color: "#FFFFFF", fontWeight: "bold" },
-  header: { marginBottom: 30, paddingTop: Platform.OS === 'android' ? 20 : 0 },
+  header: { marginBottom: 30 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 },
   greeting: { fontSize: 24, fontWeight: "bold", color: "#1F2937", marginBottom: 8 },
   date: { fontSize: 18, fontWeight: "500", color: "#6B7280" },
@@ -528,7 +525,7 @@ const styles = StyleSheet.create({
   navButtonText: { fontSize: 22, fontWeight: "bold", color: "#6366F1" },
   dayHeaderText: { fontSize: 12, fontWeight: "500", color: "#6B7280", textTransform: "uppercase", marginBottom: 6 },
   datesRow: { flexDirection: "row", justifyContent: "space-between", flex: 1, marginHorizontal: 5 },
-  dateCell: { width: 42, height: 60, justifyContent: "center", alignItems: "center", borderRadius: 21 },
+  dateCell: { width: 38, height: 60, justifyContent: "center", alignItems: "center", borderRadius: 21 },
   selectedDateCell: { backgroundColor: "#6366F1" },
   dateNumber: { fontSize: 16, fontWeight: "500", color: "#1F2937" },
   selectedDateNumber: { color: "#FFFFFF", fontWeight: 'bold' },
@@ -536,20 +533,52 @@ const styles = StyleSheet.create({
   timelineHeader: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", marginBottom: 10 },
   timelineTitle: { fontSize: 20, fontWeight: "bold", color: "#1F2937" },
   timelineRow: { flexDirection: "row", alignItems: "stretch", minHeight: 60 },
-  timelineTime: { fontSize: 14, color: "#9CA3AF", width: 80, marginRight: 10, paddingTop: 5, textAlign: 'right' },
-  timelineDivider: { flex: 1, position: "relative", paddingLeft: 15, borderLeftWidth: 2, borderLeftColor: '#E5E7EB' },
-  timelineLine: {}, 
+  timelineTime: { fontSize: 14, color: "#9CA3AF", width: 80, marginRight: 10, paddingTop: 8, textAlign: 'right' },
+  timelineDivider: { flex: 1, position: "relative", paddingLeft: 20, borderLeftWidth: 2, borderLeftColor: '#E5E7EB' },
+  timelineDot: {
+    position: 'absolute',
+    top: 9, 
+    left: -6, 
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#6366F1',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    zIndex: 1,
+  },
   emptyState: { alignItems: "center", flex: 1, justifyContent: "center", paddingBottom: 100 },
   emptyTitle: { fontSize: 16, color: "#9CA3AF", marginBottom: 16, textAlign: "center" },
   emptySubtitle: { fontSize: 36, color: "#1F2937", fontWeight: "bold", textAlign: "center", lineHeight: 40 },
   addButton: { position: "absolute", bottom: 30, right: 30, width: 60, height: 60, borderRadius: 30, backgroundColor: "#6366F1", justifyContent: "center", alignItems: "center", elevation: 5, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 },
   addButtonText: { fontSize: 30, color: "#FFFFFF", fontWeight: "bold", marginBottom: 2 },
   itineraryDateCell: { backgroundColor: "rgba(99, 102, 241, 0.15)", borderRadius: 21 },
-  scheduleItemCard: { backgroundColor: "#F9FAFB", borderRadius: 12, marginBottom: 15, width: "100%", overflow: "hidden", flexDirection: 'row', borderWidth: 1, borderColor: '#F3F4F6' },
+  scheduleItemCard: {
+    flexDirection: 'row',
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginBottom: 15,
+    width: "100%",
+    height: 120, 
+    shadowColor: "#4A5568",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  cardsContainer: { flex: 1, paddingTop: 5, paddingBottom: 5 },
   scheduleItemText: { fontSize: 16, fontWeight: "bold", color: "#1F2937", marginBottom: 4 },
-  cardsContainer: { flex: 1, paddingLeft: 15, paddingTop: 5, paddingBottom: 5 },
   scheduleItemDetails: { fontSize: 14, color: "#6B7280", marginBottom: 8 },
   scheduleItemTimeText: { fontSize: 14, fontWeight: "bold", color: "#374151" },
-  cardImage: { width: 90, height: '100%', backgroundColor: "#E5E7EB" },
+  cardImage: {
+    width: 90,
+    height: 120, 
+    backgroundColor: "#E5E7EB",
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+  },
   cardContent: { padding: 12, flex: 1, justifyContent: 'center' },
 });
