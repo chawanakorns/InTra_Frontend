@@ -96,10 +96,6 @@ export default function RootLayout() {
           name="profile/setting"
           options={{ href: null }}
         />
-        <Tabs.Screen
-          name="placeDetail" // Hides the detail page from the tab bar
-          options={{ href: null }}
-        />
       </Tabs>
     </SafeAreaProvider>
   );

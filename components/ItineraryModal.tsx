@@ -1,242 +1,414 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
-import { Alert, Animated, Modal, ScrollView, StyleSheet, View } from 'react-native';
-import BudgetStep from './BudgetStep';
-import ItineraryDetailsStep from './ItineraryDetailsStep';
-import ItineraryTypeStep from './ItineraryTypeStep';
+import {
+  ActivityIndicator, Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Modal,
+  PanResponderInstance,
+  Platform,
+  StyleSheet,
+  Switch,
+  Text, TextInput, TouchableOpacity,
+  View
+} from 'react-native';
 
 interface ItineraryModalProps {
   visible: boolean;
   onClose: () => void;
-  onCreateItinerary: (itinerary: any) => void;
+  onCreateItinerary: (newItinerary: any) => void;
   panY: Animated.Value;
-  panResponder: any;
-  backendApiUrl: string; // Receive the backend URL
+  panResponder: PanResponderInstance;
+  backendApiUrl: string;
 }
 
-const ItineraryModal: React.FC<ItineraryModalProps> = ({
+const BUDGET_OPTIONS = ["Low", "Medium", "High", "Custom"];
+
+export default function ItineraryModal({
   visible,
   onClose,
   onCreateItinerary,
   panY,
   panResponder,
-  backendApiUrl,
-}) => {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [selectedType, setSelectedType] = useState('');
-  const [selectedBudget, setSelectedBudget] = useState('');
-  const [itineraryName, setItineraryName] = useState('');
+  backendApiUrl
+}: ItineraryModalProps) {
+  const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date(new Date().setDate(new Date().getDate() + 1)));
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [autoGenerate, setAutoGenerate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
 
-  const handleNext = () => setCurrentStep(currentStep + 1);
-  const handlePrevious = () => setCurrentStep(currentStep - 1);
+  const [budgetType, setBudgetType] = useState<string | null>(null);
+  const [customBudget, setCustomBudget] = useState('');
+  const [currency, setCurrency] = useState('USD');
 
-  // Fetch the token when the modal is opened (visible)
+  // This hook runs every time the modal's visibility changes.
   useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        const storedToken = await AsyncStorage.getItem("access_token");
-        if (storedToken) {
-          setToken(storedToken);
-        } else {
-          Alert.alert("Authentication Error", "No access token found.");
-          onClose(); // Close modal if no token
-        }
-      } catch (error) {
-        console.error("Error fetching token:", error);
-        Alert.alert(
-          "Error",
-          "Failed to retrieve authentication token. Please try again."
-        );
-        onClose();
-      }
-    };
-
+    // When the modal is opened, reset all form fields to their default state.
     if (visible) {
-      fetchToken();
-    } else {
-      // Reset token when modal is closed
-      setToken(null);
-    }
-  }, [visible, onClose]);
+      const today = new Date();
+      const tomorrow = new Date();
+      tomorrow.setDate(today.getDate() + 1);
 
-  const handleCreate = async () => {
+      setName('');
+      setBudgetType(null);
+      setCustomBudget('');
+      setCurrency('USD');
+      setStartDate(today);
+      setEndDate(tomorrow);
+      setAutoGenerate(false);
+    }
+  }, [visible]);
+
+
+  const handleSave = async () => {
+    if (!name) {
+      Alert.alert('Missing Information', 'Please provide a name for your itinerary.');
+      return;
+    }
     setIsCreating(true);
 
+    const token = await AsyncStorage.getItem('access_token');
     if (!token) {
-      Alert.alert(
-        "Authentication Error",
-        "No access token available. Please log in again."
-      );
+      Alert.alert('Authentication Error', 'Please log in again.');
       setIsCreating(false);
-      onClose();
       return;
     }
 
+    let budgetPayload: string | null = null;
+    if (budgetType === 'Custom') {
+      budgetPayload = customBudget ? `${customBudget} ${currency}`.trim() : null;
+    } else {
+      budgetPayload = budgetType;
+    }
+
+    const payload = {
+      name,
+      budget: budgetPayload,
+      type: "Personalized",
+      start_date: startDate.toISOString().split('T')[0],
+      end_date: endDate.toISOString().split('T')[0],
+    };
+
+    const endpoint = autoGenerate ? `${backendApiUrl}/generate` : `${backendApiUrl}/`;
+
     try {
-      const response = await fetch(`${backendApiUrl}/`, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          type: selectedType,
-          budget: selectedBudget,
-          name: itineraryName,
-          start_date: startDate.toISOString().split('T')[0],
-          end_date: endDate.toISOString().split('T')[0],
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.detail || `Failed to create itinerary. Server returned ${response.status}`;
-        throw new Error(errorMessage);
-      }
-
       const responseData = await response.json();
+      if (!response.ok) {
+        throw new Error(responseData.detail || 'Failed to create itinerary');
+      }
+      
+      // Pass the new itinerary data back to the parent screen to handle the update.
+      onCreateItinerary(responseData);
 
-      const newItinerary = {
-        id: responseData.id.toString(),
-        type: selectedType,
-        budget: selectedBudget,
-        name: itineraryName,
-        startDate,
-        endDate,
-        schedule: [],
-      };
-      onCreateItinerary(newItinerary);
-      onClose();
-      resetForm();
-    } catch (error) {
-      console.error('Error creating itinerary:', error);
-      Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Failed to create itinerary'
-      );
+    } catch (error: any) {
+      Alert.alert('Creation Failed', error.message);
     } finally {
       setIsCreating(false);
     }
   };
 
-  const resetForm = () => {
-    setCurrentStep(1);
-    setSelectedType('');
-    setSelectedBudget('');
-    setItineraryName('');
-    setStartDate(new Date());
-    setEndDate(new Date());
-  };
+  const renderBudgetButtons = () => (
+    <View>
+      <Text style={styles.label}>Budget (Optional)</Text>
+      <View style={styles.budgetButtonsContainer}>
+        {BUDGET_OPTIONS.map((option) => (
+          <TouchableOpacity
+            key={option}
+            style={[
+              styles.budgetButton,
+              budgetType === option && styles.budgetButtonSelected,
+            ]}
+            onPress={() => {
+              if (budgetType === option) {
+                setBudgetType(null);
+              } else {
+                setBudgetType(option);
+              }
+            }}
+          >
+            <Text
+              style={[
+                styles.budgetButtonText,
+                budgetType === option && styles.budgetButtonTextSelected,
+              ]}
+            >
+              {option}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
 
-  const getModalHeight = () => {
-    switch (currentStep) {
-      case 1: return "60%";
-      case 2: return "85%";
-      case 3: return "70%";
-      default: return "60%";
-    }
+  const renderCustomBudgetInput = () => {
+    if (budgetType !== 'Custom') return null;
+    return (
+      <View style={styles.customBudgetContainer}>
+        <TextInput
+          style={styles.customBudgetInput}
+          placeholder="e.g., 500"
+          keyboardType="numeric"
+          value={customBudget}
+          onChangeText={setCustomBudget}
+        />
+        <TextInput
+          style={styles.currencyInput}
+          value={currency}
+          onChangeText={setCurrency}
+          autoCapitalize="characters"
+          maxLength={3}
+        />
+      </View>
+    );
   };
 
   return (
     <Modal
-      animationType="fade"
+      animationType="slide"
       transparent={true}
       visible={visible}
       onRequestClose={onClose}
-      statusBarTranslucent={true}
     >
-      <View style={styles.modalOverlay} {...panResponder.panHandlers}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalOverlay}
+      >
         <Animated.View
-          style={[
-            styles.modalContainer,
-            {
-              transform: [{ translateY: panY }],
-              height: getModalHeight(),
-            },
-          ]}
+          style={[styles.modalContent, { transform: [{ translateY: panY }] }]}
+          {...panResponder.panHandlers}
         >
-          <View style={styles.dragHandle}>
-            <View style={styles.dragIndicator} />
+          <View style={styles.dragHandle} />
+          <Text style={styles.modalTitle}>New Itinerary</Text>
+
+          <Text style={styles.label}>Itinerary Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g., Paris Adventure"
+            value={name}
+            onChangeText={setName}
+          />
+
+          {renderBudgetButtons()}
+          {renderCustomBudgetInput()}
+
+          <View style={styles.datePickerContainer}>
+            <Text style={styles.dateLabel}>Start Date</Text>
+            <TouchableOpacity onPress={() => setShowStartDatePicker(true)}>
+              <Text style={styles.dateText}>{startDate.toLocaleDateString()}</Text>
+            </TouchableOpacity>
+          </View>
+          {showStartDatePicker && (
+            <DateTimePicker
+              value={startDate}
+              mode="date"
+              display="default"
+              onChange={(_, selectedDate) => {
+                setShowStartDatePicker(Platform.OS === 'ios');
+                if (selectedDate) {
+                  setStartDate(selectedDate);
+                  if (selectedDate > endDate) {
+                    setEndDate(new Date(selectedDate.getTime() + 86400000));
+                  }
+                }
+              }}
+            />
+          )}
+
+          <View style={styles.datePickerContainer}>
+            <Text style={styles.dateLabel}>End Date</Text>
+            <TouchableOpacity onPress={() => setShowEndDatePicker(true)}>
+              <Text style={styles.dateText}>{endDate.toLocaleDateString()}</Text>
+            </TouchableOpacity>
+          </View>
+          {showEndDatePicker && (
+            <DateTimePicker
+              value={endDate}
+              mode="date"
+              display="default"
+              minimumDate={startDate}
+              onChange={(_, selectedDate) => {
+                setShowEndDatePicker(Platform.OS === 'ios');
+                if (selectedDate) setEndDate(selectedDate);
+              }}
+            />
+          )}
+
+          <View style={styles.modalSwitchContainer}>
+            <Text style={styles.modalSwitchLabel}>Auto-generate with AI ✨</Text>
+            <Switch
+              trackColor={{ false: "#E5E7EB", true: "#A5B4FC" }}
+              thumbColor={autoGenerate ? "#6366F1" : "#f4f3f4"}
+              onValueChange={setAutoGenerate}
+              value={autoGenerate}
+            />
           </View>
 
-          <ScrollView
-            style={styles.modalScrollView}
-            contentContainerStyle={styles.modalContentContainer}
-            showsVerticalScrollIndicator={false}
-            bounces={false}
+          <TouchableOpacity
+            style={[styles.saveButton, isCreating && styles.disabledButton]}
+            onPress={handleSave}
+            disabled={isCreating}
           >
-            {currentStep === 1 && (
-              <ItineraryTypeStep
-                selectedType={selectedType}
-                onSelectType={setSelectedType}
-                onNext={handleNext}
-              />
+            {isCreating ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.saveButtonText}>Create Itinerary</Text>
             )}
-
-            {currentStep === 2 && (
-              <BudgetStep
-                selectedBudget={selectedBudget}
-                onSelectBudget={setSelectedBudget}
-                onNext={handleNext}
-                onPrevious={handlePrevious}
-              />
-            )}
-
-            {currentStep === 3 && (
-              <ItineraryDetailsStep
-                itineraryName={itineraryName}
-                setItineraryName={setItineraryName}
-                startDate={startDate}
-                setStartDate={setStartDate}
-                endDate={endDate}
-                setEndDate={setEndDate}
-                onCreate={handleCreate} // Pass the handleCreate function
-                onPrevious={handlePrevious}
-                isCreating={isCreating}
-              />
-            )}
-          </ScrollView>
+          </TouchableOpacity>
         </Animated.View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
-};
+}
 
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  modalContainer: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
+  modalContent: {
+    backgroundColor: 'white',
+    paddingHorizontal: 20,
+    paddingTop: 10,
     borderTopRightRadius: 20,
-    maxHeight: 700,
-    width: "100%",
-  },
-  modalScrollView: {
-    flex: 1,
-  },
-  modalContentContainer: {
-    paddingBottom: 30,
-    minHeight: "100%",
+    borderTopLeftRadius: 20,
+    paddingBottom: 40,
   },
   dragHandle: {
-    width: "100%",
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  dragIndicator: {
     width: 40,
-    height: 4,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 2,
+    height: 5,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginVertical: 10,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    padding: 12,
+    borderRadius: 8,
+    fontSize: 16,
+    marginBottom: 15,
+  },
+  budgetButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  budgetButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    alignItems: 'center',
+    marginHorizontal: 4,
+  },
+  budgetButtonSelected: {
+    backgroundColor: '#EDE9FE',
+    borderColor: '#6366F1',
+  },
+  budgetButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  budgetButtonTextSelected: {
+    color: '#6366F1',
+  },
+  customBudgetContainer: {
+    flexDirection: 'row',
+    marginBottom: 15,
+  },
+  customBudgetInput: {
+    flex: 3,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    padding: 12,
+    borderRadius: 8,
+    fontSize: 16,
+    marginRight: 10,
+  },
+  currencyInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    padding: 12,
+    borderRadius: 8,
+    fontSize: 16,
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  datePickerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  dateLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  dateText: {
+    fontSize: 16,
+    color: '#6366F1',
+    fontWeight: 'bold',
+  },
+  modalSwitchContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderTopWidth: 1,
+    borderColor: '#F3F4F6',
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  modalSwitchLabel: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  saveButton: {
+    backgroundColor: '#6366F1',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  disabledButton: {
+    backgroundColor: '#A5B4FC',
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
-
-export default ItineraryModal;

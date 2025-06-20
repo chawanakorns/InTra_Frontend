@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Image,
   PanResponder,
@@ -15,7 +14,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import ItineraryModal from "../../../components/ItineraryModal";
@@ -39,7 +38,7 @@ type ScheduleItem = {
   place_address?: string;
   place_rating?: number;
   place_image?: string;
-  scheduled_date: string; // Keep as string, format: "YYYY-MM-DD"
+  scheduled_date: string;
   scheduled_time: string;
   duration_minutes: number;
 };
@@ -47,7 +46,7 @@ type ScheduleItem = {
 type Itinerary = {
   id: string;
   type: string;
-  budget: string;
+  budget: string | null;
   name: string;
   startDate: Date;
   endDate: Date;
@@ -61,9 +60,7 @@ export default function CalendarScreen() {
   const [displayDate, setDisplayDate] = useState(new Date());
   const [weekDates, setWeekDates] = useState<Date[]>([]);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
-  const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(
-    null
-  );
+  const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,22 +71,24 @@ export default function CalendarScreen() {
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (_: any, gestureState: { dy: number }) => {
-        if (gestureState.dy > 0) {
-          panY.setValue(gestureState.dy);
-        }
+      onMoveShouldSetPanResponder: (_evt, gestureState) => {
+        // Only respond to downward swipes
+        return gestureState.dy > 0;
       },
-      onPanResponderRelease: (
-        _: any,
-        gestureState: { dy: number; vy: number }
-      ) => {
+      onPanResponderMove: Animated.event([null, { dy: panY }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 100 || gestureState.vy > 0.5) {
           Animated.timing(panY, {
-            toValue: 500,
+            toValue: 500, // Moves it off-screen
             duration: 200,
             useNativeDriver: true,
-          }).start(() => setModalVisible(false));
+          }).start(() => {
+            setModalVisible(false);
+            // It's crucial to reset panY after the modal is hidden
+            panY.setValue(0);
+          });
         } else {
           Animated.spring(panY, {
             toValue: 0,
@@ -99,10 +98,6 @@ export default function CalendarScreen() {
       },
     })
   ).current;
-
-  const resetModal = () => {
-    panY.setValue(0);
-  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -126,20 +121,15 @@ export default function CalendarScreen() {
     setWeekDates(newWeekDates);
   }, [displayDate]);
 
-  // --- CHANGE: Updated function to parse the first name from the full name ---
   const fetchUserName = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem("access_token");
       if (!token) return;
-
       const response = await fetch(`${BACKEND_AUTH_API_URL}/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (response.ok) {
         const data = await response.json();
-        // Split full_name by space and take the first element.
-        // Fallback to 'User' if full_name is missing or empty.
         const firstName = data.full_name ? data.full_name.split(" ")[0] : "User";
         setUserName(firstName);
       }
@@ -151,18 +141,13 @@ export default function CalendarScreen() {
   const fetchItineraries = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-
     try {
       const token = await AsyncStorage.getItem("access_token");
-      if (!token) {
-        throw new Error("Authentication token not found");
-      }
+      if (!token) throw new Error("Authentication token not found");
 
       const response = await fetch(`${BACKEND_ITINERARY_API_URL}/`, {
-        method: "GET",
         headers: {
           Accept: "application/json",
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
       });
@@ -173,31 +158,27 @@ export default function CalendarScreen() {
       }
 
       const data = await response.json();
+      if (!Array.isArray(data)) throw new Error("Invalid response format");
 
-      if (!Array.isArray(data)) {
-        throw new Error("Invalid response format - expected array");
-      }
-
-      const fetchedItineraries = data.map((it: any) => ({
+      const fetchedItineraries: Itinerary[] = data.map((it: any) => ({
         id: it.id.toString(),
         type: it.type,
         budget: it.budget,
         name: it.name,
         startDate: new Date(it.start_date),
         endDate: new Date(it.end_date),
-        schedule_items: it.schedule_items || [],
+        schedule_items: (it.schedule_items || []).map((item: any) => ({
+          ...item,
+          scheduled_date: item.scheduled_date,
+        })),
       }));
 
       setItineraries(fetchedItineraries);
 
       setSelectedItinerary((current) => {
         if (current) {
-          const updatedSelection = fetchedItineraries.find(
-            (it) => it.id === current.id
-          );
-          if (updatedSelection) {
-            return updatedSelection;
-          }
+          const updated = fetchedItineraries.find((it) => it.id === current.id);
+          return updated || (fetchedItineraries.length > 0 ? fetchedItineraries[0] : null);
         }
         return fetchedItineraries.length > 0 ? fetchedItineraries[0] : null;
       });
@@ -205,9 +186,7 @@ export default function CalendarScreen() {
       return fetchedItineraries;
     } catch (err) {
       console.error("Error fetching itineraries:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to load itineraries"
-      );
+      setError(err instanceof Error ? err.message : "Failed to load itineraries");
     } finally {
       setIsLoading(false);
     }
@@ -216,35 +195,32 @@ export default function CalendarScreen() {
   useFocusEffect(
     useCallback(() => {
       const fetchData = async () => {
-        setIsLoading(true);
         await Promise.all([fetchItineraries(), fetchUserName()]);
-        setIsLoading(false);
       };
-
       fetchData();
     }, [fetchItineraries, fetchUserName])
   );
+  
+  const handleCreateItinerary = (newItineraryFromResponse: any) => {
+    setModalVisible(false);
 
-  const handleCreateItinerary = async (newItineraryFromResponse: Itinerary) => {
-    try {
-      setModalVisible(false);
-      const allItineraries = await fetchItineraries();
+    const newItineraryForState: Itinerary = {
+      id: newItineraryFromResponse.id.toString(),
+      name: newItineraryFromResponse.name,
+      type: newItineraryFromResponse.type,
+      budget: newItineraryFromResponse.budget,
+      startDate: new Date(newItineraryFromResponse.start_date),
+      endDate: new Date(newItineraryFromResponse.end_date),
+      schedule_items: (newItineraryFromResponse.schedule_items || []).map((item: any) => ({
+        ...item,
+        scheduled_date: item.scheduled_date,
+      })),
+    };
 
-      if (allItineraries) {
-        const newlyCreated = allItineraries.find(
-          (it) => it.id === newItineraryFromResponse.id
-        );
-        if (newlyCreated) {
-          setSelectedItinerary(newlyCreated);
-        }
-      }
-    } catch (err) {
-      console.error("[Error] Create itinerary failed:", err);
-      Alert.alert(
-        "Error",
-        err instanceof Error ? err.message : "Failed to create itinerary"
-      );
-    }
+    setItineraries(prev => [newItineraryForState, ...prev]);
+    setSelectedItinerary(newItineraryForState);
+    setSelectedDate(newItineraryForState.startDate);
+    setDisplayDate(newItineraryForState.startDate);
   };
 
   const handlePreviousWeek = () => {
@@ -282,31 +258,21 @@ export default function CalendarScreen() {
     const hour = 6 + i;
     const ampm = hour >= 12 ? "PM" : "AM";
     let displayHour = hour % 12;
-    if (displayHour === 0) {
-      displayHour = 12;
-    }
+    if (displayHour === 0) displayHour = 12;
     return `${displayHour.toString().padStart(2, "0")}:00 ${ampm}`;
   });
 
   const getScheduleItemsForTimeSlot = (timeSlot: string): ScheduleItem[] => {
     if (!selectedItinerary) return [];
-
     const [time, ampm] = timeSlot.split(" ");
     const [hourStr] = time.split(":");
     let hour = parseInt(hourStr, 10);
-
-    if (ampm === "PM" && hour !== 12) {
-      hour += 12;
-    } else if (ampm === "AM" && hour === 12) {
-      hour = 0;
-    }
+    if (ampm === "PM" && hour !== 12) hour += 12;
+    if (ampm === "AM" && hour === 12) hour = 0;
 
     return selectedItinerary.schedule_items.filter((item) => {
       const itemDate = parse(item.scheduled_date, "yyyy-MM-dd", new Date());
-      if (!isSameDay(itemDate, selectedDate)) {
-        return false;
-      }
-
+      if (!isSameDay(itemDate, selectedDate)) return false;
       const [itemHour] = item.scheduled_time.split(":").map(Number);
       return itemHour === hour;
     });
@@ -351,10 +317,7 @@ export default function CalendarScreen() {
                   placeholderStyle={styles.placeholderStyle}
                   selectedTextStyle={styles.selectedTextStyle}
                   iconStyle={styles.iconStyle}
-                  data={itineraries.map((it) => ({
-                    label: it.name || "Itinerary",
-                    value: it.id,
-                  }))}
+                  data={itineraries.map((it) => ({ label: it.name, value: it.id }))}
                   maxHeight={300}
                   labelField="label"
                   valueField="value"
@@ -363,20 +326,15 @@ export default function CalendarScreen() {
                   onFocus={() => setIsDropdownOpen(true)}
                   onBlur={() => setIsDropdownOpen(false)}
                   onChange={(item) => {
-                    const itinerary = itineraries.find(
-                      (it) => it.id === item.value
-                    );
-                    setSelectedItinerary(itinerary ?? null);
+                    const itinerary = itineraries.find((it) => it.id === item.value);
+                    if (itinerary) {
+                        setSelectedItinerary(itinerary);
+                        setSelectedDate(itinerary.startDate);
+                        setDisplayDate(itinerary.startDate);
+                    }
                   }}
                   renderRightIcon={() => (
-                    <Text
-                      style={[
-                        styles.dropdownArrow,
-                        isDropdownOpen && styles.dropdownArrowOpen,
-                      ]}
-                    >
-                      ▼
-                    </Text>
+                    <Text style={[styles.dropdownArrow, isDropdownOpen && styles.dropdownArrowOpen]}>▼</Text>
                   )}
                 />
               </View>
@@ -386,35 +344,25 @@ export default function CalendarScreen() {
 
         <View style={styles.calendarContainer}>
           <View style={styles.weekControlContainer}>
-            <TouchableOpacity
-              onPress={handlePreviousWeek}
-              style={styles.navButton}
-            >
+            <TouchableOpacity onPress={handlePreviousWeek} style={styles.navButton}>
               <Text style={styles.navButtonText}>{"<"}</Text>
             </TouchableOpacity>
-
             <View style={styles.datesRow}>
               {weekDates.map((date, index) => {
-                const dayName = date
-                  .toLocaleDateString("en-US", { weekday: "short" })
-                  .toUpperCase();
+                const dayName = date.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
                 const isSelected = isSameDay(date, selectedDate);
-
                 const normalizedDate = new Date(date);
                 normalizedDate.setHours(0, 0, 0, 0);
-                const normalizedEndDate = new Date(
-                  selectedItinerary?.endDate || new Date()
-                );
-                normalizedEndDate.setHours(0, 0, 0, 0);
-                const normalizedStartDate = new Date(
-                  selectedItinerary?.startDate || new Date()
-                );
-                normalizedStartDate.setHours(0, 0, 0, 0);
+                
+                const itineraryStartDate = selectedItinerary ? new Date(selectedItinerary.startDate) : null;
+                if (itineraryStartDate) itineraryStartDate.setHours(0,0,0,0);
+                
+                const itineraryEndDate = selectedItinerary ? new Date(selectedItinerary.endDate) : null;
+                if(itineraryEndDate) itineraryEndDate.setHours(0,0,0,0);
 
-                const isWithinItinerary =
-                  selectedItinerary &&
-                  normalizedDate >= normalizedStartDate &&
-                  normalizedDate <= normalizedEndDate;
+                const isWithinItinerary = selectedItinerary && 
+                    normalizedDate >= itineraryStartDate! && 
+                    normalizedDate <= itineraryEndDate!;
 
                 return (
                   <TouchableOpacity
@@ -422,32 +370,16 @@ export default function CalendarScreen() {
                     style={[
                       styles.dateCell,
                       isSelected && styles.selectedDateCell,
-                      isWithinItinerary ? styles.itineraryDateCell : null,
+                      isWithinItinerary && !isSelected ? styles.itineraryDateCell : null,
                     ]}
                     onPress={() => setSelectedDate(date)}
                   >
-                    <Text
-                      style={[
-                        styles.dayHeaderText,
-                        isSelected && styles.selectedDateNumber,
-                      ]}
-                    >
-                      {dayName}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.dateNumber,
-                        isSelected && styles.selectedDateNumber,
-                        isWithinItinerary ? styles.itineraryDateNumber : null,
-                      ]}
-                    >
-                      {date.getDate()}
-                    </Text>
+                    <Text style={[styles.dayHeaderText, isSelected && styles.selectedDateNumber]}>{dayName}</Text>
+                    <Text style={[styles.dateNumber, isSelected && styles.selectedDateNumber]}>{date.getDate()}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
-
             <TouchableOpacity onPress={handleNextWeek} style={styles.navButton}>
               <Text style={styles.navButtonText}>{">"}</Text>
             </TouchableOpacity>
@@ -461,32 +393,13 @@ export default function CalendarScreen() {
             </View>
             {timeSlots.map((time) => {
               const scheduleItems = getScheduleItemsForTimeSlot(time);
-
-              const formatTimeRange = (
-                startTimeStr: string,
-                duration: number
-              ) => {
+              const formatTimeRange = (startTimeStr: string, duration: number) => {
                 const [h, m] = startTimeStr.split(":").map(Number);
                 const startDate = new Date();
                 startDate.setHours(h, m, 0, 0);
-
-                const endDate = new Date(
-                  startDate.getTime() + duration * 60000
-                );
-
-                const formatTime = (date: Date) => {
-                  let hours = date.getHours();
-                  const minutes = date.getMinutes();
-                  const ampm = hours >= 12 ? "PM" : "AM";
-                  hours %= 12;
-                  hours = hours || 12;
-                  const minutesStr = minutes < 10 ? "0" + minutes : minutes;
-                  return `${hours}:${minutesStr} ${ampm}`;
-                };
-
-                return `Time: ${formatTime(startDate)} - ${formatTime(
-                  endDate
-                )}`;
+                const endDate = new Date(startDate.getTime() + duration * 60000);
+                const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return `Time: ${formatTime(startDate)} - ${formatTime(endDate)}`;
               };
 
               return (
@@ -498,25 +411,14 @@ export default function CalendarScreen() {
                       {scheduleItems.map((item, itemIndex) => (
                         <View key={itemIndex} style={styles.scheduleItemCard}>
                           <Image
-                            source={
-                              item.place_image
-                                ? { uri: item.place_image }
-                                : require("../../../assets/images/icon.png")
-                            }
+                            source={item.place_image ? { uri: item.place_image } : require("../../../assets/images/icon.png")}
                             style={styles.cardImage}
                           />
                           <View style={styles.cardContent}>
-                            <Text style={styles.scheduleItemText}>
-                              {item.place_name}
-                            </Text>
-                            <Text style={styles.scheduleItemDetails}>
-                              {item.place_type || "Scheduled Activity"}
-                            </Text>
+                            <Text style={styles.scheduleItemText} numberOfLines={1}>{item.place_name}</Text>
+                            <Text style={styles.scheduleItemDetails}>{item.place_type || "Activity"}</Text>
                             <Text style={styles.scheduleItemTimeText}>
-                              {formatTimeRange(
-                                item.scheduled_time,
-                                item.duration_minutes
-                              )}
+                              {formatTimeRange(item.scheduled_time, item.duration_minutes)}
                             </Text>
                           </View>
                         </View>
@@ -530,7 +432,7 @@ export default function CalendarScreen() {
         ) : (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>It is empty now.</Text>
-            <Text style={styles.emptySubtitle}>Enter your first</Text>
+            <Text style={styles.emptySubtitle}>Create your first</Text>
             <Text style={styles.emptySubtitle}>itinerary</Text>
           </View>
         )}
@@ -541,22 +443,17 @@ export default function CalendarScreen() {
   return (
     <View style={styles.screenContainer}>
       <SafeAreaView style={styles.safeArea}>
-        {selectedItinerary || itineraries.length === 0 ? (
-          <ScrollView
-            contentContainerStyle={styles.container}
-            showsVerticalScrollIndicator={false}
-            bounces={true}
-          >
-            {renderContent()}
-          </ScrollView>
-        ) : (
-          <View style={styles.container}>{renderContent()}</View>
-        )}
-
+        <ScrollView
+          contentContainerStyle={styles.container}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderContent()}
+        </ScrollView>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={async () => {
-            resetModal();
+          onPress={() => {
+            // Reset the panY value just before showing the modal
+            panY.setValue(0);
             setModalVisible(true);
           }}
           disabled={isLoading && itineraries.length === 0}
@@ -570,337 +467,63 @@ export default function CalendarScreen() {
         onClose={() => setModalVisible(false)}
         onCreateItinerary={handleCreateItinerary}
         panY={panY}
-        panResponder={panResponder}
+        // FIX: Pass the entire panResponder instance, not just panHandlers
+        panResponder={panResponder} 
         backendApiUrl={BACKEND_ITINERARY_API_URL}
       />
     </View>
   );
 }
 
-// Styles remain the same
-interface Styles {
-    screenContainer: any;
-    safeArea: any;
-    container: any;
-    loadingContainer: any;
-    loadingText: any;
-    errorContainer: any;
-    errorText: any;
-    retryButton: any;
-    retryButtonText: any;
-    header: any;
-    headerRow: any;
-    greeting: any;
-    date: any;
-    itineraryPicker: any;
-    dropdown: any;
-    placeholderStyle: any;
-    selectedTextStyle: any;
-    iconStyle: any;
-    dropdownArrow: any;
-    dropdownArrowOpen: any;
-    calendarContainer: any;
-    dayHeaders: any;
-    dayHeaderCell: any;
-    dayHeaderText: any;
-    datesRow: any;
-    dateCell: any;
-    selectedDateCell: any;
-    dateNumber: any;
-    selectedDateNumber: any;
-    timelineContainer: any;
-    timelineHeader: any;
-    timelineTitle: any;
-    timelineRow: any;
-    timelineTime: any;
-    timelineDivider: any;
-    timelineLine: any;
-    emptyState: any;
-    emptyTitle: any;
-    emptySubtitle: any;
-    addButton: any;
-    addButtonText: any;
-    itineraryDateCell: any;
-    itineraryDateNumber: any;
-    scheduleItemCard: any;
-    scheduleItemText: any;
-    cardsContainer: any;
-    scheduleItemDetails: any;
-    scheduleItemTimeText: any;
-    cardImage: any;
-    cardContent: any;
-    weekControlContainer: any;
-    navButton: any;
-    navButtonText: any;
-  }
-  
-  const styles = StyleSheet.create<Styles>({
-    screenContainer: {
-      flex: 1,
-      position: "relative",
-    },
-    safeArea: {
-      flex: 1,
-      backgroundColor: "#FFFFFF",
-    },
-    container: {
-      padding: 20,
-      paddingBottom: 100,
-      minHeight: "100%",
-    },
-    loadingContainer: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    loadingText: {
-      marginTop: 16,
-      color: "#6B7280",
-      fontSize: 16,
-    },
-    errorContainer: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      padding: 20,
-    },
-    errorText: {
-      color: "#EF4444",
-      fontSize: 16,
-      textAlign: "center",
-      marginBottom: 20,
-    },
-    retryButton: {
-      backgroundColor: "#6366F1",
-      paddingHorizontal: 24,
-      paddingVertical: 12,
-      borderRadius: 8,
-    },
-    retryButtonText: {
-      color: "#FFFFFF",
-      fontWeight: "bold",
-    },
-    header: {
-      marginBottom: 30,
-      paddingTop: 40,
-    },
-    headerRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginTop: 10,
-    },
-    greeting: {
-      fontSize: 24,
-      fontWeight: "bold",
-      color: "#1F2937",
-      marginBottom: 8,
-    },
-    date: {
-      fontSize: 18,
-      fontWeight: "500",
-      color: "#6B7280",
-    },
-    itineraryPicker: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    dropdown: {
-      height: 40,
-      width: 150,
-      backgroundColor: "#6366F1",
-      borderRadius: 5,
-      paddingHorizontal: 10,
-    },
-    placeholderStyle: {
-      fontSize: 16,
-      color: "#FFFFFF",
-    },
-    selectedTextStyle: {
-      fontSize: 16,
-      color: "#FFFFFF",
-    },
-    iconStyle: {
-      width: 20,
-      height: 20,
-    },
-    dropdownArrow: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      marginLeft: 5,
-    },
-    dropdownArrowOpen: {
-      transform: [{ rotate: "180deg" }],
-    },
-    calendarContainer: {
-      marginBottom: 5,
-    },
-    weekControlContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    navButton: {
-      padding: 8,
-    },
-    navButtonText: {
-      fontSize: 22,
-      fontWeight: "bold",
-      color: "#6366F1",
-    },
-    dayHeaders: {},
-    dayHeaderCell: {},
-    dayHeaderText: {
-      fontSize: 12,
-      fontWeight: "500",
-      color: "#6B7280",
-      textTransform: "uppercase",
-      marginBottom: 6,
-    },
-    datesRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      flex: 1,
-      marginHorizontal: 5,
-    },
-    dateCell: {
-      width: 42,
-      height: 60,
-      justifyContent: "center",
-      alignItems: "center",
-      borderRadius: 20,
-    },
-    selectedDateCell: {
-      backgroundColor: "#6366F1",
-    },
-    dateNumber: {
-      fontSize: 16,
-      fontWeight: "500",
-      color: "#1F2937",
-    },
-    selectedDateNumber: {
-      color: "#FFFFFF",
-    },
-    timelineContainer: {
-      marginTop: 20,
-      paddingLeft: 10,
-    },
-    timelineHeader: {
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: "#E5E7EB",
-      marginBottom: 10,
-    },
-    timelineTitle: {
-      fontSize: 20,
-      fontWeight: "bold",
-      color: "#1F2937",
-    },
-    timelineRow: {
-      flexDirection: "row",
-      alignItems: "stretch",
-      minHeight: 60,
-    },
-    timelineTime: {
-      fontSize: 16,
-      color: "#6B7280",
-      width: 80,
-      marginRight: 10,
-    },
-    timelineDivider: {
-      flex: 1,
-      position: "relative",
-      paddingLeft: 15,
-    },
-    timelineLine: {
-      position: "absolute",
-      top: 0,
-      bottom: 0,
-      left: 0,
-      width: 2,
-      backgroundColor: "#E5E7EB",
-    },
-    emptyState: {
-      alignItems: "center",
-      marginBottom: 60,
-      padding: 20,
-      flex: 1,
-      justifyContent: "center",
-    },
-    emptyTitle: {
-      fontSize: 16,
-      color: "#9CA3AF",
-      marginBottom: 16,
-      textAlign: "center",
-    },
-    emptySubtitle: {
-      fontSize: 36,
-      color: "#1F2937",
-      fontWeight: "bold",
-      textAlign: "center",
-      lineHeight: 34,
-    },
-    addButton: {
-      position: "absolute",
-      bottom: 30,
-      right: 30,
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      backgroundColor: "#6366F1",
-      justifyContent: "center",
-      alignItems: "center",
-      elevation: 5,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.25,
-      shadowRadius: 3.84,
-    },
-    addButtonText: {
-      fontSize: 30,
-      color: "#FFFFFF",
-      fontWeight: "bold",
-      marginBottom: 2,
-    },
-    itineraryDateCell: {
-      backgroundColor: "rgba(100, 102, 241, 0.3)",
-    },
-    itineraryDateNumber: {
-      fontWeight: "bold",
-    },
-    scheduleItemCard: {
-      backgroundColor: "#F0F4F8",
-      borderRadius: 8,
-      marginBottom: 15,
-      width: "100%",
-      overflow: "hidden",
-    },
-    scheduleItemText: {
-      fontSize: 16,
-      fontWeight: "bold",
-      color: "#1F2937",
-      marginBottom: 4,
-    },
-    cardsContainer: {
-      flex: 1,
-    },
-    scheduleItemDetails: {
-      fontSize: 14,
-      color: "#6B7280",
-      marginBottom: 8,
-    },
-    scheduleItemTimeText: {
-      fontSize: 14,
-      fontWeight: "bold",
-      color: "#374151",
-    },
-    cardImage: {
-      width: "100%",
-      height: 120,
-      backgroundColor: "#E5E7EB",
-    },
-    cardContent: {
-      padding: 12,
-      backgroundColor: "rgba(230, 244, 234, 0.8)",
-    },
-  } as const);
+const styles = StyleSheet.create({
+  screenContainer: { flex: 1, position: "relative" },
+  safeArea: { flex: 1, backgroundColor: "#FFFFFF" },
+  container: { padding: 20, paddingBottom: 100, minHeight: '100%' },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingText: { marginTop: 16, color: "#6B7280", fontSize: 16 },
+  errorContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
+  errorText: { color: "#EF4444", fontSize: 16, textAlign: "center", marginBottom: 20 },
+  retryButton: { backgroundColor: "#6366F1", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  retryButtonText: { color: "#FFFFFF", fontWeight: "bold" },
+  header: { marginBottom: 30, paddingTop: Platform.OS === 'android' ? 20 : 0 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 },
+  greeting: { fontSize: 24, fontWeight: "bold", color: "#1F2937", marginBottom: 8 },
+  date: { fontSize: 18, fontWeight: "500", color: "#6B7280" },
+  itineraryPicker: { flexDirection: "row", alignItems: "center" },
+  dropdown: { height: 40, width: 150, backgroundColor: "#6366F1", borderRadius: 8, paddingHorizontal: 12 },
+  placeholderStyle: { fontSize: 16, color: "#FFFFFF" },
+  selectedTextStyle: { fontSize: 16, color: "#FFFFFF" },
+  iconStyle: { width: 20, height: 20 },
+  dropdownArrow: { color: "#FFFFFF", fontSize: 16, marginLeft: 5 },
+  dropdownArrowOpen: { transform: [{ rotate: "180deg" }] },
+  calendarContainer: { marginBottom: 5 },
+  weekControlContainer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  navButton: { padding: 8 },
+  navButtonText: { fontSize: 22, fontWeight: "bold", color: "#6366F1" },
+  dayHeaderText: { fontSize: 12, fontWeight: "500", color: "#6B7280", textTransform: "uppercase", marginBottom: 6 },
+  datesRow: { flexDirection: "row", justifyContent: "space-between", flex: 1, marginHorizontal: 5 },
+  dateCell: { width: 42, height: 60, justifyContent: "center", alignItems: "center", borderRadius: 21 },
+  selectedDateCell: { backgroundColor: "#6366F1" },
+  dateNumber: { fontSize: 16, fontWeight: "500", color: "#1F2937" },
+  selectedDateNumber: { color: "#FFFFFF", fontWeight: 'bold' },
+  timelineContainer: { marginTop: 20 },
+  timelineHeader: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", marginBottom: 10 },
+  timelineTitle: { fontSize: 20, fontWeight: "bold", color: "#1F2937" },
+  timelineRow: { flexDirection: "row", alignItems: "stretch", minHeight: 60 },
+  timelineTime: { fontSize: 14, color: "#9CA3AF", width: 80, marginRight: 10, paddingTop: 5, textAlign: 'right' },
+  timelineDivider: { flex: 1, position: "relative", paddingLeft: 15, borderLeftWidth: 2, borderLeftColor: '#E5E7EB' },
+  timelineLine: {}, 
+  emptyState: { alignItems: "center", flex: 1, justifyContent: "center", paddingBottom: 100 },
+  emptyTitle: { fontSize: 16, color: "#9CA3AF", marginBottom: 16, textAlign: "center" },
+  emptySubtitle: { fontSize: 36, color: "#1F2937", fontWeight: "bold", textAlign: "center", lineHeight: 40 },
+  addButton: { position: "absolute", bottom: 30, right: 30, width: 60, height: 60, borderRadius: 30, backgroundColor: "#6366F1", justifyContent: "center", alignItems: "center", elevation: 5, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 },
+  addButtonText: { fontSize: 30, color: "#FFFFFF", fontWeight: "bold", marginBottom: 2 },
+  itineraryDateCell: { backgroundColor: "rgba(99, 102, 241, 0.15)", borderRadius: 21 },
+  scheduleItemCard: { backgroundColor: "#F9FAFB", borderRadius: 12, marginBottom: 15, width: "100%", overflow: "hidden", flexDirection: 'row', borderWidth: 1, borderColor: '#F3F4F6' },
+  scheduleItemText: { fontSize: 16, fontWeight: "bold", color: "#1F2937", marginBottom: 4 },
+  cardsContainer: { flex: 1, paddingLeft: 15, paddingTop: 5, paddingBottom: 5 },
+  scheduleItemDetails: { fontSize: 14, color: "#6B7280", marginBottom: 8 },
+  scheduleItemTimeText: { fontSize: 14, fontWeight: "bold", color: "#374151" },
+  cardImage: { width: 90, height: '100%', backgroundColor: "#E5E7EB" },
+  cardContent: { padding: 12, flex: 1, justifyContent: 'center' },
+});
