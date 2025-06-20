@@ -1,8 +1,8 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react'; // Import useCallback
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -23,7 +23,7 @@ const BACKEND_API_URL = Platform.select({
 });
 
 interface Itinerary {
-  id: number; // Changed to number
+  id: number;
   name: string;
   start_date: string;
   end_date: string;
@@ -48,6 +48,7 @@ export default function PlaceDetail() {
   const { placeId, placeName, placeData } = useLocalSearchParams();
   const router = useRouter();
   const place: Place = JSON.parse(placeData as string);
+
   const [showItineraryModal, setShowItineraryModal] = useState(false);
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
@@ -58,6 +59,10 @@ export default function PlaceDetail() {
   const [time, setTime] = useState('12:00');
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarkId, setBookmarkId] = useState<number | null>(null);
+  const [checkingBookmark, setCheckingBookmark] = useState(true);
 
   const getDescription = () => {
     if (place.types?.includes('restaurant')) {
@@ -70,7 +75,105 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
     return `The atmosphere at ${placeName} is nice these days. The al fresco area is vibrant, and soft jazz music is playing. We recommend trying the local specialties!`;
   };
 
-    const fetchItineraries = useCallback(async () => {
+  const checkBookmarkStatus = useCallback(async () => {
+    try {
+      setCheckingBookmark(true);
+      const token = await AsyncStorage.getItem('access_token');
+      if (!token) {
+        // If not logged in, they can't have a bookmark
+        setIsBookmarked(false);
+        setBookmarkId(null);
+        return;
+      }
+
+      const response = await fetch(`${BACKEND_API_URL}/api/bookmarks/check/${placeId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setIsBookmarked(data.is_bookmarked);
+        setBookmarkId(data.bookmark_id);
+      } else {
+        // Handle cases where the check might fail, e.g., token expired
+        setIsBookmarked(false);
+        setBookmarkId(null);
+      }
+    } catch (e) {
+      console.error("Failed to check bookmark status", e);
+      setIsBookmarked(false);
+      setBookmarkId(null);
+    } finally {
+      setCheckingBookmark(false);
+    }
+  }, [placeId]);
+  
+  const toggleBookmark = async () => {
+    setCheckingBookmark(true);
+    const token = await AsyncStorage.getItem('access_token');
+    if (!token) {
+      Alert.alert("Login Required", "You need to be logged in to save bookmarks.");
+      setCheckingBookmark(false);
+      return;
+    }
+
+    try {
+      if (isBookmarked && bookmarkId) {
+        // --- Remove bookmark ---
+        const response = await fetch(`${BACKEND_API_URL}/api/bookmarks/${bookmarkId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        if (response.status === 204) {
+          setIsBookmarked(false);
+          setBookmarkId(null);
+          Alert.alert("Success", "Bookmark removed.");
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          Alert.alert("Error", errorData.detail || "Failed to remove bookmark.");
+        }
+      } else {
+        // --- Add bookmark ---
+        const bookmarkData = {
+          place_id: place.id,
+          place_name: place.name,
+          place_type: place.types ? place.types[0] : null,
+          place_address: place.address,
+          place_rating: place.rating,
+          place_image: place.image,
+        };
+
+        const response = await fetch(`${BACKEND_API_URL}/api/bookmarks/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(bookmarkData),
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+          setIsBookmarked(true);
+          setBookmarkId(result.id);
+          Alert.alert("Success", "Place bookmarked!");
+        } else {
+          Alert.alert("Error", result.detail || "Failed to add bookmark.");
+        }
+      }
+    } catch (error) {
+      Alert.alert("Error", "An error occurred. Please try again.");
+    } finally {
+      setCheckingBookmark(false);
+    }
+  };
+
+
+  const fetchItineraries = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -78,10 +181,10 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
             const token = await AsyncStorage.getItem('access_token');
             if (!token) {
               setError('Authentication required. Please log in.');
-              return;  // Exit early if no token
+              return;
             }
 
-            const response = await fetch(`${BACKEND_API_URL}/api/itineraries/`, {  // add / to the end
+            const response = await fetch(`${BACKEND_API_URL}/api/itineraries/`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json',
@@ -116,7 +219,6 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
                 throw new Error('Authentication required');
             }
 
-            // Validate date is within itinerary range
             const itineraryStart = new Date(selectedItinerary.start_date);
             const itineraryEnd = new Date(selectedItinerary.end_date);
             if (date < itineraryStart || date > itineraryEnd) {
@@ -153,8 +255,6 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
                 throw new Error(errorData.detail || `Server returned ${response.status}`);
             }
 
-            const newItem = await response.json();
-
             router.back();
             Alert.alert('Success', `Successfully added to ${selectedItinerary.name} itinerary!`);
         } catch (err) {
@@ -184,24 +284,34 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
   const handleRefresh = () => {
     setRefreshing(true);
     fetchItineraries();
+    checkBookmarkStatus();
   };
 
   useEffect(() => {
+        checkBookmarkStatus();
+    }, [checkBookmarkStatus]);
+
+  useEffect(() => {
         if (showItineraryModal) {
-            fetchItineraries(); // Fetch when modal is opened
+            fetchItineraries();
         }
-    }, [showItineraryModal, fetchItineraries]); // Depend on fetchItineraries
+    }, [showItineraryModal, fetchItineraries]);
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.push('/dashboard/home')} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialIcons name="close" size={24} color="#666" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={toggleBookmark} style={styles.bookmarkButton} disabled={checkingBookmark}>
+          {checkingBookmark ? (
+            <ActivityIndicator size="small" color="#3B82F6" />
+          ) : (
+            <FontAwesome name={isBookmarked ? "bookmark" : "bookmark-o"} size={24} color="#3B82F6" />
+          )}
         </TouchableOpacity>
       </View>
 
-      {/* Main Card */}
       <View style={styles.mainCard}>
         <Image 
           source={{ uri: place.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&h=200&fit=crop' }} 
@@ -216,7 +326,6 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
         </View>
       </View>
 
-      {/* Thumbnail Images */}
       <View style={styles.thumbnailContainer}>
         {[
           '1514933817-b8ccc92d7b84',
@@ -233,7 +342,6 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
         ))}
       </View>
 
-      {/* Content */}
       <ScrollView 
         style={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
@@ -253,7 +361,6 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
           {getDescription()}
         </Text>
 
-        {/* Details */}
         <View style={styles.detailsSection}>
           {place.address && (
             <Text style={styles.detailText}>Address: {place.address}</Text>
@@ -267,7 +374,6 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
         </View>
       </ScrollView>
 
-      {/* Add to Itinerary Button */}
       <TouchableOpacity 
         style={styles.addButton} 
         onPress={() => setShowItineraryModal(true)}
@@ -276,7 +382,6 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
         <Text style={styles.addButtonText}>Add to Itinerary</Text>
       </TouchableOpacity>
 
-      {/* Itinerary Selection Modal */}
       {showItineraryModal && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -411,6 +516,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F9FA',
   },
   backButton: {
+    padding: 4,
+  },
+  bookmarkButton: {
     padding: 4,
   },
   mainCard: {
