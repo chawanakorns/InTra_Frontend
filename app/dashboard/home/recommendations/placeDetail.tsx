@@ -1,12 +1,13 @@
-import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
+import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
+  ImageBackground,
   Platform,
   RefreshControl,
   ScrollView,
@@ -21,6 +22,18 @@ const BACKEND_API_URL = Platform.select({
   ios: "http://localhost:8000",
   default: "http://localhost:8000",
 });
+
+const COLORS = {
+  primary: '#6366F1', // Your requested button color
+  primaryLight: '#E0E7FF',
+  white: '#FFFFFF',
+  dark: '#1F2937',
+  text: '#4B5563',
+  lightGray: '#F3F4F6',
+  gray: '#9CA3AF',
+  danger: '#EF4444',
+  dangerLight: '#FEE2E2',
+};
 
 interface Itinerary {
   id: number;
@@ -66,13 +79,9 @@ export default function PlaceDetail() {
 
   const getDescription = () => {
     if (place.types?.includes('restaurant')) {
-      return `The weather is nice these days. The atmosphere at the restaurant, especially the al fresco area, is very festive. There is a big Christmas tree in the middle and soft jazz music is playing.
-
-We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey Dressing, Gambas al Ajillo, Linguine with Seafood, and Chang Mai Lamb Chops with Tomatoes and Mint Salsa. The dish that we think is good is the Lamb Chops. It is cooked to perfection. The garnish is flavorful. The other dishes are just so-so.`;
-    } else if (place.types?.includes('tourist_attraction')) {
-      return `The atmosphere at ${placeName} is nice these days. The al fresco area is vibrant, and soft jazz music is playing. We recommend trying the local specialties!`;
+      return `A popular destination for food lovers, ${placeName} offers a delightful culinary experience. The ambiance is cozy yet vibrant, perfect for any occasion. We recommend trying their signature dishes, which showcase a blend of local flavors and modern techniques. The staff is known for being friendly and attentive, ensuring a memorable visit.`;
     }
-    return `The atmosphere at ${placeName} is nice these days. The al fresco area is vibrant, and soft jazz music is playing. We recommend trying the local specialties!`;
+    return `Discover the charm of ${placeName}. This spot is a must-visit, offering unique experiences and beautiful sights. Whether you're a local or a tourist, you'll find something to love here. Don't forget to bring your camera to capture the wonderful moments. The atmosphere is consistently praised by visitors.`;
   };
 
   const checkBookmarkStatus = useCallback(async () => {
@@ -80,7 +89,6 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
       setCheckingBookmark(true);
       const token = await AsyncStorage.getItem('access_token');
       if (!token) {
-        // If not logged in, they can't have a bookmark
         setIsBookmarked(false);
         setBookmarkId(null);
         return;
@@ -98,7 +106,6 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
         setIsBookmarked(data.is_bookmarked);
         setBookmarkId(data.bookmark_id);
       } else {
-        // Handle cases where the check might fail, e.g., token expired
         setIsBookmarked(false);
         setBookmarkId(null);
       }
@@ -122,7 +129,6 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
 
     try {
       if (isBookmarked && bookmarkId) {
-        // --- Remove bookmark ---
         const response = await fetch(`${BACKEND_API_URL}/api/bookmarks/${bookmarkId}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` },
@@ -137,7 +143,6 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
           Alert.alert("Error", errorData.detail || "Failed to remove bookmark.");
         }
       } else {
-        // --- Add bookmark ---
         const bookmarkData = {
           place_id: place.id,
           place_name: place.name,
@@ -172,30 +177,22 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
     }
   };
 
-
   const fetchItineraries = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
-
             const token = await AsyncStorage.getItem('access_token');
             if (!token) {
               setError('Authentication required. Please log in.');
               return;
             }
-
             const response = await fetch(`${BACKEND_API_URL}/api/itineraries/`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json',
-                },
+                headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
             });
-
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.detail || `Server returned ${response.status}`);
             }
-
             const data = await response.json();
             setItineraries(data);
         } catch (err) {
@@ -209,16 +206,12 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
 
     const handleAddToItinerary = async () => {
         if (!selectedItinerary) return;
-
         try {
             setLoading(true);
             setError(null);
-
             const token = await AsyncStorage.getItem('access_token');
-            if (!token) {
-                throw new Error('Authentication required');
-            }
-
+            if (!token) throw new Error('Authentication required');
+            
             const itineraryStart = new Date(selectedItinerary.start_date);
             const itineraryEnd = new Date(selectedItinerary.end_date);
             if (date < itineraryStart || date > itineraryEnd) {
@@ -226,54 +219,41 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
             }
 
             const scheduleItem = {
-                place_id: placeId,
-                place_name: placeName,
+                place_id: placeId, place_name: placeName,
                 place_type: place.types ? place.types[0] : null,
-                place_address: place.address || null,
-                place_rating: place.rating || null,
-                place_image: place.image || null,
-                place_data: place,
-                scheduled_date: date.toISOString().split('T')[0],
-                scheduled_time: time,
+                place_address: place.address || null, place_rating: place.rating || null,
+                place_image: place.image || null, place_data: place,
+                scheduled_date: date.toISOString().split('T')[0], scheduled_time: time,
                 duration_minutes: 60,
             };
 
-            const response = await fetch(
-                `${BACKEND_API_URL}/api/itineraries/${selectedItinerary.id}/items`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(scheduleItem),
-                }
-            );
-
+            const response = await fetch(`${BACKEND_API_URL}/api/itineraries/${selectedItinerary.id}/items`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(scheduleItem),
+            });
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.detail || `Server returned ${response.status}`);
             }
-
             router.back();
             Alert.alert('Success', `Successfully added to ${selectedItinerary.name} itinerary!`);
         } catch (err) {
             console.error('Error adding to itinerary:', err);
             setError(err instanceof Error ? err.message : 'Failed to add to itinerary');
+            Alert.alert('Error', err instanceof Error ? err.message : 'An unknown error occurred.');
         } finally {
             setLoading(false);
         }
     };
 
   const onChangeDate = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setDate(selectedDate);
-    }
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) setDate(selectedDate);
   };
 
   const onChangeTime = (event: any, selectedDate?: Date) => {
-    setShowTimePicker(false);
+    setShowTimePicker(Platform.OS === 'ios');
     if (selectedDate) {
       const hours = selectedDate.getHours().toString().padStart(2, '0');
       const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
@@ -281,105 +261,96 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
     }
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchItineraries();
     checkBookmarkStatus();
-  };
+    // Re-fetch itineraries only if the modal is open, or always refresh them
+    if (showItineraryModal) {
+      fetchItineraries();
+    } else {
+      setRefreshing(false);
+    }
+  }, [checkBookmarkStatus, showItineraryModal, fetchItineraries]);
 
   useEffect(() => {
-        checkBookmarkStatus();
-    }, [checkBookmarkStatus]);
+    checkBookmarkStatus();
+  }, [checkBookmarkStatus]);
 
   useEffect(() => {
-        if (showItineraryModal) {
-            fetchItineraries();
-        }
-    }, [showItineraryModal, fetchItineraries]);
+    if (showItineraryModal) {
+      fetchItineraries();
+    }
+  }, [showItineraryModal, fetchItineraries]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name="close" size={24} color="#666" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={toggleBookmark} style={styles.bookmarkButton} disabled={checkingBookmark}>
-          {checkingBookmark ? (
-            <ActivityIndicator size="small" color="#3B82F6" />
-          ) : (
-            <FontAwesome name={isBookmarked ? "bookmark" : "bookmark-o"} size={24} color="#3B82F6" />
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.mainCard}>
-        <Image 
-          source={{ uri: place.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&h=200&fit=crop' }} 
-          style={styles.mainImage} 
-        />
-        <View style={styles.cardOverlay}>
-          <Text style={styles.placeName}>{placeName}</Text>
-          <Text style={styles.placeSubtitle}>
-            {place.types?.includes('restaurant') ? 'Restaurant' : 
-             place.types?.includes('tourist_attraction') ? 'Attraction' : 'Place'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.thumbnailContainer}>
-        {[
-          '1514933817-b8ccc92d7b84',
-          '1465101046530-73398c7f28ca',
-          '1506744038136-46273834b3fb',
-          '1500534314209-a25ddb2bd429'
-        ].map((photoId, index) => (
-          <View key={index} style={styles.thumbnail}>
-            <Image 
-              source={{ uri: `https://images.unsplash.com/photo-${photoId}?w=80&h=80&fit=crop` }} 
-              style={styles.thumbnailImage} 
-            />
-          </View>
-        ))}
-      </View>
-
-      <ScrollView 
-        style={styles.scrollContent} 
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={['#3B82F6']}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[COLORS.primary]} />}
       >
-        <View style={styles.titleSection}>
-          <Text style={styles.title}>{placeName}</Text>
-        </View>
+        <ImageBackground
+          source={{ uri: place.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop' }}
+          style={styles.imageBackground}
+        >
+          <LinearGradient
+            colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.8)']}
+            style={styles.gradientOverlay}
+          >
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
+                <MaterialIcons name="arrow-back" size={24} color={COLORS.white} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={toggleBookmark} style={styles.headerButton} disabled={checkingBookmark}>
+                {checkingBookmark ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <FontAwesome name={isBookmarked ? "bookmark" : "bookmark-o"} size={24} color={COLORS.white} />
+                )}
+              </TouchableOpacity>
+            </View>
+            <View style={styles.imageTextContainer}>
+              <Text style={styles.placeType}>
+                {place.types?.includes('restaurant') ? 'Restaurant' : 
+                 place.types?.includes('tourist_attraction') ? 'Attraction' : 'Place'}
+              </Text>
+              <Text style={styles.placeName}>{placeName}</Text>
+            </View>
+          </LinearGradient>
+        </ImageBackground>
 
-        <Text style={styles.description}>
-          {getDescription()}
-        </Text>
+        <View style={styles.contentContainer}>
+          <View style={styles.detailsRow}>
+            {place.rating && (
+              <View style={styles.detailBox}>
+                <Ionicons name="star" size={20} color={COLORS.primary} />
+                <Text style={styles.detailText}>{place.rating} / 5</Text>
+              </View>
+            )}
+            {place.isOpen !== undefined && (
+              <View style={styles.detailBox}>
+                <Ionicons name="time-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.detailText}>{place.isOpen ? 'Open Now' : 'Closed'}</Text>
+              </View>
+            )}
+          </View>
 
-        <View style={styles.detailsSection}>
           {place.address && (
-            <Text style={styles.detailText}>Address: {place.address}</Text>
+            <View style={styles.addressSection}>
+              <Ionicons name="location-outline" size={22} color={COLORS.primary} style={{marginRight: 12}}/>
+              <Text style={styles.addressText}>{place.address}</Text>
+            </View>
           )}
-          {place.rating && (
-            <Text style={styles.detailText}>Rating: {place.rating} / 5</Text>
-          )}
-          {place.isOpen !== undefined && (
-            <Text style={styles.detailText}>Status: {place.isOpen ? 'Open' : 'Closed'}</Text>
-          )}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Description</Text>
+            <Text style={styles.descriptionText}>{getDescription()}</Text>
+          </View>
         </View>
       </ScrollView>
 
-      <TouchableOpacity 
-        style={styles.addButton} 
-        onPress={() => setShowItineraryModal(true)}
-        disabled={loading}
-      >
-        <Text style={styles.addButtonText}>Add to Itinerary</Text>
+      <TouchableOpacity style={styles.fab} onPress={() => setShowItineraryModal(true)} disabled={loading}>
+        <Ionicons name="add" size={24} color={COLORS.white} />
+        <Text style={styles.fabText}>Add to Itinerary</Text>
       </TouchableOpacity>
 
       {showItineraryModal && (
@@ -390,17 +361,11 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Select Itinerary</Text>
               {loading && itineraries.length === 0 ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color="#6366F1" />
-                  <Text style={styles.loadingText}>Loading itineraries...</Text>
-                </View>
+                <View style={styles.loadingContainer}><ActivityIndicator size="small" color={COLORS.primary} /></View>
               ) : error ? (
                 <View style={styles.errorContainer}>
                   <Text style={styles.errorText}>{error}</Text>
-                  <TouchableOpacity 
-                    style={styles.retryButton} 
-                    onPress={fetchItineraries}
-                  >
+                  <TouchableOpacity style={styles.retryButton} onPress={fetchItineraries}>
                     <Text style={styles.retryButtonText}>Try Again</Text>
                   </TouchableOpacity>
                 </View>
@@ -409,89 +374,56 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
                   {itineraries.map((itinerary) => (
                     <TouchableOpacity
                       key={itinerary.id}
-                      style={[
-                        styles.itineraryOption,
-                        selectedItinerary?.id === itinerary.id && styles.selectedItinerary
-                      ]}
+                      style={[ styles.itineraryOption, selectedItinerary?.id === itinerary.id && styles.selectedItinerary ]}
                       onPress={() => setSelectedItinerary(itinerary)}
                     >
                       <Text style={styles.itineraryName}>{itinerary.name}</Text>
                       <Text style={styles.itineraryDates}>
-                        {new Date(itinerary.start_date).toLocaleDateString()} -{' '}
-                        {new Date(itinerary.end_date).toLocaleDateString()}
-                      </Text>
-                      <Text style={styles.itineraryType}>
-                        {itinerary.type} • {itinerary.budget}
+                        {new Date(itinerary.start_date).toLocaleDateString()} - {new Date(itinerary.end_date).toLocaleDateString()}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
               ) : (
-                <Text style={styles.noItinerariesText}>
-                  No itineraries found. Create one first.
-                </Text>
+                <Text style={styles.noItinerariesText}>No itineraries found. Create one first.</Text>
               )}
             </View>
+            
+            {selectedItinerary && <>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Date</Text>
+                <TouchableOpacity style={styles.dateInput} onPress={() => setShowDatePicker(true)}>
+                  <Text>{date.toLocaleDateString()}</Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={date} mode="date" display="default" onChange={onChangeDate}
+                    minimumDate={new Date(selectedItinerary.start_date)} maximumDate={new Date(selectedItinerary.end_date)}
+                  />
+                )}
+              </View>
 
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Date</Text>
-              <TouchableOpacity 
-                style={styles.dateInput} 
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text>{date.toLocaleDateString()}</Text>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={date}
-                  mode="date"
-                  display="default"
-                  onChange={onChangeDate}
-                  minimumDate={selectedItinerary ? new Date(selectedItinerary.start_date) : undefined}
-                  maximumDate={selectedItinerary ? new Date(selectedItinerary.end_date) : undefined}
-                />
-              )}
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Time</Text>
-              <TouchableOpacity 
-                style={styles.dateInput} 
-                onPress={() => setShowTimePicker(true)}
-              >
-                <Text>{time}</Text>
-              </TouchableOpacity>
-              {showTimePicker && (
-                <DateTimePicker
-                  value={new Date()}
-                  mode="time"
-                  display="default"
-                  onChange={onChangeTime}
-                />
-              )}
-            </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Time</Text>
+                <TouchableOpacity style={styles.dateInput} onPress={() => setShowTimePicker(true)}>
+                  <Text>{time}</Text>
+                </TouchableOpacity>
+                {showTimePicker && (
+                  <DateTimePicker value={new Date()} mode="time" display="default" onChange={onChangeTime} />
+                )}
+              </View>
+            </>}
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowItineraryModal(false)}
-              >
+              <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowItineraryModal(false)}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={[
-                  styles.modalButton, 
-                  styles.confirmButton, 
-                  (!selectedItinerary || loading) && styles.disabledButton
-                ]}
+                style={[styles.modalButton, styles.confirmButton, (!selectedItinerary || loading) && styles.disabledButton]}
                 onPress={handleAddToItinerary}
                 disabled={!selectedItinerary || loading}
               >
-                {loading ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <Text style={styles.confirmButtonText}>Add to Itinerary</Text>
-                )}
+                {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.confirmButtonText}>Add</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -504,146 +436,143 @@ We ordered 4 dishes: Fresh Local Fig Salad with Goat Cheese and Balsamic Honey D
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: COLORS.white,
+  },
+  imageBackground: {
+    width: '100%',
+    height: 350,
+    justifyContent: 'space-between',
+  },
+  gradientOverlay: {
+    flex: 1,
+    paddingTop: Platform.OS === 'android' ? 40 : 50,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    justifyContent: 'space-between',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 10,
-    backgroundColor: '#F8F9FA',
   },
-  backButton: {
-    padding: 4,
-  },
-  bookmarkButton: {
-    padding: 4,
-  },
-  mainCard: {
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 16,
-    overflow: 'hidden',
-    position: 'relative',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  mainImage: {
-    width: '100%',
-    height: 200,
-  },
-  cardOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    padding: 20,
-  },
-  placeName: {
-    color: 'white',
-    fontSize: 28,
-    fontWeight: 'bold',
-    letterSpacing: 2,
-  },
-  placeSubtitle: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-    letterSpacing: 1,
-    marginTop: 4,
-  },
-  thumbnailContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-    justifyContent: 'space-between',
-  },
-  thumbnail: {
-    width: 70,
-    height: 50,
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: '#E5E7EB',
-  },
-  thumbnailImage: {
-    width: '100%',
-    height: '100%',
-  },
-  scrollContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  titleSection: {
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1F2937',
-  },
-  description: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#4B5563',
-    marginBottom: 24,
-  },
-  detailsSection: {
-    marginBottom: 100,
-  },
-  detailText: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 8,
-  },
-  addButton: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    backgroundColor: '#3B82F6',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    flexDirection: 'row',
+  headerButton: {
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  addButtonText: {
-    color: 'white',
+  imageTextContainer: {},
+  placeType: {
+    color: COLORS.lightGray,
     fontSize: 16,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  placeName: {
+    color: COLORS.white,
+    fontSize: 32,
+    fontWeight: 'bold',
+    lineHeight: 38,
+  },
+  contentContainer: {
+    padding: 20,
+    paddingBottom: 100, // Space for FAB
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    marginTop: -20, // Pulls the content area up over the image
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 24,
+  },
+  detailBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primaryLight,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    gap: 8,
+  },
+  detailText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  addressSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  addressText: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
+    lineHeight: 22,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.dark,
+    marginBottom: 12,
+  },
+  descriptionText: {
+    fontSize: 16,
+    lineHeight: 26,
+    color: COLORS.text,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    backgroundColor: COLORS.primary,
+    borderRadius: 30,
+    height: 56,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  fabText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: 'bold',
     marginLeft: 8,
   },
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
   },
   modalContainer: {
-    backgroundColor: 'white',
+    backgroundColor: COLORS.white,
     borderRadius: 16,
-    padding: 20,
+    padding: 24,
     width: '90%',
-    maxHeight: '80%',
+    maxHeight: '85%',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 20,
+    color: COLORS.dark,
+    marginBottom: 24,
     textAlign: 'center',
   },
   formGroup: {
@@ -652,106 +581,101 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 16,
     fontWeight: '600',
+    color: COLORS.text,
     marginBottom: 8,
   },
   dropdownContainer: {
-    maxHeight: 150,
+    maxHeight: 200,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 8,
   },
   itineraryOption: {
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    marginBottom: 8,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
   },
   selectedItinerary: {
-    borderColor: '#3B82F6',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: COLORS.primaryLight,
+    borderColor: COLORS.primary,
   },
   itineraryName: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
+    color: COLORS.dark,
   },
   itineraryDates: {
     fontSize: 14,
-    color: '#6B7280',
-  },
-  itineraryType: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 2,
+    color: COLORS.text,
+    marginTop: 4,
   },
   noItinerariesText: {
     textAlign: 'center',
-    color: '#6B7280',
-    padding: 12,
-  },
-  dateInput: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    padding: 12,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  modalButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#E5E7EB',
-    marginRight: 10,
-  },
-  confirmButton: {
-    backgroundColor: '#3B82F6',
-    marginLeft: 10,
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  cancelButtonText: {
-    color: '#1F2937',
-    fontWeight: '600',
-  },
-  confirmButtonText: {
-    color: 'white',
-    fontWeight: '600',
+    color: COLORS.gray,
+    padding: 20,
   },
   loadingContainer: {
+    height: 100,
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 12,
-  },
-  loadingText: {
-    marginTop: 8,
-    color: '#6B7280',
   },
   errorContainer: {
-    backgroundColor: '#FEE2E2',
-    padding: 12,
+    backgroundColor: COLORS.dangerLight,
+    padding: 16,
     borderRadius: 8,
     alignItems: 'center',
   },
   errorText: {
-    color: '#B91C1C',
-    fontSize: 14,
+    color: COLORS.danger,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   retryButton: {
-    backgroundColor: '#6366F1',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 6,
   },
   retryButtonText: {
-    color: 'white',
+    color: COLORS.white,
     fontWeight: '600',
-    fontSize: 14,
+  },
+  dateInput: {
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 8,
+    padding: 14,
+    backgroundColor: COLORS.lightGray,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: COLORS.lightGray,
+  },
+  cancelButtonText: {
+    color: COLORS.text,
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  confirmButton: {
+    backgroundColor: COLORS.primary,
+  },
+  confirmButtonText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
 });
