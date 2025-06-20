@@ -1,9 +1,23 @@
-import { Feather, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+
+const COLORS = {
+  primary: '#6366F1',
+  gray: '#9CA3AF',
+  lightGray: '#F3F4F6',
+  white: '#FFFFFF',
+  dark: '#111827',
+};
+
+// A helper component for consistent icon rendering
+function TabBarIcon({ name, color, focused }: { name: React.ComponentProps<typeof Ionicons>['name'], color: string, focused: boolean }) {
+  const iconName = focused ? name : `${name}-outline`;
+  return <Ionicons size={24} name={iconName as any} color={color} />;
+}
 
 export default function RootLayout() {
   const insets = useSafeAreaInsets();
@@ -13,30 +27,44 @@ export default function RootLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: "#6366F1",
-          tabBarInactiveTintColor: "#666",
+          tabBarActiveTintColor: COLORS.primary,
+          tabBarInactiveTintColor: COLORS.gray,
           tabBarStyle: {
-            height: 40 + insets.bottom,
-            paddingBottom: 8 + insets.bottom,
-            paddingTop: 8,
+            height: 60 + insets.bottom,
+            paddingTop: 10,
+            paddingBottom: 5 + insets.bottom,
+            backgroundColor: COLORS.white,
+            borderTopWidth: 1,
+            borderTopColor: COLORS.lightGray,
+            elevation: 5, // Shadow for Android
+            shadowColor: COLORS.dark, // Shadow for iOS
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 4,
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: '600',
+            marginTop: -5,
           },
         }}
       >
+        {/* Visible Tabs */}
         <Tabs.Screen
           name="home/index"
           options={{
             title: "Home",
-            tabBarIcon: ({ color }) => (
-              <Feather name="home" size={24} color={color} />
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="home" color={color} focused={focused} />
             ),
           }}
         />
         <Tabs.Screen
           name="itinerary/calendar"
           options={{
-            title: "Calendar",
-            tabBarIcon: ({ color }) => (
-              <Feather name="calendar" size={24} color={color} />
+            title: "Itinerary",
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="calendar" color={color} focused={focused} />
             ),
           }}
         />
@@ -44,8 +72,8 @@ export default function RootLayout() {
           name="bookmark/bookmarks"
           options={{
             title: "Bookmarks",
-            tabBarIcon: ({ color }) => (
-              <MaterialIcons name="bookmark" size={24} color={color} />
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="bookmark" color={color} focused={focused} />
             ),
           }}
         />
@@ -53,24 +81,24 @@ export default function RootLayout() {
           name="profile/profile"
           options={{
             title: "Profile",
-            tabBarIcon: ({ color }) => (
-              <Feather name="user" size={24} color={color} />
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="person" color={color} focused={focused} />
             ),
           }}
         />
 
-        {/* Hide other routes from tabs */}
+        {/* Hidden Routes */}
         <Tabs.Screen
           name="home/recommendations"
-          options={{
-            href: null, // This hides it from the tab bar
-          }}
+          options={{ href: null }}
         />
         <Tabs.Screen
           name="profile/setting"
-          options={{
-            href: null,
-          }}
+          options={{ href: null }}
+        />
+        <Tabs.Screen
+          name="placeDetail" // Hides the detail page from the tab bar
+          options={{ href: null }}
         />
       </Tabs>
     </SafeAreaProvider>
