@@ -121,6 +121,30 @@ export default function CalendarScreen() {
     setWeekDates(newWeekDates);
   }, [displayDate]);
 
+  // It is the key to fixing the bug on initial load.
+  useEffect(() => {
+    if (selectedItinerary) {
+      // Normalize dates to compare days only, ignoring time.
+      const selectedDay = new Date(selectedDate);
+      selectedDay.setHours(0, 0, 0, 0);
+
+      const itineraryStartDay = new Date(selectedItinerary.startDate);
+      itineraryStartDay.setHours(0, 0, 0, 0);
+
+      const itineraryEndDay = new Date(selectedItinerary.endDate);
+      itineraryEndDay.setHours(0, 0, 0, 0);
+
+      if (!(selectedDay >= itineraryStartDay && selectedDay <= itineraryEndDay)) {
+        setSelectedDate(selectedItinerary.startDate);
+        setDisplayDate(selectedItinerary.startDate);
+      }
+    }
+    // We intentionally only listen to `selectedItinerary` changes. This ensures the hook
+    // runs when the itinerary is first loaded or changed, but not when the user
+    // is simply clicking different dates in the calendar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItinerary]);
+
   const fetchUserName = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem("access_token");
@@ -219,6 +243,7 @@ export default function CalendarScreen() {
 
     setItineraries(prev => [newItineraryForState, ...prev]);
     setSelectedItinerary(newItineraryForState);
+    // These two lines are already correct, but our new useEffect would handle this anyway
     setSelectedDate(newItineraryForState.startDate);
     setDisplayDate(newItineraryForState.startDate);
   };
@@ -329,6 +354,8 @@ export default function CalendarScreen() {
                     const itinerary = itineraries.find((it) => it.id === item.value);
                     if (itinerary) {
                         setSelectedItinerary(itinerary);
+                        // These updates are now technically redundant because of our new
+                        // useEffect, but they make the UI feel faster on user interaction.
                         setSelectedDate(itinerary.startDate);
                         setDisplayDate(itinerary.startDate);
                     }
@@ -467,7 +494,6 @@ export default function CalendarScreen() {
         onClose={() => setModalVisible(false)}
         onCreateItinerary={handleCreateItinerary}
         panY={panY}
-        // FIX: Pass the entire panResponder instance, not just panHandlers
         panResponder={panResponder} 
         backendApiUrl={BACKEND_ITINERARY_API_URL}
       />
