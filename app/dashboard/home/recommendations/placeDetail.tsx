@@ -58,7 +58,7 @@ interface Place {
 }
 
 export default function PlaceDetail() {
-  const { placeId, placeName, placeData } = useLocalSearchParams();
+  const { placeId, placeName, placeData, origin } = useLocalSearchParams();
   const router = useRouter();
   const place: Place = JSON.parse(placeData as string);
 
@@ -354,7 +354,13 @@ export default function PlaceDetail() {
           >
             <View style={styles.header}>
               <TouchableOpacity
-                onPress={() => router.back()}
+                onPress={() => {
+                  if (origin === "home") {
+                    router.push("/dashboard/home");
+                  } else {
+                    router.back();
+                  }
+                }}
                 style={styles.headerButton}
               >
                 <MaterialIcons
@@ -583,7 +589,7 @@ const styles = StyleSheet.create({
   gradientOverlay: {
     flex: 1,
     paddingTop: Platform.OS === "android" ? 40 : 50,
-    paddingBottom: 40, // Increased padding
+    paddingBottom: 40,
     paddingHorizontal: 20,
     justifyContent: "space-between",
   },

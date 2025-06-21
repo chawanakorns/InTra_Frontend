@@ -168,6 +168,7 @@ export default function Dashboard() {
         placeId: place.id,
         placeName: place.name,
         placeData: JSON.stringify(place),
+        origin: "home", // Pass the origin point
       },
     });
   };
