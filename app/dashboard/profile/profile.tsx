@@ -1,7 +1,8 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback } from 'react';
 import {
+  ActivityIndicator,
   Image,
   ImageBackground,
   SafeAreaView,
@@ -15,12 +16,33 @@ import { useUserProfile } from '../../../context/UserProfileContext';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { profile } = useUserProfile();
+  const { profile, isLoading, fetchUserProfile } = useUserProfile();
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserProfile();
+    }, [])
+  );
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6366F1" />
+      </SafeAreaView>
+    );
+  }
+
+  if (!profile) {
+     return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <Text>Could not load profile. Please try again.</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeContainer}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header Background with Image and Overlay */}
         <View style={styles.headerWrapper}>
           <ImageBackground
             source={
@@ -48,11 +70,9 @@ export default function ProfileScreen() {
             </View>
           </ImageBackground>
 
-          {/* Curved White Overlay */}
           <View style={styles.curvedOverlay} />
         </View>
 
-        {/* First Card: Edit Profile */}
         <View style={[styles.card, styles.firstCard]}>
           <TouchableOpacity
             style={styles.cardItem}
@@ -63,7 +83,6 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Second Card: Settings Options */}
         <View style={styles.card}>
           <TouchableOpacity
             style={styles.cardItem}
@@ -95,6 +114,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f9fafb',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+  },
   scrollContent: {
     paddingBottom: 20,
     alignItems: 'center',
@@ -102,7 +127,7 @@ const styles = StyleSheet.create({
   headerWrapper: {
     width: '100%',
     position: 'relative',
-    marginBottom: 60, // keep original spacing between subtitle and curved overlay
+    marginBottom: 60,
   },
   headerBackground: {
     width: '100%',

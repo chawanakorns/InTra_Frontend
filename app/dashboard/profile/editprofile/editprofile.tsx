@@ -3,6 +3,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
   Image,
   Platform,
   ScrollView,
@@ -18,16 +19,16 @@ export default function EditProfileScreen() {
   const router = useRouter();
   const { profile, updateProfile } = useUserProfile();
 
-  const [fullName, setFullName] = useState(profile.fullName);
-  const [aboutMe, setAboutMe] = useState(profile.aboutMe);
-  const [dob, setDob] = useState(profile.dob);
-  const [gender, setGender] = useState(profile.gender);
-  const [email, setEmail] = useState(profile.email);
-  const [imageUri, setImageUri] = useState(profile.imageUri || '');
-  const [backgroundUri, setBackgroundUri] = useState(profile.backgroundUri || '');
+  const [fullName, setFullName] = useState(profile?.fullName || '');
+  const [aboutMe, setAboutMe] = useState(profile?.aboutMe || '');
+  const [dob, setDob] = useState(profile?.dob || '');
+  const [gender, setGender] = useState(profile?.gender || '');
+  const [email, setEmail] = useState(profile?.email || '');
+  const [imageUri, setImageUri] = useState(profile?.imageUri || '');
+  const [backgroundUri, setBackgroundUri] = useState(profile?.backgroundUri || '');
 
   const [showDatePicker, setShowDatePicker] = useState(false);
-
+  
   const pickImage = async (setUri: (uri: string) => void) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -41,17 +42,30 @@ export default function EditProfileScreen() {
   };
 
   const onChangeDate = (_event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === "ios");
+    const isIOS = Platform.OS === "ios";
+    setShowDatePicker(isIOS);
     if (selectedDate) {
-      const formattedDate = selectedDate.toLocaleDateString("en-GB"); // DD/MM/YYYY
+      const formattedDate = selectedDate.toLocaleDateString("en-GB");
       setDob(formattedDate);
+      if(!isIOS) {
+          setShowDatePicker(false);
+      }
     }
   };
 
-  const handleSave = () => {
-    updateProfile({ fullName, aboutMe, dob, gender, email, imageUri, backgroundUri });
-    router.back(); // ✅ Go back to profile screen
+  const handleSave = async () => {
+    try {
+        await updateProfile({ fullName, aboutMe, dob, gender, email, imageUri, backgroundUri });
+        Alert.alert("Success", "Profile updated successfully!");
+        router.back();
+    } catch (error) {
+        Alert.alert("Error", "Failed to update profile. Please try again.");
+    }
   };
+
+  if (!profile) {
+      return <View style={styles.container}><Text>Loading profile...</Text></View>
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -93,7 +107,7 @@ export default function EditProfileScreen() {
       </TouchableOpacity>
       {showDatePicker && (
         <DateTimePicker
-          value={new Date()}
+          value={dob ? new Date(dob.split('/').reverse().join('-')) : new Date()}
           mode="date"
           display="default"
           onChange={onChangeDate}
@@ -107,11 +121,13 @@ export default function EditProfileScreen() {
         placeholder="Gender"
       />
       <TextInput
-        style={styles.input}
+        style={[styles.input, { backgroundColor: '#e5e7eb'}]}
         value={email}
         onChangeText={setEmail}
         placeholder="Email"
         keyboardType="email-address"
+        editable={false}
+        selectTextOnFocus={false}
       />
 
       <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
