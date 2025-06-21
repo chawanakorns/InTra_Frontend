@@ -1,6 +1,7 @@
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { UserProfileProvider } from "./context/UserProfileContext"; // ✅ import the provider
 
 export default function Rootlayout() {
   useFonts({
@@ -15,8 +16,9 @@ export default function Rootlayout() {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={{ flex: 1 }} edges={['left', 'right', 'bottom']}>
-        <Stack screenOptions={{ headerShown: false }}>
-        </Stack>
+        <UserProfileProvider> {/* ✅ Wrap all screens with context */}
+          <Stack screenOptions={{ headerShown: false }} />
+        </UserProfileProvider>
       </SafeAreaView>
     </SafeAreaProvider>
   );

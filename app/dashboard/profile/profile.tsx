@@ -1,394 +1,181 @@
-import { Colors } from "@/constants/Colors";
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React from 'react';
 import {
-  Animated,
   Image,
   ImageBackground,
-  Modal,
-  PanResponder,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useUserProfile } from '../../context/UserProfileContext';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const [menuVisible, setMenuVisible] = useState(false);
-
-  // Animation setup for drag-to-close
-  const panY = useRef(new Animated.Value(0)).current;
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          panY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          Animated.timing(panY, {
-            toValue: 500,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => setMenuVisible(false));
-        } else {
-          Animated.spring(panY, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-    })
-  ).current;
-
-  // Handle closing modal
-  const handleCloseModal = () => {
-    Animated.timing(panY, {
-      toValue: 500,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      setMenuVisible(false);
-      panY.setValue(0);
-    });
-  };
-
-  // Handle menu item press
-  const handleMenuItemPress = (action: string) => {
-    if (action === 'Settings') {
-      console.log(`Selected: ${action}`);
-      router.push('./settings');
-      handleCloseModal();
-    } else if (action === 'Edit profile') {
-      console.log(`Selected: ${action}`);
-      handleCloseModal();
-    } else if (action === 'Log out') {
-      console.log(`Selected: ${action}`);
-      router.push('/');
-      handleCloseModal();
-    }
-  };
+  const { profile } = useUserProfile();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ImageBackground
-        source={{
-          uri: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80',
-        }}
-        style={styles.backgroundImage}
-      >
-        {/* Top right menu button */}
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => {
-            panY.setValue(0); // Reset animation
-            setMenuVisible(true);
-          }}
-        >
-          <Text style={styles.menuDots}>⋯</Text>
-        </TouchableOpacity>
-
-        {/* Profile card */}
-        <View style={styles.profileCardContainer}>
-          <View style={styles.profilePhotoContainer}>
-            <Image
-              source={{
-                uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=687&q=80',
-              }}
-              style={styles.profilePhoto}
-            />
-          </View>
-
-          <View style={styles.profileCard}>
-            <Text style={styles.profileTitle}>Profile</Text>
-
-            <View style={styles.aboutSection}>
-              <Text style={styles.sectionTitle}>About Me</Text>
-              <View style={styles.aboutTextContainer}>
-                <Text style={styles.aboutText}>
-                  My name is John Doe, I am from United Kingdom,{"\n"}
-                  I love hiking and cultural attraction, currently am{"\n"}
-                  travelling in Chiang Mai!
-                </Text>
-              </View>
+    <SafeAreaView style={styles.safeContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Header Background with Image and Overlay */}
+        <View style={styles.headerWrapper}>
+          <ImageBackground
+            source={require('../../../assets/images/profile-bg.jpg')}
+            style={styles.headerBackground}
+            resizeMode="cover"
+          >
+            <View style={styles.overlay}>
+              <Image
+                source={{
+                  uri:
+                    profile.imageUri ||
+                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=687&q=80',
+                }}
+                style={styles.avatar}
+              />
+              <Text style={styles.name}>{profile.fullName}</Text>
+              <Text style={styles.subtitle}>
+                {profile.aboutMe || 'Work hard in silence. Let your success be the noise.'}
+              </Text>
             </View>
+          </ImageBackground>
 
-            <View style={styles.detailsSection}>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Full Name:</Text>
-                <Text style={styles.detailValue}>John Doe</Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Date of Birth:</Text>
-                <Text style={styles.detailValue}>1/1/1987</Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Gender:</Text>
-                <Text style={styles.detailValue}>Male</Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Email Address:</Text>
-                <Text style={styles.emailValue}>johndoe@gmail.com</Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Password:</Text>
-                <Text style={styles.detailValue}>••••••••••••</Text>
-              </View>
-            </View>
-          </View>
+          {/* Curved White Overlay */}
+          <View style={styles.curvedOverlay} />
         </View>
 
-        {/* Popup menu as Modal */}
-        <Modal
-          animationType="fade"
-          transparent={true}
-          visible={menuVisible}
-          onRequestClose={handleCloseModal}
-          statusBarTranslucent={true}
-        >
-          <View style={styles.modalOverlay} {...panResponder.panHandlers}>
-            <Animated.View
-              style={[
-                styles.modalContainer,
-                {
-                  transform: [{ translateY: panY }],
-                },
-              ]}
-            >
-              <View style={styles.dragHandle}>
-                <View style={styles.dragIndicator} />
-              </View>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Menu</Text>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => handleMenuItemPress('Edit profile')}
-                >
-                  <MaterialIcons name="edit" size={24} color="#4B5563" />
-                  <Text style={styles.menuItemText}>Edit profile</Text>
-                  <MaterialIcons name="chevron-right" size={24} color="#4B5563" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => router.push('./setting/setting')}
+        {/* First Card: Address & Account */}
+        <View style={[styles.card, styles.firstCard]}>
+          
+          <TouchableOpacity style={styles.cardItem}
+           onPress={() => router.push('/dashboard/profile/editprofile/editprofile')}>
+            <MaterialIcons name="person" size={24} color="#6366F1" />
+            <Text style={styles.cardText}>Edit Profile</Text>
+          </TouchableOpacity>
+        </View>
 
-                >
-                  <MaterialIcons name="settings" size={24} color="#4B5563" />
-                  <Text style={styles.menuItemText}>Settings</Text>
-                  <MaterialIcons name="chevron-right" size={24} color="#4B5563" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.menuItem, styles.logoutItem]}
-                  onPress={() => handleMenuItemPress('Log out')}
-                >
-                  <MaterialIcons name="logout" size={24} color="#EF4444" />
-                  <Text style={[styles.menuItemText, { color: '#EF4444' }]}>
-                    Log out
-                  </Text>
-                  <MaterialIcons name="chevron-right" size={24} color="#EF4444" />
-                </TouchableOpacity>
-              </View>
-            </Animated.View>
-          </View>
-        </Modal>
-      </ImageBackground>
+        {/* Second Card: Settings Options */}
+        <View style={styles.card}>
+          <TouchableOpacity style={styles.cardItem}
+          onPress={() => router.push('/dashboard/profile/setting/setting')}>
+            
+            <MaterialIcons name="notifications" size={24} color="#6366F1" />
+            <Text style={styles.cardText}>Notifications</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.cardItem}>
+            <MaterialIcons name="devices" size={24} color="#6366F1" />
+            <Text style={styles.cardText}>Devices</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.cardItem}>
+            <MaterialIcons name="lock" size={24} color="#6366F1" />
+            <Text style={styles.cardText}>Passwords</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.cardItem}>
+            <MaterialIcons name="language" size={24} color="#6366F1" />
+            <Text style={styles.cardText}>Language</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeContainer: {
     flex: 1,
+    backgroundColor: '#f9fafb',
   },
-  backgroundImage: {
-    flex: 1,
-    resizeMode: 'cover',
+  scrollContent: {
+    paddingBottom: 20,
+    alignItems: 'center',
   },
-  menuButton: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
-    backgroundColor: '#6366F1',
-    borderRadius: 20,
-    width: 40,
-    height: 40,
+  headerWrapper: {
+    width: '100%',
+    position: 'relative',
+    marginBottom: 60, // keep original spacing between subtitle and curved overlay
+  },
+  headerBackground: {
+    width: '100%',
+    height: 280,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  overlay: {
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2,
+    paddingTop: 70,
+    paddingBottom: 70,
+    paddingHorizontal: 20,
   },
-  menuDots: {
-    color: 'white',
+  curvedOverlay: {
+    position: 'absolute',
+    bottom: -15,
+    left: 0,
+    right: 0,
+    height: 70,
+    backgroundColor: '#f9fafb',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    zIndex: 1,
+    marginBottom: -15, // pulls the curved overlay up to reduce space between it and the header
+  },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: 'white',
+    marginBottom: 10,
+    marginTop: 20,
+  },
+  name: {
     fontSize: 20,
     fontWeight: 'bold',
+    color: 'white',
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  profileCardContainer: {
-    flex: 1,
-    marginTop: 120,
-    alignItems: 'center',
-  },
-  profilePhotoContainer: {
-    position: 'absolute',
-    top: -60,
-    zIndex: 3,
-    elevation: 3,
-  },
-  profilePhoto: {
-    width: 150,
-    height: 150,
-    borderRadius: 100,
-    borderWidth: 4,
-    borderColor: 'white',
-  },
-  profileCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 20,
-    borderRadius: 20,
-    padding: 20,
-    marginTop: 10,
-    flex: 1,
-    marginBottom: 20,
-    width: '100%',
-  },
-  profileTitle: {
-    fontSize: 35,
-    fontFamily: "outfit-bold",
-    textAlign: 'center',
-    marginBottom: 20,
-    color: Colors.PRIMARY,
-    marginTop: 60,
-  },
-  aboutSection: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
-  },
-  aboutTextContainer: {
-    backgroundColor: '#e6e9f0',
-    borderRadius: 12,
-    padding: 15,
-  },
-  aboutText: {
+  subtitle: {
     fontSize: 14,
-    lineHeight: 20,
-    color: '#666',
-  },
-  detailsSection: {
-    marginTop: 10,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  detailLabel: {
-    fontSize: 16,
-    fontWeight: '400',
-    color: '#333',
-    flex: 1,
-  },
-  detailValue: {
-    fontSize: 16,
-    color: '#333',
-    flex: 1,
-    textAlign: 'right',
-  },
-  emailValue: {
-    fontSize: 16,
-    color: '#007BFF',
-    textAlign: 'right',
-    textDecorationLine: 'underline',
-    flex: 1,
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    height: '40%',
-    width: '100%',
-  },
-  modalContent: {
-    padding: 20,
-    flex: 1,
-    justifyContent: 'flex-start',
-  },
-  modalTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 20,
+    color: 'white',
     textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 30,
+    marginBottom: 20,
   },
-  menuItem: {
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 15,
+    width: '90%',
+    paddingVertical: 10,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 5,
+  },
+  firstCard: {
+    marginTop: -25, // pulls the first card up to reduce space between it and curved overlay
+  },
+  cardItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 15,
-    borderBottomColor: '#E5E7EB',
+    paddingHorizontal: 20,
+    borderBottomColor: '#f3f4f6',
     borderBottomWidth: 1,
-    justifyContent: 'space-between',
   },
-  logoutItem: {
-    borderBottomWidth: 0,
-  },
-  menuItemText: {
+  cardText: {
+    marginLeft: 15,
     fontSize: 16,
-    color: '#1F2937',
-    fontWeight: '500',
-    flex: 1,
-    marginLeft: 10,
-  },
-  actionButton: {
-    backgroundColor: '#6366F1',
-    borderRadius: 25,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#6366F1',
-    marginTop: 5,
-  },
-  actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  secondaryButtonText: {
-    color: '#6366F1',
-  },
-  dragHandle: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  dragIndicator: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
+    color: '#1f2937',
   },
 });
