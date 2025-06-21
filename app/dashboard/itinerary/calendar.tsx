@@ -6,7 +6,6 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Image,
   PanResponder,
@@ -202,7 +201,10 @@ export default function CalendarScreen() {
       }
 
       const response = await fetch(`${BACKEND_ITINERARY_API_URL}/`, {
-        headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (response.status === 401) {
@@ -238,7 +240,8 @@ export default function CalendarScreen() {
         if (current) {
           const updated = fetchedItineraries.find((it) => it.id === current.id);
           return (
-            updated || (fetchedItineraries.length > 0 ? fetchedItineraries[0] : null)
+            updated ||
+            (fetchedItineraries.length > 0 ? fetchedItineraries[0] : null)
           );
         }
         return fetchedItineraries.length > 0 ? fetchedItineraries[0] : null;
@@ -561,10 +564,11 @@ export default function CalendarScreen() {
             })}
           </View>
         ) : (
+          // This view is now only shown if a user is logged in but has 0 itineraries.
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>It is empty now.</Text>
+            <Text style={styles.emptyTitle}>No Itineraries Found</Text>
             <Text style={styles.emptySubtitle}>Create your first</Text>
-            <Text style={styles.emptySubtitle}>itinerary</Text>
+            <Text style={styles.emptySubtitle}>itinerary to get started!</Text>
           </View>
         )}
       </>
@@ -580,30 +584,19 @@ export default function CalendarScreen() {
         >
           {renderContent()}
         </ScrollView>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => {
-            if (loginRequired) {
-              Alert.alert(
-                "Login Required",
-                "You need to be logged in to create a new itinerary.",
-                [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Log In",
-                    onPress: () => router.replace("/auth/sign-in"),
-                  },
-                ]
-              );
-              return;
-            }
-            panY.setValue(0);
-            setModalVisible(true);
-          }}
-          disabled={isLoading}
-        >
-          <Text style={styles.addButtonText}>+</Text>
-        </TouchableOpacity>
+
+        {/* The button will only appear if the user is NOT a guest and the page is not loading. */}
+        {!loginRequired && !isLoading && (
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              panY.setValue(0);
+              setModalVisible(true);
+            }}
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
+        )}
       </SafeAreaView>
 
       <ItineraryModal
@@ -648,7 +641,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 10,
   },
-  greeting: { fontSize: 24, fontWeight: "bold", color: "#1F2937", marginBottom: 8 },
+  greeting: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
   date: { fontSize: 18, fontWeight: "500", color: "#6B7280" },
   itineraryPicker: { flexDirection: "row", alignItems: "center" },
   dropdown: {
@@ -735,6 +733,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     paddingBottom: 100,
+    marginTop: 50, // Added margin for better spacing
   },
   emptyTitle: {
     fontSize: 16,

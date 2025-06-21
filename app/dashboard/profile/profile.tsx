@@ -14,6 +14,20 @@ import {
 } from 'react-native';
 import { useUserProfile } from '../../../context/UserProfileContext';
 
+// A dedicated component for guest users, styled consistently with your other screens.
+const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
+  <View style={styles.centeredContainer}>
+    <MaterialIcons name="person-outline" size={60} color="#9CA3AF" />
+    <Text style={styles.messageTitle}>View Your Profile</Text>
+    <Text style={styles.messageText}>
+      Log in to see your profile details and manage your account settings.
+    </Text>
+    <TouchableOpacity style={styles.loginButton} onPress={onLoginPress}>
+      <Text style={styles.loginButtonText}>Log In or Sign Up</Text>
+    </TouchableOpacity>
+  </View>
+);
+
 export default function ProfileScreen() {
   const router = useRouter();
   const { profile, isLoading, fetchUserProfile } = useUserProfile();
@@ -32,10 +46,11 @@ export default function ProfileScreen() {
     );
   }
 
+  // If loading is complete but there's no profile, the user is not logged in.
   if (!profile) {
-     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <Text>Could not load profile. Please try again.</Text>
+    return (
+      <SafeAreaView style={styles.safeContainer}>
+        <LoginRequiredView onLoginPress={() => router.replace('/auth/sign-in')} />
       </SafeAreaView>
     );
   }
@@ -53,20 +68,20 @@ export default function ProfileScreen() {
             style={styles.headerBackground}
             resizeMode="cover"
           >
-<View style={styles.overlay}>
-  <Image
-    source={
-      profile.imageUri?.trim() !== ''
-        ? { uri: profile.imageUri }
-        : require('../../../assets/images/defaultprofile.png') // Replace with your actual asset path
-    }
-    style={styles.avatar}
-  />
-  <Text style={styles.name}>{profile.fullName}</Text>
-  <Text style={styles.subtitle}>
-    {profile.aboutMe || 'Hello! This is my profile.'}
-  </Text>
-</View>
+            <View style={styles.overlay}>
+              <Image
+                source={
+                  profile.imageUri?.trim() !== ''
+                    ? { uri: profile.imageUri }
+                    : require('../../../assets/images/defaultprofile.png')
+                }
+                style={styles.avatar}
+              />
+              <Text style={styles.name}>{profile.fullName}</Text>
+              <Text style={styles.subtitle}>
+                {profile.aboutMe || 'Hello! This is my profile.'}
+              </Text>
+            </View>
           </ImageBackground>
 
           <View style={styles.curvedOverlay} />
@@ -208,5 +223,37 @@ const styles = StyleSheet.create({
     marginLeft: 15,
     fontSize: 16,
     color: '#1f2937',
+  },
+  centeredContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    backgroundColor: '#f9fafb',
+  },
+  messageTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  messageText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  loginButton: {
+    backgroundColor: '#6366F1',
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+  },
+  loginButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
