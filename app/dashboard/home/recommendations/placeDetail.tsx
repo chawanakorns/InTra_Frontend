@@ -40,10 +40,6 @@ interface Itinerary {
   name: string;
   start_date: string;
   end_date: string;
-  type: string;
-  budget: string;
-  created_at: string;
-  updated_at: string;
 }
 
 interface Place {
@@ -57,18 +53,22 @@ interface Place {
   placeId: string;
 }
 
+interface PlaceDetails extends Place {
+  description: string;
+}
+
 export default function PlaceDetail() {
-  const { placeId, placeName, placeData, origin } = useLocalSearchParams();
+  const { placeId, origin } = useLocalSearchParams();
   const router = useRouter();
-  const place: Place = JSON.parse(placeData as string);
+
+  const [place, setPlace] = useState<PlaceDetails | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(true);
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showItineraryModal, setShowItineraryModal] = useState(false);
-  const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(
-    null
-  );
+  const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingModal, setLoadingModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -80,12 +80,23 @@ export default function PlaceDetail() {
   const [bookmarkId, setBookmarkId] = useState<number | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(true);
 
-  const getDescription = () => {
-    if (place.types?.includes("restaurant")) {
-      return `A popular destination for food lovers, ${placeName} offers a delightful culinary experience. The ambiance is cozy yet vibrant, perfect for any occasion. We recommend trying their signature dishes, which showcase a blend of local flavors and modern techniques. The staff is known for being friendly and attentive, ensuring a memorable visit.`;
+  const fetchPlaceDetails = useCallback(async () => {
+    setLoadingDetails(true);
+    try {
+      const response = await fetch(`${BACKEND_API_URL}/api/recommendations/place/${placeId}/details`);
+      if (!response.ok) {
+        throw new Error("Failed to load place details.");
+      }
+      const data: PlaceDetails = await response.json();
+      setPlace(data);
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Error", "Could not load place information.");
+    } finally {
+      setLoadingDetails(false);
+      setRefreshing(false);
     }
-    return `Discover the charm of ${placeName}. This spot is a must-visit, offering unique experiences and beautiful sights. Whether you're a local or a tourist, you'll find something to love here. Don't forget to bring your camera to capture the wonderful moments. The atmosphere is consistently praised by visitors.`;
-  };
+  }, [placeId]);
 
   const checkUserAndBookmarkStatus = useCallback(async () => {
     setCheckingStatus(true);
@@ -102,63 +113,49 @@ export default function PlaceDetail() {
     try {
       const response = await fetch(
         `${BACKEND_API_URL}/api/bookmarks/check/${placeId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
       if (response.ok) {
         const data = await response.json();
         setIsBookmarked(data.is_bookmarked);
         setBookmarkId(data.bookmark_id);
       } else {
         setIsBookmarked(false);
-        setBookmarkId(null);
       }
     } catch (e) {
-      console.error("Failed to check bookmark status", e);
       setIsBookmarked(false);
-      setBookmarkId(null);
     } finally {
       setCheckingStatus(false);
     }
   }, [placeId]);
 
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchPlaceDetails();
+    checkUserAndBookmarkStatus();
+  }, [fetchPlaceDetails, checkUserAndBookmarkStatus]);
+
+  useEffect(() => {
+    fetchPlaceDetails();
+    checkUserAndBookmarkStatus();
+  }, [fetchPlaceDetails, checkUserAndBookmarkStatus]);
+  
   const toggleBookmark = async () => {
-    if (!isLoggedIn) {
-      Alert.alert(
-        "Login Required",
-        "You need to be logged in to save bookmarks."
-      );
+    if (!isLoggedIn || !place) {
+      Alert.alert("Login Required", "You must be logged in to bookmark places.");
       return;
     }
-
     setCheckingStatus(true);
     const token = await AsyncStorage.getItem("access_token");
-
     try {
       if (isBookmarked && bookmarkId) {
-        const response = await fetch(
-          `${BACKEND_API_URL}/api/bookmarks/${bookmarkId}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
+        const response = await fetch(`${BACKEND_API_URL}/api/bookmarks/${bookmarkId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
         if (response.status === 204) {
           setIsBookmarked(false);
           setBookmarkId(null);
-          Alert.alert("Success", "Bookmark removed.");
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          Alert.alert(
-            "Error",
-            errorData.detail || "Failed to remove bookmark."
-          );
         }
       } else {
         const bookmarkData = {
@@ -169,27 +166,19 @@ export default function PlaceDetail() {
           place_rating: place.rating,
           place_image: place.image,
         };
-
         const response = await fetch(`${BACKEND_API_URL}/api/bookmarks/`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify(bookmarkData),
         });
-
         const result = await response.json();
         if (response.ok) {
           setIsBookmarked(true);
           setBookmarkId(result.id);
-          Alert.alert("Success", "Place bookmarked!");
-        } else {
-          Alert.alert("Error", result.detail || "Failed to add bookmark.");
         }
       }
     } catch (error) {
-      Alert.alert("Error", "An error occurred. Please try again.");
+      Alert.alert("Error", "An error occurred.");
     } finally {
       setCheckingStatus(false);
     }
@@ -197,205 +186,124 @@ export default function PlaceDetail() {
 
   const fetchItineraries = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const token = await AsyncStorage.getItem("access_token");
-      if (!token) {
-        setError("Authentication required. Please log in.");
-        return;
-      }
-      const response = await fetch(`${BACKEND_API_URL}/api/itineraries/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.detail || `Server returned ${response.status}`
-        );
-      }
-      const data = await response.json();
-      setItineraries(data);
-    } catch (err) {
-      console.error("Error fetching itineraries:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to load itineraries"
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  const handleAddToItinerary = async () => {
-    if (!selectedItinerary) return;
-    try {
-      setLoading(true);
+      setLoadingModal(true);
       setError(null);
       const token = await AsyncStorage.getItem("access_token");
       if (!token) throw new Error("Authentication required");
-
-      const itineraryStart = new Date(selectedItinerary.start_date);
-      const itineraryEnd = new Date(selectedItinerary.end_date);
-      if (date < itineraryStart || date > itineraryEnd) {
-        throw new Error("Selected date must be within itinerary date range");
-      }
-
-      const scheduleItem = {
-        place_id: placeId,
-        place_name: placeName,
-        place_type: place.types ? place.types[0] : null,
-        place_address: place.address || null,
-        place_rating: place.rating || null,
-        place_image: place.image || null,
-        place_data: place,
-        scheduled_date: date.toISOString().split("T")[0],
-        scheduled_time: time,
-        duration_minutes: 60,
-      };
-
-      const response = await fetch(
-        `${BACKEND_API_URL}/api/itineraries/${selectedItinerary.id}/items`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(scheduleItem),
-        }
-      );
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.detail || `Server returned ${response.status}`
-        );
-      }
-
-      Alert.alert(
-        "Success",
-        `Successfully added to ${selectedItinerary.name} itinerary!`,
-        [{ text: "OK", onPress: () => router.push("/dashboard/home") }]
-      );
+      const response = await fetch(`${BACKEND_API_URL}/api/itineraries/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error("Failed to fetch itineraries");
+      const data = await response.json();
+      setItineraries(data);
     } catch (err) {
-      console.error("Error adding to itinerary:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to add to itinerary"
-      );
-      Alert.alert(
-        "Error",
-        err instanceof Error ? err.message : "An unknown error occurred."
-      );
+      setError(err instanceof Error ? err.message : "Failed to load itineraries");
     } finally {
-      setLoading(false);
-      setShowItineraryModal(false);
+      setLoadingModal(false);
     }
-  };
-
-  const onChangeDate = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === "ios");
-    if (selectedDate) setDate(selectedDate);
-  };
-
-  const onChangeTime = (event: any, selectedDate?: Date) => {
-    setShowTimePicker(Platform.OS === "ios");
-    if (selectedDate) {
-      const hours = selectedDate.getHours().toString().padStart(2, "0");
-      const minutes = selectedDate.getMinutes().toString().padStart(2, "0");
-      setTime(`${hours}:${minutes}`);
-    }
-  };
-
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    checkUserAndBookmarkStatus();
-    if (showItineraryModal) {
-      fetchItineraries();
-    } else {
-      setRefreshing(false);
-    }
-  }, [checkUserAndBookmarkStatus, showItineraryModal, fetchItineraries]);
-
-  useEffect(() => {
-    checkUserAndBookmarkStatus();
-  }, [checkUserAndBookmarkStatus]);
+  }, []);
 
   useEffect(() => {
     if (showItineraryModal) {
       fetchItineraries();
     }
   }, [showItineraryModal, fetchItineraries]);
+  
+  const handleAddToItinerary = async () => {
+    if (!selectedItinerary || !place) return;
+    setLoadingModal(true);
+    try {
+      const token = await AsyncStorage.getItem('access_token');
+      if (!token) throw new Error('Authentication required');
+
+      const scheduleItem = {
+        place_id: place.placeId,
+        place_name: place.name,
+        place_type: place.types ? place.types[0] : null,
+        place_address: place.address || null,
+        place_rating: place.rating || null,
+        place_image: place.image || null,
+        scheduled_date: date.toISOString().split('T')[0],
+        scheduled_time: time,
+        duration_minutes: 60,
+      };
+
+      const response = await fetch(`${BACKEND_API_URL}/api/itineraries/${selectedItinerary.id}/items`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(scheduleItem),
+      });
+
+      if (!response.ok) throw new Error("Failed to add item to itinerary");
+
+      Alert.alert(
+        "Success",
+        `Added to ${selectedItinerary.name}!`,
+        [{ text: "OK", onPress: () => router.push("/dashboard/home") }]
+      );
+    } catch (err) {
+      Alert.alert("Error", err instanceof Error ? err.message : "An unknown error occurred.");
+    } finally {
+      setLoadingModal(false);
+      setShowItineraryModal(false);
+    }
+  };
+
+  if (loadingDetails) {
+    return (
+        <View style={styles.fullScreenLoader}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text>Loading Details...</Text>
+        </View>
+    );
+  }
+
+  if (!place) {
+    return (
+        <View style={styles.fullScreenLoader}>
+            <Text>Could not load place information.</Text>
+            <TouchableOpacity onPress={() => router.back()}>
+                <Text>Go Back</Text>
+            </TouchableOpacity>
+        </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={[COLORS.primary]}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
       >
         <ImageBackground
-          source={{
-            uri:
-              place.image ||
-              "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop",
-          }}
+          source={{ uri: place.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop' }}
           style={styles.imageBackground}
         >
           <LinearGradient
-            colors={["rgba(0,0,0,0.6)", "transparent", "rgba(0,0,0,0.8)"]}
+            colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.8)']}
             style={styles.gradientOverlay}
           >
             <View style={styles.header}>
               <TouchableOpacity
                 onPress={() => {
-                  if (origin === "home") {
-                    router.push("/dashboard/home");
-                  } else {
-                    router.back();
-                  }
+                  if (origin === 'home') router.push('/dashboard/home');
+                  else router.back();
                 }}
                 style={styles.headerButton}
               >
-                <MaterialIcons
-                  name="arrow-back"
-                  size={24}
-                  color={COLORS.white}
-                />
+                <MaterialIcons name="arrow-back" size={24} color={COLORS.white} />
               </TouchableOpacity>
               {isLoggedIn && (
-                <TouchableOpacity
-                  onPress={toggleBookmark}
-                  style={styles.headerButton}
-                  disabled={checkingStatus}
-                >
-                  {checkingStatus ? (
-                    <ActivityIndicator size="small" color={COLORS.white} />
-                  ) : (
-                    <FontAwesome
-                      name={isBookmarked ? "bookmark" : "bookmark-o"}
-                      size={24}
-                      color={COLORS.white}
-                    />
-                  )}
+                <TouchableOpacity onPress={toggleBookmark} style={styles.headerButton} disabled={checkingStatus}>
+                  {checkingStatus ? <ActivityIndicator size="small" color={COLORS.white} /> : <FontAwesome name={isBookmarked ? 'bookmark' : 'bookmark-o'} size={24} color={COLORS.white} />}
                 </TouchableOpacity>
               )}
             </View>
             <View style={styles.imageTextContainer}>
               <Text style={styles.placeType}>
-                {place.types?.includes("restaurant")
-                  ? "Restaurant"
-                  : place.types?.includes("tourist_attraction")
-                  ? "Attraction"
-                  : "Place"}
+                {place.types?.includes('restaurant') ? 'Restaurant' : 'Attraction'}
               </Text>
-              <Text style={styles.placeName}>{placeName}</Text>
+              <Text style={styles.placeName}>{place.name}</Text>
             </View>
           </LinearGradient>
         </ImageBackground>
@@ -410,43 +318,28 @@ export default function PlaceDetail() {
             )}
             {place.isOpen !== undefined && (
               <View style={styles.detailBox}>
-                <Ionicons
-                  name="time-outline"
-                  size={20}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.detailText}>
-                  {place.isOpen ? "Open Now" : "Closed"}
-                </Text>
+                <Ionicons name="time-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.detailText}>{place.isOpen ? 'Open Now' : 'Closed'}</Text>
               </View>
             )}
           </View>
 
           {place.address && (
             <View style={styles.addressSection}>
-              <Ionicons
-                name="location-outline"
-                size={22}
-                color={COLORS.primary}
-                style={{ marginRight: 12 }}
-              />
+              <Ionicons name="location-outline" size={22} color={COLORS.primary} style={{marginRight: 12}}/>
               <Text style={styles.addressText}>{place.address}</Text>
             </View>
           )}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Description</Text>
-            <Text style={styles.descriptionText}>{getDescription()}</Text>
+            <Text style={styles.descriptionText}>{place.description}</Text>
           </View>
         </View>
       </ScrollView>
 
       {isLoggedIn && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setShowItineraryModal(true)}
-          disabled={loading}
-        >
+        <TouchableOpacity style={styles.fab} onPress={() => setShowItineraryModal(true)} disabled={loadingModal}>
           <Ionicons name="add" size={24} color={COLORS.white} />
           <Text style={styles.fabText}>Add to Itinerary</Text>
         </TouchableOpacity>
@@ -454,132 +347,104 @@ export default function PlaceDetail() {
 
       {showItineraryModal && (
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Add to Itinerary</Text>
+            <View style={styles.modalContainer}>
+                <Text style={styles.modalTitle}>Add to Itinerary</Text>
+                <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Select Itinerary</Text>
+                    {loadingModal ? (
+                        <View style={styles.loadingContainer}><ActivityIndicator size="small" color={COLORS.primary} /></View>
+                    ) : error ? (
+                        <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>{error}</Text>
+                        <TouchableOpacity style={styles.retryButton} onPress={fetchItineraries}>
+                            <Text style={styles.retryButtonText}>Try Again</Text>
+                        </TouchableOpacity>
+                        </View>
+                    ) : itineraries.length > 0 ? (
+                        <ScrollView style={styles.dropdownContainer}>
+                        {itineraries.map((itinerary) => (
+                            <TouchableOpacity
+                            key={itinerary.id}
+                            style={[ styles.itineraryOption, selectedItinerary?.id === itinerary.id && styles.selectedItinerary ]}
+                            onPress={() => setSelectedItinerary(itinerary)}
+                            >
+                            <Text style={styles.itineraryName}>{itinerary.name}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        </ScrollView>
+                    ) : (
+                        <Text style={styles.noItinerariesText}>No itineraries found. Create one first.</Text>
+                    )}
+                </View>
+                
+                {selectedItinerary && <>
+                    <View style={styles.formGroup}>
+                        <Text style={styles.formLabel}>Date</Text>
+                        <TouchableOpacity style={styles.dateInput} onPress={() => setShowDatePicker(true)}>
+                            <Text>{date.toLocaleDateString()}</Text>
+                        </TouchableOpacity>
+                        {showDatePicker && (
+                        <DateTimePicker
+                            value={date} mode="date" display="default"
+                            onChange={(event: any, selectedDate?: Date) => {
+                                setShowDatePicker(Platform.OS === 'ios');
+                                if (selectedDate) setDate(selectedDate);
+                            }}
+                            minimumDate={new Date(selectedItinerary.start_date)} maximumDate={new Date(selectedItinerary.end_date)}
+                        />
+                        )}
+                    </View>
 
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Select Itinerary</Text>
-              {loading && itineraries.length === 0 ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={COLORS.primary} />
-                </View>
-              ) : error ? (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{error}</Text>
-                  <TouchableOpacity
-                    style={styles.retryButton}
-                    onPress={fetchItineraries}
-                  >
-                    <Text style={styles.retryButtonText}>Try Again</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : itineraries.length > 0 ? (
-                <ScrollView style={styles.dropdownContainer}>
-                  {itineraries.map((itinerary) => (
-                    <TouchableOpacity
-                      key={itinerary.id}
-                      style={[
-                        styles.itineraryOption,
-                        selectedItinerary?.id === itinerary.id &&
-                          styles.selectedItinerary,
-                      ]}
-                      onPress={() => setSelectedItinerary(itinerary)}
-                    >
-                      <Text style={styles.itineraryName}>
-                        {itinerary.name}
-                      </Text>
-                      <Text style={styles.itineraryDates}>
-                        {new Date(
-                          itinerary.start_date
-                        ).toLocaleDateString()} -{" "}
-                        {new Date(itinerary.end_date).toLocaleDateString()}
-                      </Text>
+                    <View style={styles.formGroup}>
+                        <Text style={styles.formLabel}>Time</Text>
+                        <TouchableOpacity style={styles.dateInput} onPress={() => setShowTimePicker(true)}>
+                        <Text>{time}</Text>
+                        </TouchableOpacity>
+                        {showTimePicker && (
+                        <DateTimePicker value={new Date()} mode="time" display="default"
+                            onChange={(event: any, selectedDate?: Date) => {
+                                setShowTimePicker(Platform.OS === 'ios');
+                                if (selectedDate) {
+                                const hours = selectedDate.getHours().toString().padStart(2, '0');
+                                const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+                                setTime(`${hours}:${minutes}`);
+                                }
+                            }}
+                        />
+                        )}
+                    </View>
+                </>}
+
+                <View style={styles.modalButtons}>
+                    <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowItineraryModal(false)}>
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
                     </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              ) : (
-                <Text style={styles.noItinerariesText}>
-                  No itineraries found. Create one first.
-                </Text>
-              )}
-            </View>
-
-            {selectedItinerary && (
-              <>
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Date</Text>
-                  <TouchableOpacity
-                    style={styles.dateInput}
-                    onPress={() => setShowDatePicker(true)}
-                  >
-                    <Text>{date.toLocaleDateString()}</Text>
-                  </TouchableOpacity>
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={date}
-                      mode="date"
-                      display="default"
-                      onChange={onChangeDate}
-                      minimumDate={new Date(selectedItinerary.start_date)}
-                      maximumDate={new Date(selectedItinerary.end_date)}
-                    />
-                  )}
+                    <TouchableOpacity 
+                        style={[styles.modalButton, styles.confirmButton, (!selectedItinerary || loadingModal) && styles.disabledButton]}
+                        onPress={handleAddToItinerary}
+                        disabled={!selectedItinerary || loadingModal}
+                    >
+                        {loadingModal ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.confirmButtonText}>Add</Text>}
+                    </TouchableOpacity>
                 </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Time</Text>
-                  <TouchableOpacity
-                    style={styles.dateInput}
-                    onPress={() => setShowTimePicker(true)}
-                  >
-                    <Text>{time}</Text>
-                  </TouchableOpacity>
-                  {showTimePicker && (
-                    <DateTimePicker
-                      value={new Date()}
-                      mode="time"
-                      display="default"
-                      onChange={onChangeTime}
-                    />
-                  )}
-                </View>
-              </>
-            )}
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowItineraryModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  styles.confirmButton,
-                  (!selectedItinerary || loading) && styles.disabledButton,
-                ]}
-                onPress={handleAddToItinerary}
-                disabled={!selectedItinerary || loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color={COLORS.white} />
-                ) : (
-                  <Text style={styles.confirmButtonText}>Add</Text>
-                )}
-              </TouchableOpacity>
             </View>
-          </View>
         </View>
       )}
     </View>
   );
 }
 
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
+  },
+  fullScreenLoader: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
   },
   imageBackground: {
     width: "100%",
@@ -748,11 +613,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: COLORS.dark,
-  },
-  itineraryDates: {
-    fontSize: 14,
-    color: COLORS.text,
-    marginTop: 4,
   },
   noItinerariesText: {
     textAlign: "center",
