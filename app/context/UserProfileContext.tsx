@@ -1,34 +1,41 @@
 import React, { createContext, useContext, useState } from "react";
 
+// Define the shape of the profile object
 type ProfileType = {
   aboutMe: string;
   fullName: string;
   dob: string;
   gender: string;
   email: string;
-  imageUri?: string; // ✅ Optional image URI
+  imageUri?: string;       // ✅ Profile picture URI
+  backgroundUri?: string;  // ✅ Background image URI
 };
 
+// Default values for the profile
 const defaultProfile: ProfileType = {
   aboutMe: "My name is John Doe...",
   fullName: "John Doe",
   dob: "1/1/1987",
   gender: "Male",
   email: "johndoe@gmail.com",
-  imageUri: "", // ✅ Default to empty string
+  imageUri: "",           // Empty by default
+  backgroundUri: "",      // Empty by default
 };
 
+// Define the shape of the context
 const UserProfileContext = createContext<{
   profile: ProfileType;
   updateProfile: (newProfile: Partial<ProfileType>) => void;
 }>({
   profile: defaultProfile,
-  updateProfile: () => {},
+  updateProfile: () => {}, // Default no-op function
 });
 
+// Provider component
 export const UserProfileProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<ProfileType>(defaultProfile);
 
+  // Method to update any part of the profile
   const updateProfile = (newProfile: Partial<ProfileType>) => {
     setProfile((prev) => ({ ...prev, ...newProfile }));
   };
@@ -40,4 +47,5 @@ export const UserProfileProvider = ({ children }: { children: React.ReactNode })
   );
 };
 
+// Hook to use the profile context
 export const useUserProfile = () => useContext(UserProfileContext);
