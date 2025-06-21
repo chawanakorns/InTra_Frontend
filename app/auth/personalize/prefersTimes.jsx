@@ -1,8 +1,11 @@
 import { Colors } from "@/constants/Colors";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
+import axios from "axios";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -13,34 +16,108 @@ import {
 } from "react-native";
 
 const data = [
-  {
-    id: "1",
-    label: "Daytime",
-    image: require("../../../assets/images/adventurous.jpg"),
-  },
-  {
-    id: "2",
-    label: "Nighttime",
-    image: require("../../../assets/images/relaxed.jpg"),
-  },
+  { id: "1", label: "Daytime", image: require("../../../assets/images/adventurous.jpg") },
+  { id: "2", label: "Nighttime", image: require("../../../assets/images/adventurous.jpg") },
 ];
 
-export default function prefersTimes() {
+export default function PrefersTimes() {
   const router = useRouter();
   const navigation = useNavigation();
-  const [selected, setSelected] = useState([]); // Array for multiple selections
+  const [selected, setSelected] = useState([]);
+  const [personalizationCompleted, setPersonalizationCompleted] = useState(false);
 
   useEffect(() => {
     navigation.setOptions({
       headerShown: false,
     });
+
+    const checkPersonalization = async () => {
+      try {
+        const token = await AsyncStorage.getItem("access_token");
+        if (!token) {
+          router.replace("/auth/sign-in");
+          return;
+        }
+
+        const response = await axios.get("http://10.0.2.2:8000/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.data.has_completed_personalization) {
+          setPersonalizationCompleted(true);
+          router.replace("/dashboard"); // Changed to dashboard
+        }
+      } catch (error) {
+        console.error("Error checking personalization status:", error);
+        if (error.response && error.response.status === 401) {
+          await AsyncStorage.removeItem("access_token");
+          router.replace("/auth/sign-in");
+        }
+      }
+    };
+
+    checkPersonalization();
   }, []);
 
   const toggleSelection = (id) => {
+    console.log("Toggling selection for id:", id); // Debug log
+    let newSelected;
     if (selected.includes(id)) {
-      setSelected(selected.filter((item) => item !== id)); // Deselect if already selected
+      newSelected = selected.filter((item) => item !== id);
     } else {
-      setSelected([...selected, id]); // Add to selection
+      newSelected = [...selected, id];
+    }
+    setSelected(newSelected);
+
+    // Safety check for data.find
+    const label = data.find((item) => item.id === id)?.label;
+    if (label) {
+      AsyncStorage.setItem(
+        "preferred_times",
+        JSON.stringify(newSelected.map((id) => data.find((item) => item.id === id)?.label || ""))
+      );
+    } else {
+      console.warn(`No matching label found for id: ${id}`);
+    }
+  };
+
+  const savePersonalization = async () => {
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token) {
+        router.replace("/auth/sign-in");
+        return;
+      }
+
+      const personalizationData = {
+        tourist_type: JSON.parse(await AsyncStorage.getItem("tourist_type") || "[]"),
+        preferred_activities: JSON.parse(await AsyncStorage.getItem("preferred_activities") || "[]"),
+        preferred_cuisines: JSON.parse(await AsyncStorage.getItem("preferred_cuisines") || "[]"),
+        preferred_dining: JSON.parse(await AsyncStorage.getItem("preferred_dining") || "[]"),
+        preferred_times: selected.map((id) => data.find((item) => item.id === id)?.label || ""),
+      };
+
+      await AsyncStorage.setItem("preferred_times", JSON.stringify(personalizationData.preferred_times));
+
+      const response = await axios.post("http://10.0.2.2:8000/auth/personalization", personalizationData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.status === 200) {
+        await AsyncStorage.multiRemove([
+          "tourist_type",
+          "preferred_activities",
+          "preferred_cuisines",
+          "preferred_dining",
+          "preferred_times",
+        ]);
+        router.replace("/dashboard"); // Changed to dashboard
+      } else {
+        Alert.alert("Error", "Failed to save personalization");
+      }
+    } catch (error) {
+      console.error("Error saving personalization:", error);
+      Alert.alert("Error", "Network error or invalid data");
     }
   };
 
@@ -60,6 +137,10 @@ export default function prefersTimes() {
     );
   };
 
+  if (personalizationCompleted) {
+    return null;
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Almost Finished!</Text>
@@ -68,7 +149,7 @@ export default function prefersTimes() {
         itinerary plans.
       </Text>
 
-      <Text style={styles.question}>What is your prefers times to travel?</Text>
+      <Text style={styles.question}>What is your preferred times to travel?</Text>
 
       <FlatList
         data={data}
@@ -80,7 +161,7 @@ export default function prefersTimes() {
       />
 
       <TouchableOpacity
-        onPress={() => router.replace("dashboard")}
+        onPress={savePersonalization}
         style={{
           padding: 15,
           borderRadius: 15,

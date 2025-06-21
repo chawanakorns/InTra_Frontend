@@ -1,7 +1,8 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from "expo-location";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -10,16 +11,15 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import AttractionCard from '../../../../components/AttractionCard';
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import AttractionCard from "../../../../components/AttractionCard";
 
 const BACKEND_API_URL = Platform.select({
-  android: 'http://10.0.2.2:8000/api/recommendations/attractions',
-  ios: 'http://localhost:8000/api/recommendations/attractions',
-  default: 'http://localhost:8000/api/recommendations/attractions'
+  android: "http://10.0.2.2:8000/api/recommendations/attractions",
+  ios: "http://localhost:8000/api/recommendations/attractions",
+  default: "http://localhost:8000/api/recommendations/attractions",
 });
 
 interface Place {
@@ -32,13 +32,14 @@ interface Place {
   isOpen?: boolean;
   types?: string[];
   placeId: string;
+  relevance_score?: number;
 }
 
-export default function RecommendationsScreen() {
+export default function AttractionsScreen() {
   const router = useRouter();
   const [attractions, setAttractions] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [filteredPlaces, setFilteredPlaces] = useState<Place[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,12 +48,13 @@ export default function RecommendationsScreen() {
   }, []);
 
   useEffect(() => {
-    if (searchQuery.trim() === '') {
+    if (!searchQuery.trim()) {
       setFilteredPlaces(attractions);
     } else {
-      const filtered = attractions.filter(place =>
-        place.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        place.address?.toLowerCase().includes(searchQuery.toLowerCase())
+      const filtered = attractions.filter(
+        (place) =>
+          place.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          place.address?.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredPlaces(filtered);
     }
@@ -62,44 +64,56 @@ export default function RecommendationsScreen() {
     try {
       setLoading(true);
       setError(null);
-      
+
       const { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (status !== 'granted') {
-        setError('Please enable location permissions to find nearby attractions');
-        setLoading(false);
+      if (status !== "granted") {
+        setError("Please enable location permissions to find nearby attractions");
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      
-      console.log('Fetching from:', `${BACKEND_API_URL}?latitude=${location.coords.latitude}&longitude=${location.coords.longitude}`);
-      
-      const response = await fetch(
-        `${BACKEND_API_URL}?latitude=${location.coords.latitude}&longitude=${location.coords.longitude}`,
-        {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const apiUrl = `${BACKEND_API_URL}?latitude=${location.coords.latitude}&longitude=${location.coords.longitude}`;
+      console.log("Fetching attractions from:", apiUrl);
+
+      const token = await AsyncStorage.getItem('access_token');
+      console.log("Auth token found:", token ? "Yes" : "No");
+
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+        console.log("Added Authorization header for attractions");
+      }
+
+      const response = await fetch(apiUrl, { method: 'GET', headers });
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || `Server returned ${response.status}`);
       }
-      
+
       const data = await response.json();
-      console.log('Received data:', data);
+      console.log("Attraction data fetched:", data.length, "places found");
+
+      if (!Array.isArray(data)) {
+        throw new Error("Received non-array data from server");
+      }
+
       setAttractions(data);
       setFilteredPlaces(data);
-      
-    } catch (error) {
-      console.error('Network Error:', error);
-      setError(`Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+    } catch (err) {
+      console.error("Error fetching attractions:", err);
+      let message = "Failed to load attractions.";
+
+      if (err instanceof Error) {
+        message += ` ${err.message}`;
+      }
+
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -107,12 +121,12 @@ export default function RecommendationsScreen() {
 
   const handlePlacePress = (place: Place) => {
     router.push({
-      pathname: './attractionDetail',
+      pathname: "./placeDetail",
       params: {
         placeId: place.id,
         placeName: place.name,
-        placeData: JSON.stringify(place)
-      }
+        placeData: JSON.stringify(place),
+      },
     });
   };
 
@@ -127,12 +141,6 @@ export default function RecommendationsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.push('/dashboard/home')}>
-            <MaterialIcons name="arrow-back" size={24} color="#1F2937" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Attractions</Text>
-        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#6366F1" />
           <Text style={styles.loadingText}>Finding nearby attractions...</Text>
@@ -144,7 +152,7 @@ export default function RecommendationsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.push('/dashboard/home')} style={{ padding: 8 }}>
           <MaterialIcons name="arrow-back" size={24} color="#1F2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Attractions</Text>
@@ -153,24 +161,25 @@ export default function RecommendationsScreen() {
         </TouchableOpacity>
       </View>
 
-      <TextInput 
-        style={styles.search} 
+      <TextInput
+        style={styles.search}
         placeholder="Search attractions..."
-        placeholderTextColor="#888"
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
 
-      {error ? (
+      {error && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadPlaces}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      ) : (
+      )}
+
+      {!error && (
         <Text style={styles.resultCount}>
-          {filteredPlaces.length} attraction{filteredPlaces.length !== 1 ? 's' : ''} found
+          {filteredPlaces.length} attraction{filteredPlaces.length !== 1 ? "s" : ""}
         </Text>
       )}
 
@@ -179,21 +188,16 @@ export default function RecommendationsScreen() {
         keyExtractor={(item) => item.id}
         renderItem={renderPlace}
         contentContainerStyle={styles.listContainer}
-        refreshing={loading}
-        onRefresh={loadPlaces}
-        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          !error
-            ? (
-              <View style={styles.emptyContainer}>
-                <MaterialIcons name="attractions" size={60} color="#ccc" />
-                <Text style={styles.emptyText}>No Attractions found</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={loadPlaces}>
-                  <Text style={styles.retryButtonText}>Try Again</Text>
-                </TouchableOpacity>
-              </View>
-            )
-            : null
+          !error ? (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="place" size={60} color="#ccc" />
+              <Text style={styles.emptyText}>No attractions found</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={loadPlaces}>
+                <Text style={styles.retryButtonText}>Try Again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null
         }
       />
     </SafeAreaView>
@@ -201,46 +205,46 @@ export default function RecommendationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F9FAFB', 
-    padding: 16 
+  container: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+    padding: 16,
   },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between',
-    marginBottom: 20 
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
-  headerTitle: { 
-    fontSize: 20, 
-    fontWeight: 'bold',
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
     flex: 1,
     marginLeft: 16,
-    color: '#1F2937'
+    color: "#1F2937",
   },
   refreshButton: {
-    padding: 4
+    padding: 4,
   },
   search: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 14,
     borderRadius: 12,
     marginBottom: 16,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     elevation: 1,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
   },
   resultCount: {
-    color: '#6B7280',
+    color: "#6B7280",
     fontSize: 14,
     marginBottom: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   listContainer: {
     paddingBottom: 20,
@@ -250,48 +254,48 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center'
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
     marginTop: 16,
-    color: '#6B7280',
-    fontSize: 16
+    color: "#6B7280",
+    fontSize: 16,
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 60
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 60,
   },
   emptyText: {
-    color: '#6B7280',
+    color: "#6B7280",
     fontSize: 16,
     marginTop: 16,
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   errorContainer: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: "#FEE2E2",
     padding: 16,
     borderRadius: 8,
     marginBottom: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   errorText: {
-    color: '#B91C1C',
+    color: "#B91C1C",
     fontSize: 14,
     marginBottom: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   retryButton: {
-    backgroundColor: '#6366F1',
+    backgroundColor: "#6366F1",
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8
+    borderRadius: 8,
   },
   retryButtonText: {
-    color: '#fff',
-    fontWeight: '600'
-  }
+    color: "#fff",
+    fontWeight: "600",
+  },
 });

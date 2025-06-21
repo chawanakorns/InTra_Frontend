@@ -1,6 +1,14 @@
-import { useState } from "react";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
+  Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,455 +18,504 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const BACKEND_API_URL = Platform.select({
+  android: "http://10.0.2.2:8000",
+  ios: "http://localhost:8000",
+  default: "http://localhost:8000",
+});
+
+const COLORS = {
+  primary: "#6366F1",
+  primaryLight: "#E0E7FF",
+  white: "#FFFFFF",
+  dark: "#1F2937",
+  text: "#4B5563",
+  lightGray: "#F3F4F6",
+  gray: "#9CA3AF",
+  danger: "#EF4444",
+  dangerLight: "#FEE2E2",
+  warning: "#FBBF24",
+};
+
 interface Bookmark {
-  id: string;
-  name: string;
-  category: "attraction" | "restaurant";
-  location: string;
-  rating: number;
-  image: string;
-  tags: string[];
-  saved_date: string;
-  description: string;
+  id: number;
+  place_id: string;
+  place_name: string;
+  place_type: string | null;
+  place_address: string | null;
+  place_rating: number | null;
+  place_image: string | null;
+  place_data: object | null;
 }
 
-export default function BookmarksScreen() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<
-    "all" | "attraction" | "restaurant"
-  >("all");
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+type Category = "all" | "attraction" | "restaurant";
 
-  const removeBookmark = (id: string) => {
-    setBookmarks(bookmarks.filter((bookmark) => bookmark.id !== id));
+const getCategory = (placeType: string | null): Exclude<Category, "all"> => {
+  const typeStr = placeType?.toLowerCase() || "";
+  if (
+    typeStr.includes("restaurant") ||
+    typeStr.includes("food") ||
+    typeStr.includes("cafe") ||
+    typeStr.includes("bakery")
+  ) {
+    return "restaurant";
+  }
+  return "attraction";
+};
+
+const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
+  <View style={styles.centeredContainer}>
+    <MaterialIcons name="lock-outline" size={60} color={COLORS.gray} />
+    <Text style={styles.emptyTitle}>Login Required</Text>
+    <Text style={styles.messageText}>
+      Please log in to view your saved bookmarks.
+    </Text>
+    <TouchableOpacity style={styles.loginButton} onPress={onLoginPress}>
+      <Text style={styles.loginButtonText}>Go to Login</Text>
+    </TouchableOpacity>
+  </View>
+);
+
+export default function BookmarksScreen() {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<Category>("all");
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [loginRequired, setLoginRequired] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchBookmarks = useCallback(async () => {
+    if (!refreshing) setLoading(true);
+    setError(null);
+    setLoginRequired(false);
+
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token) {
+        setLoginRequired(true);
+        setBookmarks([]);
+        return;
+      }
+
+      const response = await fetch(`${BACKEND_API_URL}/api/bookmarks/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.status === 401) {
+        setLoginRequired(true);
+        await AsyncStorage.removeItem("access_token");
+        setBookmarks([]);
+        return;
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to fetch bookmarks.");
+      }
+      const data: Bookmark[] = await response.json();
+      setBookmarks(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "An unknown error occurred.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [refreshing]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchBookmarks();
+    }, [fetchBookmarks])
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchBookmarks();
+  }, [fetchBookmarks]);
+
+  const confirmRemoveBookmark = (bookmark: Bookmark) => {
+    Alert.alert(
+      "Remove Bookmark",
+      `Are you sure you want to remove "${bookmark.place_name}" from your bookmarks?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => removeBookmark(bookmark.id),
+        },
+      ]
+    );
+  };
+
+  const removeBookmark = async (bookmarkId: number) => {
+    const originalBookmarks = [...bookmarks];
+    setBookmarks(bookmarks.filter((b) => b.id !== bookmarkId));
+    try {
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token) throw new Error("Authentication required");
+
+      const response = await fetch(
+        `${BACKEND_API_URL}/api/bookmarks/${bookmarkId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.status !== 204) {
+        Alert.alert("Error", "Failed to remove bookmark. Please try again.");
+        setBookmarks(originalBookmarks);
+      }
+    } catch (e) {
+      Alert.alert("Error", "An error occurred while removing the bookmark.");
+      setBookmarks(originalBookmarks);
+    }
+  };
+
+  const handleNavigateToDetail = (bookmark: Bookmark) => {
+    const placeData = {
+      id: bookmark.place_id,
+      placeId: bookmark.place_id,
+      name: bookmark.place_name,
+      address: bookmark.place_address,
+      rating: bookmark.place_rating,
+      image: bookmark.place_image,
+      ...(bookmark.place_data || { types: [bookmark.place_type || ""] }),
+    };
+
+    router.push({
+      pathname: "/dashboard/home/recommendations/placeDetail",
+      params: {
+        placeId: bookmark.place_id,
+        placeName: bookmark.place_name,
+        placeData: JSON.stringify(placeData),
+      },
+    });
   };
 
   const filteredBookmarks = bookmarks.filter((bookmark) => {
+    const name = bookmark.place_name || "";
+    const address = bookmark.place_address || "";
     const matchesSearch =
-      bookmark.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      bookmark.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      bookmark.tags.some((tag) =>
-        tag.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-
+      name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      address.toLowerCase().includes(searchQuery.toLowerCase());
+    const category = getCategory(bookmark.place_type);
     const matchesCategory =
-      selectedCategory === "all" || bookmark.category === selectedCategory;
-
+      selectedCategory === "all" || category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const getCategoryCount = (category: "all" | "attraction" | "restaurant") => {
+  const getCategoryCount = (category: Category) => {
     if (category === "all") return bookmarks.length;
-    return bookmarks.filter((b) => b.category === category).length;
+    return bookmarks.filter((b) => getCategory(b.place_type) === category)
+      .length;
   };
 
-  const renderStars = (rating: number) => {
+  const renderStars = (rating: number | null) => {
+    if (rating === null || rating < 1)
+      return <Text style={styles.noRatingText}>No rating</Text>;
     const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-    const stars = [];
+    const halfStar = rating % 1 >= 0.5;
+    const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
 
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <Text key={i} style={styles.star}>
-          ★
-        </Text>
-      );
-    }
-
-    if (hasHalfStar) {
-      stars.push(
-        <Text key="half" style={styles.star}>
-          ☆
-        </Text>
-      );
-    }
-
-    return stars;
+    return (
+      <View style={styles.rating}>
+        {Array.from({ length: fullStars }, (_, i) => (
+          <Ionicons key={`full-${i}`} name="star" style={styles.star} />
+        ))}
+        {halfStar && <Ionicons key="half" name="star-half" style={styles.star} />}
+        {Array.from({ length: emptyStars }, (_, i) => (
+          <Ionicons
+            key={`empty-${i}`}
+            name="star-outline"
+            style={styles.star}
+          />
+        ))}
+        <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
+      </View>
+    );
   };
+
+  const renderContent = () => {
+    if (loading && !refreshing) {
+      return (
+        <View style={styles.centeredContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.messageText}>Loading Bookmarks...</Text>
+        </View>
+      );
+    }
+
+    if (loginRequired) {
+      return (
+        <LoginRequiredView onLoginPress={() => router.replace("/auth/sign-in")} />
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={styles.centeredContainer}>
+          <MaterialIcons name="error-outline" size={48} color={COLORS.danger} />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchBookmarks}>
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (bookmarks.length === 0) {
+      return (
+        <View style={styles.centeredContainer}>
+          <MaterialIcons name="bookmark-border" size={60} color={COLORS.gray} />
+          <Text style={styles.emptyTitle}>No Bookmarks Yet</Text>
+          <Text style={styles.messageText}>
+            Tap the bookmark icon on a place to save it here.
+          </Text>
+        </View>
+      );
+    }
+
+    if (filteredBookmarks.length === 0) {
+      return (
+        <View style={styles.centeredContainer}>
+          <MaterialIcons name="search-off" size={60} color={COLORS.gray} />
+          <Text style={styles.emptyTitle}>No Results Found</Text>
+          <Text style={styles.messageText}>
+            Try adjusting your search or filters.
+          </Text>
+        </View>
+      );
+    }
+
+    return filteredBookmarks.map((bookmark) => (
+      <TouchableOpacity
+        key={bookmark.id}
+        style={styles.bookmarkCard}
+        onPress={() => handleNavigateToDetail(bookmark)}
+      >
+        <Image
+          source={{
+            uri:
+              bookmark.place_image ||
+              "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&h=400&fit=crop",
+          }}
+          style={styles.bookmarkImage}
+        />
+        <View style={styles.cardContent}>
+          <Text style={styles.bookmarkName} numberOfLines={1}>
+            {bookmark.place_name}
+          </Text>
+          <Text style={styles.bookmarkLocation} numberOfLines={1}>
+            <Ionicons name="location-outline" size={14} color={COLORS.text} />{" "}
+            {bookmark.place_address || "No address"}
+          </Text>
+          <View style={styles.cardFooter}>
+            {renderStars(bookmark.place_rating)}
+            <TouchableOpacity
+              style={styles.removeButton}
+              onPress={() => confirmRemoveBookmark(bookmark)}
+            >
+              <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    ));
+  };
+
+  const CategoryButton = ({ name, value }: { name: string; value: Category }) => (
+    <TouchableOpacity
+      style={[
+        styles.categoryButton,
+        selectedCategory === value && styles.activeCategoryButton,
+      ]}
+      onPress={() => setSelectedCategory(value)}
+    >
+      <Text
+        style={[
+          styles.categoryButtonText,
+          selectedCategory === value && styles.activeCategoryText,
+        ]}
+      >
+        {name} ({getCategoryCount(value)})
+      </Text>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>My Bookmarks</Text>
-        <Text style={styles.subtitle}>{bookmarks.length} saved places</Text>
       </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
+      <View style={styles.controlsContainer}>
         <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Ionicons name="search" size={20} color={COLORS.gray} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search bookmarks..."
+            placeholder="Search by name or address..."
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={COLORS.gray}
           />
+        </View>
+        <View style={styles.categoryContainer}>
+          <CategoryButton name="All" value="all" />
+          <CategoryButton name="Attractions" value="attraction" />
+          <CategoryButton name="Restaurants" value="restaurant" />
         </View>
       </View>
 
-      {/* Category Filters */}
-      <View style={styles.categoryContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {[
-            { key: "all", label: "All", icon: "📍" },
-            { key: "attraction", label: "Attractions", icon: "🏛️" },
-            { key: "restaurant", label: "Restaurants", icon: "🍽️" },
-          ].map((category) => (
-            <TouchableOpacity
-              key={category.key}
-              style={[
-                styles.categoryButton,
-                selectedCategory === category.key &&
-                  styles.categoryButtonActive,
-              ]}
-              onPress={() => setSelectedCategory(category.key as any)}
-            >
-              <Text style={styles.categoryIcon}>{category.icon}</Text>
-              <Text
-                style={[
-                  styles.categoryText,
-                  selectedCategory === category.key &&
-                    styles.categoryTextActive,
-                ]}
-              >
-                {category.label}
-              </Text>
-              <View
-                style={[
-                  styles.categoryBadge,
-                  selectedCategory === category.key &&
-                    styles.categoryBadgeActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.categoryBadgeText,
-                    selectedCategory === category.key &&
-                      styles.categoryBadgeTextActive,
-                  ]}
-                >
-                  {getCategoryCount(category.key as any)}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Bookmarks List */}
       <ScrollView
         style={styles.bookmarksList}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 30, flexGrow: 1 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+          />
+        }
       >
-        {filteredBookmarks.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📚</Text>
-            <Text style={styles.emptyTitle}>No bookmarks found</Text>
-            <Text style={styles.emptySubtitle}>
-              {searchQuery
-                ? "Try adjusting your search"
-                : "Start saving your favorite places!"}
-            </Text>
-          </View>
-        ) : (
-          filteredBookmarks.map((bookmark) => (
-            <View key={bookmark.id} style={styles.bookmarkCard}>
-              <Image
-                source={{ uri: bookmark.image }}
-                style={styles.bookmarkImage}
-              />
-
-              <View style={styles.bookmarkContent}>
-                <View style={styles.bookmarkHeader}>
-                  <View style={styles.bookmarkInfo}>
-                    <Text style={styles.bookmarkName}>{bookmark.name}</Text>
-                    <Text style={styles.bookmarkLocation}>
-                      📍 {bookmark.location}
-                    </Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.removeButton}
-                    onPress={() => removeBookmark(bookmark.id)}
-                  >
-                    <Text style={styles.removeButtonText}>×</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.bookmarkDescription}>
-                  {bookmark.description}
-                </Text>
-
-                <View style={styles.bookmarkMeta}>
-                  <View style={styles.rating}>
-                    {renderStars(bookmark.rating)}
-                    <Text style={styles.ratingText}>{bookmark.rating}</Text>
-                  </View>
-
-                  <View style={styles.categoryTag}>
-                    <Text style={styles.categoryTagText}>
-                      {bookmark.category === "attraction"
-                        ? "🏛️ Attraction"
-                        : "🍽️ Restaurant"}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.tags}>
-                  {bookmark.tags.slice(0, 3).map((tag, index) => (
-                    <View key={index} style={styles.tag}>
-                      <Text style={styles.tagText}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                <Text style={styles.savedDate}>
-                  Saved on {new Date(bookmark.saved_date).toLocaleDateString()}
-                </Text>
-              </View>
-            </View>
-          ))
-        )}
+        {renderContent()}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
+  container: { flex: 1, backgroundColor: COLORS.lightGray },
   header: {
-    padding: 20,
-    paddingBottom: 10,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1F2937",
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-  },
-  searchContainer: {
     paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+    backgroundColor: COLORS.white,
+  },
+  title: { fontSize: 32, fontWeight: "bold", color: COLORS.dark },
+  controlsContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.lightGray,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: "#1F2937",
-  },
-  categoryContainer: {
-    paddingLeft: 20,
-    marginBottom: 20,
-  },
-  categoryButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  categoryButtonActive: {
-    backgroundColor: "#6366F1",
-  },
-  categoryIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#374151",
-    marginRight: 8,
-  },
-  categoryTextActive: {
-    color: "#FFFFFF",
-  },
-  categoryBadge: {
-    backgroundColor: "#F3F4F6",
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    minWidth: 24,
-    alignItems: "center",
-  },
-  categoryBadgeActive: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-  },
-  categoryBadgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#6B7280",
-  },
-  categoryBadgeTextActive: {
-    color: "#FFFFFF",
-  },
-  bookmarksList: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  bookmarkCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    height: 48,
     marginBottom: 16,
+  },
+  searchInput: { flex: 1, fontSize: 16, color: COLORS.dark, marginLeft: 10 },
+  categoryContainer: { flexDirection: "row", justifyContent: "space-around" },
+  categoryButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: COLORS.lightGray,
+  },
+  activeCategoryButton: { backgroundColor: COLORS.primaryLight },
+  categoryButtonText: { color: COLORS.text, fontWeight: "600" },
+  activeCategoryText: { color: COLORS.primary, fontWeight: "bold" },
+  bookmarksList: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
+  bookmarkCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    marginBottom: 20,
+    elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    overflow: "hidden",
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
   },
   bookmarkImage: {
     width: "100%",
-    height: 200,
-    backgroundColor: "#F3F4F6",
+    height: 160,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
-  bookmarkContent: {
-    padding: 16,
-  },
-  bookmarkHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  bookmarkInfo: {
-    flex: 1,
-  },
+  cardContent: { padding: 16 },
   bookmarkName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
-    color: "#1F2937",
-    marginBottom: 4,
+    color: COLORS.dark,
+    marginBottom: 6,
   },
   bookmarkLocation: {
     fontSize: 14,
-    color: "#6B7280",
-  },
-  removeButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#FEE2E2",
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 12,
-  },
-  removeButtonText: {
-    fontSize: 18,
-    color: "#DC2626",
-    fontWeight: "bold",
-  },
-  bookmarkDescription: {
-    fontSize: 14,
-    color: "#4B5563",
-    lineHeight: 20,
+    color: COLORS.text,
     marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
   },
-  bookmarkMeta: {
+  cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
   },
-  rating: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  star: {
-    fontSize: 14,
-    color: "#FBBF24",
-    marginRight: 2,
-  },
+  rating: { flexDirection: "row", alignItems: "center" },
+  star: { fontSize: 18, color: COLORS.warning, marginRight: 2 },
   ratingText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1F2937",
-    marginLeft: 4,
+    color: COLORS.dark,
+    marginLeft: 6,
   },
-  categoryTag: {
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  categoryTagText: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  tags: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 8,
-  },
-  tag: {
-    backgroundColor: "#EEF2FF",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginRight: 6,
-    marginBottom: 4,
-  },
-  tagText: {
-    fontSize: 12,
-    color: "#6366F1",
-    fontWeight: "500",
-  },
-  savedDate: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    fontStyle: "italic",
-  },
-  emptyState: {
-    alignItems: "center",
+  noRatingText: { fontSize: 14, color: COLORS.gray, fontStyle: "italic" },
+  removeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
-    paddingVertical: 60,
+    alignItems: "center",
+    backgroundColor: COLORS.dangerLight,
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
+  centeredContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  messageText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.text,
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 22,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: "bold",
-    color: "#1F2937",
+    color: COLORS.dark,
     marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
     textAlign: "center",
   },
+  errorText: {
+    color: COLORS.danger,
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  retryButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: { color: COLORS.white, fontWeight: "600", fontSize: 16 },
+  loginButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  loginButtonText: { color: COLORS.white, fontWeight: "bold", fontSize: 16 },
 });

@@ -6,6 +6,7 @@ export default function RestaurantsLayout() {
     <Stack>
       <Stack.Screen name="attractions" options={{ title: 'Attractions', headerShown: false }} />
       <Stack.Screen name="restaurants" options={{ title: 'Restaurants', headerShown: false }} />
+      <Stack.Screen name="placeDetail" options={{ title: 'Place Details', headerShown: false }} />
     </Stack>
   );
 }
