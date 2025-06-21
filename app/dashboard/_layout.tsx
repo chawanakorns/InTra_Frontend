@@ -6,15 +6,23 @@ import {
 } from "react-native-safe-area-context";
 
 const COLORS = {
-  primary: '#6366F1',
-  gray: '#9CA3AF',
-  lightGray: '#F3F4F6',
-  white: '#FFFFFF',
-  dark: '#111827',
+  primary: "#6366F1",
+  gray: "#9CA3AF",
+  lightGray: "#F3F4F6",
+  white: "#FFFFFF",
+  dark: "#111827",
 };
 
 // A helper component for consistent icon rendering
-function TabBarIcon({ name, color, focused }: { name: React.ComponentProps<typeof Ionicons>['name'], color: string, focused: boolean }) {
+function TabBarIcon({
+  name,
+  color,
+  focused,
+}: {
+  name: React.ComponentProps<typeof Ionicons>["name"];
+  color: string;
+  focused: boolean;
+}) {
   const iconName = focused ? name : `${name}-outline`;
   return <Ionicons size={24} name={iconName as any} color={color} />;
 }
@@ -44,7 +52,7 @@ export default function RootLayout() {
           },
           tabBarLabelStyle: {
             fontSize: 12,
-            fontWeight: '600',
+            fontWeight: "600",
             marginTop: -5,
           },
         }}
@@ -88,13 +96,13 @@ export default function RootLayout() {
         />
 
         {/* Hidden Routes */}
+        <Tabs.Screen name="home/recommendations" options={{ href: null }} />
+        <Tabs.Screen name="profile/setting" options={{ href: null }} />
         <Tabs.Screen
-          name="home/recommendations"
-          options={{ href: null }}
-        />
-        <Tabs.Screen
-          name="profile/setting"
-          options={{ href: null }}
+          name="profile/editprofile/editprofile"
+          options={{
+            href: null, // hides it from the tab bar
+          }}
         />
       </Tabs>
     </SafeAreaProvider>
