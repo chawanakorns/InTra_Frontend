@@ -26,11 +26,29 @@ interface UserProfile {
   gender?: string;
 }
 
+interface LoginPromptProps {
+  onLogin: () => void;
+}
+
+const LoginPrompt = ({ onLogin }: LoginPromptProps) => (
+  <View style={styles.loadingContainer}>
+    <MaterialIcons name="person-outline" size={60} color={Colors.GRAY} />
+    <Text style={styles.promptTitle}>View Your Profile</Text>
+    <Text style={styles.promptText}>
+      Log in to see your profile details and manage your account.
+    </Text>
+    <TouchableOpacity style={styles.promptButton} onPress={onLogin}>
+      <Text style={styles.promptButtonText}>Log In or Sign Up</Text>
+    </TouchableOpacity>
+  </View>
+);
+
 export default function ProfileScreen() {
   const router = useRouter();
   const [menuVisible, setMenuVisible] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loginRequired, setLoginRequired] = useState(false);
 
   const panY = useRef(new Animated.Value(0)).current;
   const panResponder = useRef(
@@ -60,13 +78,12 @@ export default function ProfileScreen() {
   ).current;
 
   const fetchUserProfile = async () => {
+    setLoading(true);
+    setLoginRequired(false);
     try {
       const token = await AsyncStorage.getItem("access_token");
-      console.log("Retrieved token:", token);
-
       if (!token) {
-        Alert.alert("Error", "No authentication token found");
-        router.replace("/auth/sign-in");
+        setLoginRequired(true);
         return;
       }
 
@@ -80,20 +97,26 @@ export default function ProfileScreen() {
 
       if (response.ok) {
         const userData = await response.json();
-        console.log("User data:", userData);
         setUserProfile(userData);
       } else if (response.status === 401) {
         Alert.alert("Session Expired", "Please log in again");
         await AsyncStorage.removeItem("access_token");
-        router.replace("/auth/sign-in");
+        setLoginRequired(true);
       } else {
         const errorData = await response.json();
-        console.log("Error response:", errorData);
-        Alert.alert("Error", "Failed to fetch profile data");
+        Alert.alert(
+          "Error",
+          errorData.detail || "Failed to fetch profile data"
+        );
+        setLoginRequired(true);
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
-      Alert.alert("Error", "Network error occurred");
+      Alert.alert(
+        "Error",
+        "A network error occurred. Please check your connection."
+      );
+      setLoginRequired(true);
     } finally {
       setLoading(false);
     }
@@ -130,35 +153,32 @@ export default function ProfileScreen() {
       console.error("Logout error:", error);
     } finally {
       await AsyncStorage.removeItem("access_token");
-      router.replace("/auth/sign-in");
+      setUserProfile(null);
+      setLoginRequired(true);
     }
   };
 
   const handleMenuItemPress = (action: string) => {
+    handleCloseModal();
     if (action === "Settings") {
-      console.log(`Selected: ${action}`);
       router.push("/dashboard/profile/setting/setting");
-      handleCloseModal();
     } else if (action === "Edit profile") {
-      console.log(`Selected: ${action}`);
-      handleCloseModal();
+      // Navigate to edit profile page
     } else if (action === "Log out") {
-      console.log(`Selected: ${action}`);
       Alert.alert("Confirm Logout", "Are you sure you want to log out?", [
         { text: "Cancel", style: "cancel" },
         {
           text: "Log Out",
           style: "destructive",
-          onPress: () => {
-            handleLogout();
-            handleCloseModal();
-          },
+          onPress: handleLogout,
         },
       ]);
     }
   };
 
-  const formatDate = (dateString: string | number | Date | undefined): string => {
+  const formatDate = (
+    dateString: string | number | Date | undefined
+  ): string => {
     if (!dateString) return "Not specified";
     try {
       const date = new Date(dateString);
@@ -179,18 +199,10 @@ export default function ProfileScreen() {
     );
   }
 
-  if (!userProfile) {
+  if (loginRequired || !userProfile) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.errorText}>Failed to load profile</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={fetchUserProfile}
-          >
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+        <LoginPrompt onLogin={() => router.replace("/auth/sign-in")} />
       </SafeAreaView>
     );
   }
@@ -335,6 +347,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "white",
   },
   backgroundImage: {
     flex: 1,
@@ -345,25 +358,37 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "white",
+    paddingHorizontal: 20,
   },
   loadingText: {
     marginTop: 20,
     fontSize: 16,
     color: "#666",
   },
-  errorText: {
-    fontSize: 16,
-    color: "#EF4444",
-    marginBottom: 20,
+  promptTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: Colors.dark.text,
+    textAlign: "center",
+    marginTop: 16,
   },
-  retryButton: {
+  promptText: {
+    fontSize: 16,
+    color: Colors.GRAY,
+    textAlign: "center",
+    marginTop: 8,
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  promptButton: {
     backgroundColor: Colors.PRIMARY,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
     borderRadius: 8,
   },
-  retryButtonText: {
+  promptButtonText: {
     color: "white",
+    fontSize: 16,
     fontWeight: "bold",
   },
   menuButton: {
@@ -477,13 +502,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    height: "40%",
+    height: "auto",
     width: "100%",
+    paddingBottom: 20,
   },
   modalContent: {
     padding: 20,
-    flex: 1,
-    justifyContent: "flex-start",
   },
   modalTitle: {
     fontSize: 28,
@@ -498,7 +522,6 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderBottomColor: "#E5E7EB",
     borderBottomWidth: 1,
-    justifyContent: "space-between",
   },
   logoutItem: {
     borderBottomWidth: 0,
@@ -508,28 +531,7 @@ const styles = StyleSheet.create({
     color: "#1F2937",
     fontWeight: "500",
     flex: 1,
-    marginLeft: 10,
-  },
-  actionButton: {
-    backgroundColor: "#6366F1",
-    borderRadius: 25,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  secondaryButton: {
-    backgroundColor: "transparent",
-    borderWidth: 2,
-    borderColor: "#6366F1",
-    marginTop: 5,
-  },
-  actionButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  secondaryButtonText: {
-    color: "#6366F1",
+    marginLeft: 15,
   },
   dragHandle: {
     width: "100%",

@@ -1,9 +1,9 @@
-import { FontAwesome, Ionicons, MaterialIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { FontAwesome, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,8 +14,8 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
-} from 'react-native';
+  View,
+} from "react-native";
 
 const BACKEND_API_URL = Platform.select({
   android: "http://10.0.2.2:8000",
@@ -24,15 +24,15 @@ const BACKEND_API_URL = Platform.select({
 });
 
 const COLORS = {
-  primary: '#6366F1', // Your requested button color
-  primaryLight: '#E0E7FF',
-  white: '#FFFFFF',
-  dark: '#1F2937',
-  text: '#4B5563',
-  lightGray: '#F3F4F6',
-  gray: '#9CA3AF',
-  danger: '#EF4444',
-  dangerLight: '#FEE2E2',
+  primary: "#6366F1",
+  primaryLight: "#E0E7FF",
+  white: "#FFFFFF",
+  dark: "#1F2937",
+  text: "#4B5563",
+  lightGray: "#F3F4F6",
+  gray: "#9CA3AF",
+  danger: "#EF4444",
+  dangerLight: "#FEE2E2",
 };
 
 interface Itinerary {
@@ -62,44 +62,53 @@ export default function PlaceDetail() {
   const router = useRouter();
   const place: Place = JSON.parse(placeData as string);
 
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showItineraryModal, setShowItineraryModal] = useState(false);
-  const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
+  const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(
+    null
+  );
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [time, setTime] = useState('12:00');
+  const [time, setTime] = useState("12:00");
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkId, setBookmarkId] = useState<number | null>(null);
-  const [checkingBookmark, setCheckingBookmark] = useState(true);
+  const [checkingStatus, setCheckingStatus] = useState(true);
 
   const getDescription = () => {
-    if (place.types?.includes('restaurant')) {
+    if (place.types?.includes("restaurant")) {
       return `A popular destination for food lovers, ${placeName} offers a delightful culinary experience. The ambiance is cozy yet vibrant, perfect for any occasion. We recommend trying their signature dishes, which showcase a blend of local flavors and modern techniques. The staff is known for being friendly and attentive, ensuring a memorable visit.`;
     }
     return `Discover the charm of ${placeName}. This spot is a must-visit, offering unique experiences and beautiful sights. Whether you're a local or a tourist, you'll find something to love here. Don't forget to bring your camera to capture the wonderful moments. The atmosphere is consistently praised by visitors.`;
   };
 
-  const checkBookmarkStatus = useCallback(async () => {
-    try {
-      setCheckingBookmark(true);
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        setIsBookmarked(false);
-        setBookmarkId(null);
-        return;
-      }
+  const checkUserAndBookmarkStatus = useCallback(async () => {
+    setCheckingStatus(true);
+    const token = await AsyncStorage.getItem("access_token");
 
-      const response = await fetch(`${BACKEND_API_URL}/api/bookmarks/check/${placeId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
+    if (!token) {
+      setIsLoggedIn(false);
+      setIsBookmarked(false);
+      setCheckingStatus(false);
+      return;
+    }
+
+    setIsLoggedIn(true);
+    try {
+      const response = await fetch(
+        `${BACKEND_API_URL}/api/bookmarks/check/${placeId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -114,25 +123,31 @@ export default function PlaceDetail() {
       setIsBookmarked(false);
       setBookmarkId(null);
     } finally {
-      setCheckingBookmark(false);
+      setCheckingStatus(false);
     }
   }, [placeId]);
-  
+
   const toggleBookmark = async () => {
-    setCheckingBookmark(true);
-    const token = await AsyncStorage.getItem('access_token');
-    if (!token) {
-      Alert.alert("Login Required", "You need to be logged in to save bookmarks.");
-      setCheckingBookmark(false);
+    if (!isLoggedIn) {
+      Alert.alert(
+        "Login Required",
+        "You need to be logged in to save bookmarks."
+      );
       return;
     }
 
+    setCheckingStatus(true);
+    const token = await AsyncStorage.getItem("access_token");
+
     try {
       if (isBookmarked && bookmarkId) {
-        const response = await fetch(`${BACKEND_API_URL}/api/bookmarks/${bookmarkId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
+        const response = await fetch(
+          `${BACKEND_API_URL}/api/bookmarks/${bookmarkId}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
         if (response.status === 204) {
           setIsBookmarked(false);
@@ -140,7 +155,10 @@ export default function PlaceDetail() {
           Alert.alert("Success", "Bookmark removed.");
         } else {
           const errorData = await response.json().catch(() => ({}));
-          Alert.alert("Error", errorData.detail || "Failed to remove bookmark.");
+          Alert.alert(
+            "Error",
+            errorData.detail || "Failed to remove bookmark."
+          );
         }
       } else {
         const bookmarkData = {
@@ -153,10 +171,10 @@ export default function PlaceDetail() {
         };
 
         const response = await fetch(`${BACKEND_API_URL}/api/bookmarks/`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(bookmarkData),
         });
@@ -173,108 +191,136 @@ export default function PlaceDetail() {
     } catch (error) {
       Alert.alert("Error", "An error occurred. Please try again.");
     } finally {
-      setCheckingBookmark(false);
+      setCheckingStatus(false);
     }
   };
 
   const fetchItineraries = useCallback(async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            const token = await AsyncStorage.getItem('access_token');
-            if (!token) {
-              setError('Authentication required. Please log in.');
-              return;
-            }
-            const response = await fetch(`${BACKEND_API_URL}/api/itineraries/`, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
-            });
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || `Server returned ${response.status}`);
-            }
-            const data = await response.json();
-            setItineraries(data);
-        } catch (err) {
-            console.error('Error fetching itineraries:', err);
-            setError(err instanceof Error ? err.message : 'Failed to load itineraries');
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
+    try {
+      setLoading(true);
+      setError(null);
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token) {
+        setError("Authentication required. Please log in.");
+        return;
+      }
+      const response = await fetch(`${BACKEND_API_URL}/api/itineraries/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail || `Server returned ${response.status}`
+        );
+      }
+      const data = await response.json();
+      setItineraries(data);
+    } catch (err) {
+      console.error("Error fetching itineraries:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load itineraries"
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  const handleAddToItinerary = async () => {
+    if (!selectedItinerary) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const token = await AsyncStorage.getItem("access_token");
+      if (!token) throw new Error("Authentication required");
+
+      const itineraryStart = new Date(selectedItinerary.start_date);
+      const itineraryEnd = new Date(selectedItinerary.end_date);
+      if (date < itineraryStart || date > itineraryEnd) {
+        throw new Error("Selected date must be within itinerary date range");
+      }
+
+      const scheduleItem = {
+        place_id: placeId,
+        place_name: placeName,
+        place_type: place.types ? place.types[0] : null,
+        place_address: place.address || null,
+        place_rating: place.rating || null,
+        place_image: place.image || null,
+        place_data: place,
+        scheduled_date: date.toISOString().split("T")[0],
+        scheduled_time: time,
+        duration_minutes: 60,
+      };
+
+      const response = await fetch(
+        `${BACKEND_API_URL}/api/itineraries/${selectedItinerary.id}/items`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(scheduleItem),
         }
-    }, []);
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail || `Server returned ${response.status}`
+        );
+      }
 
-    const handleAddToItinerary = async () => {
-        if (!selectedItinerary) return;
-        try {
-            setLoading(true);
-            setError(null);
-            const token = await AsyncStorage.getItem('access_token');
-            if (!token) throw new Error('Authentication required');
-            
-            const itineraryStart = new Date(selectedItinerary.start_date);
-            const itineraryEnd = new Date(selectedItinerary.end_date);
-            if (date < itineraryStart || date > itineraryEnd) {
-                throw new Error('Selected date must be within itinerary date range');
-            }
-
-            const scheduleItem = {
-                place_id: placeId, place_name: placeName,
-                place_type: place.types ? place.types[0] : null,
-                place_address: place.address || null, place_rating: place.rating || null,
-                place_image: place.image || null, place_data: place,
-                scheduled_date: date.toISOString().split('T')[0], scheduled_time: time,
-                duration_minutes: 60,
-            };
-
-            const response = await fetch(`${BACKEND_API_URL}/api/itineraries/${selectedItinerary.id}/items`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(scheduleItem),
-            });
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || `Server returned ${response.status}`);
-            }
-            router.back();
-            Alert.alert('Success', `Successfully added to ${selectedItinerary.name} itinerary!`);
-        } catch (err) {
-            console.error('Error adding to itinerary:', err);
-            setError(err instanceof Error ? err.message : 'Failed to add to itinerary');
-            Alert.alert('Error', err instanceof Error ? err.message : 'An unknown error occurred.');
-        } finally {
-            setLoading(false);
-        }
-    };
+      Alert.alert(
+        "Success",
+        `Successfully added to ${selectedItinerary.name} itinerary!`,
+        [{ text: "OK", onPress: () => router.push("/dashboard/home") }]
+      );
+    } catch (err) {
+      console.error("Error adding to itinerary:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to add to itinerary"
+      );
+      Alert.alert(
+        "Error",
+        err instanceof Error ? err.message : "An unknown error occurred."
+      );
+    } finally {
+      setLoading(false);
+      setShowItineraryModal(false);
+    }
+  };
 
   const onChangeDate = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios');
+    setShowDatePicker(Platform.OS === "ios");
     if (selectedDate) setDate(selectedDate);
   };
 
   const onChangeTime = (event: any, selectedDate?: Date) => {
-    setShowTimePicker(Platform.OS === 'ios');
+    setShowTimePicker(Platform.OS === "ios");
     if (selectedDate) {
-      const hours = selectedDate.getHours().toString().padStart(2, '0');
-      const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+      const hours = selectedDate.getHours().toString().padStart(2, "0");
+      const minutes = selectedDate.getMinutes().toString().padStart(2, "0");
       setTime(`${hours}:${minutes}`);
     }
   };
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    checkBookmarkStatus();
-    // Re-fetch itineraries only if the modal is open, or always refresh them
+    checkUserAndBookmarkStatus();
     if (showItineraryModal) {
       fetchItineraries();
     } else {
       setRefreshing(false);
     }
-  }, [checkBookmarkStatus, showItineraryModal, fetchItineraries]);
+  }, [checkUserAndBookmarkStatus, showItineraryModal, fetchItineraries]);
 
   useEffect(() => {
-    checkBookmarkStatus();
-  }, [checkBookmarkStatus]);
+    checkUserAndBookmarkStatus();
+  }, [checkUserAndBookmarkStatus]);
 
   useEffect(() => {
     if (showItineraryModal) {
@@ -286,32 +332,62 @@ export default function PlaceDetail() {
     <View style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[COLORS.primary]} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[COLORS.primary]}
+          />
+        }
       >
         <ImageBackground
-          source={{ uri: place.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop' }}
+          source={{
+            uri:
+              place.image ||
+              "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop",
+          }}
           style={styles.imageBackground}
         >
           <LinearGradient
-            colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.8)']}
+            colors={["rgba(0,0,0,0.6)", "transparent", "rgba(0,0,0,0.8)"]}
             style={styles.gradientOverlay}
           >
             <View style={styles.header}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
-                <MaterialIcons name="arrow-back" size={24} color={COLORS.white} />
+              <TouchableOpacity
+                onPress={() => router.back()}
+                style={styles.headerButton}
+              >
+                <MaterialIcons
+                  name="arrow-back"
+                  size={24}
+                  color={COLORS.white}
+                />
               </TouchableOpacity>
-              <TouchableOpacity onPress={toggleBookmark} style={styles.headerButton} disabled={checkingBookmark}>
-                {checkingBookmark ? (
-                  <ActivityIndicator size="small" color={COLORS.white} />
-                ) : (
-                  <FontAwesome name={isBookmarked ? "bookmark" : "bookmark-o"} size={24} color={COLORS.white} />
-                )}
-              </TouchableOpacity>
+              {isLoggedIn && (
+                <TouchableOpacity
+                  onPress={toggleBookmark}
+                  style={styles.headerButton}
+                  disabled={checkingStatus}
+                >
+                  {checkingStatus ? (
+                    <ActivityIndicator size="small" color={COLORS.white} />
+                  ) : (
+                    <FontAwesome
+                      name={isBookmarked ? "bookmark" : "bookmark-o"}
+                      size={24}
+                      color={COLORS.white}
+                    />
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
             <View style={styles.imageTextContainer}>
               <Text style={styles.placeType}>
-                {place.types?.includes('restaurant') ? 'Restaurant' : 
-                 place.types?.includes('tourist_attraction') ? 'Attraction' : 'Place'}
+                {place.types?.includes("restaurant")
+                  ? "Restaurant"
+                  : place.types?.includes("tourist_attraction")
+                  ? "Attraction"
+                  : "Place"}
               </Text>
               <Text style={styles.placeName}>{placeName}</Text>
             </View>
@@ -328,15 +404,26 @@ export default function PlaceDetail() {
             )}
             {place.isOpen !== undefined && (
               <View style={styles.detailBox}>
-                <Ionicons name="time-outline" size={20} color={COLORS.primary} />
-                <Text style={styles.detailText}>{place.isOpen ? 'Open Now' : 'Closed'}</Text>
+                <Ionicons
+                  name="time-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.detailText}>
+                  {place.isOpen ? "Open Now" : "Closed"}
+                </Text>
               </View>
             )}
           </View>
 
           {place.address && (
             <View style={styles.addressSection}>
-              <Ionicons name="location-outline" size={22} color={COLORS.primary} style={{marginRight: 12}}/>
+              <Ionicons
+                name="location-outline"
+                size={22}
+                color={COLORS.primary}
+                style={{ marginRight: 12 }}
+              />
               <Text style={styles.addressText}>{place.address}</Text>
             </View>
           )}
@@ -348,24 +435,35 @@ export default function PlaceDetail() {
         </View>
       </ScrollView>
 
-      <TouchableOpacity style={styles.fab} onPress={() => setShowItineraryModal(true)} disabled={loading}>
-        <Ionicons name="add" size={24} color={COLORS.white} />
-        <Text style={styles.fabText}>Add to Itinerary</Text>
-      </TouchableOpacity>
+      {isLoggedIn && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setShowItineraryModal(true)}
+          disabled={loading}
+        >
+          <Ionicons name="add" size={24} color={COLORS.white} />
+          <Text style={styles.fabText}>Add to Itinerary</Text>
+        </TouchableOpacity>
+      )}
 
       {showItineraryModal && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Add to Itinerary</Text>
-            
+
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Select Itinerary</Text>
               {loading && itineraries.length === 0 ? (
-                <View style={styles.loadingContainer}><ActivityIndicator size="small" color={COLORS.primary} /></View>
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                </View>
               ) : error ? (
                 <View style={styles.errorContainer}>
                   <Text style={styles.errorText}>{error}</Text>
-                  <TouchableOpacity style={styles.retryButton} onPress={fetchItineraries}>
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={fetchItineraries}
+                  >
                     <Text style={styles.retryButtonText}>Try Again</Text>
                   </TouchableOpacity>
                 </View>
@@ -374,56 +472,95 @@ export default function PlaceDetail() {
                   {itineraries.map((itinerary) => (
                     <TouchableOpacity
                       key={itinerary.id}
-                      style={[ styles.itineraryOption, selectedItinerary?.id === itinerary.id && styles.selectedItinerary ]}
+                      style={[
+                        styles.itineraryOption,
+                        selectedItinerary?.id === itinerary.id &&
+                          styles.selectedItinerary,
+                      ]}
                       onPress={() => setSelectedItinerary(itinerary)}
                     >
-                      <Text style={styles.itineraryName}>{itinerary.name}</Text>
+                      <Text style={styles.itineraryName}>
+                        {itinerary.name}
+                      </Text>
                       <Text style={styles.itineraryDates}>
-                        {new Date(itinerary.start_date).toLocaleDateString()} - {new Date(itinerary.end_date).toLocaleDateString()}
+                        {new Date(
+                          itinerary.start_date
+                        ).toLocaleDateString()} -{" "}
+                        {new Date(itinerary.end_date).toLocaleDateString()}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
               ) : (
-                <Text style={styles.noItinerariesText}>No itineraries found. Create one first.</Text>
+                <Text style={styles.noItinerariesText}>
+                  No itineraries found. Create one first.
+                </Text>
               )}
             </View>
-            
-            {selectedItinerary && <>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Date</Text>
-                <TouchableOpacity style={styles.dateInput} onPress={() => setShowDatePicker(true)}>
-                  <Text>{date.toLocaleDateString()}</Text>
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={date} mode="date" display="default" onChange={onChangeDate}
-                    minimumDate={new Date(selectedItinerary.start_date)} maximumDate={new Date(selectedItinerary.end_date)}
-                  />
-                )}
-              </View>
 
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Time</Text>
-                <TouchableOpacity style={styles.dateInput} onPress={() => setShowTimePicker(true)}>
-                  <Text>{time}</Text>
-                </TouchableOpacity>
-                {showTimePicker && (
-                  <DateTimePicker value={new Date()} mode="time" display="default" onChange={onChangeTime} />
-                )}
-              </View>
-            </>}
+            {selectedItinerary && (
+              <>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Date</Text>
+                  <TouchableOpacity
+                    style={styles.dateInput}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Text>{date.toLocaleDateString()}</Text>
+                  </TouchableOpacity>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={date}
+                      mode="date"
+                      display="default"
+                      onChange={onChangeDate}
+                      minimumDate={new Date(selectedItinerary.start_date)}
+                      maximumDate={new Date(selectedItinerary.end_date)}
+                    />
+                  )}
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Time</Text>
+                  <TouchableOpacity
+                    style={styles.dateInput}
+                    onPress={() => setShowTimePicker(true)}
+                  >
+                    <Text>{time}</Text>
+                  </TouchableOpacity>
+                  {showTimePicker && (
+                    <DateTimePicker
+                      value={new Date()}
+                      mode="time"
+                      display="default"
+                      onChange={onChangeTime}
+                    />
+                  )}
+                </View>
+              </>
+            )}
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowItineraryModal(false)}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowItineraryModal(false)}
+              >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.confirmButton, (!selectedItinerary || loading) && styles.disabledButton]}
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.confirmButton,
+                  (!selectedItinerary || loading) && styles.disabledButton,
+                ]}
                 onPress={handleAddToItinerary}
                 disabled={!selectedItinerary || loading}
               >
-                {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.confirmButtonText}>Add</Text>}
+                {loading ? (
+                  <ActivityIndicator color={COLORS.white} />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Add</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -439,59 +576,59 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   imageBackground: {
-    width: '100%',
+    width: "100%",
     height: 350,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   gradientOverlay: {
     flex: 1,
-    paddingTop: Platform.OS === 'android' ? 40 : 50,
-    paddingBottom: 20,
+    paddingTop: Platform.OS === "android" ? 40 : 50,
+    paddingBottom: 40, // Increased padding
     paddingHorizontal: 20,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   headerButton: {
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: "rgba(0,0,0,0.4)",
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   imageTextContainer: {},
   placeType: {
     color: COLORS.lightGray,
     fontSize: 16,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    textTransform: "uppercase",
     letterSpacing: 1,
   },
   placeName: {
     color: COLORS.white,
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     lineHeight: 38,
   },
   contentContainer: {
     padding: 20,
-    paddingBottom: 100, // Space for FAB
+    paddingBottom: 100,
     backgroundColor: COLORS.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    marginTop: -20, // Pulls the content area up over the image
+    marginTop: -20,
   },
   detailsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 16,
     marginBottom: 24,
   },
   detailBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.primaryLight,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -501,11 +638,11 @@ const styles = StyleSheet.create({
   detailText: {
     color: COLORS.primary,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   addressSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     backgroundColor: COLORS.lightGray,
     borderRadius: 12,
@@ -522,7 +659,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.dark,
     marginBottom: 12,
   },
@@ -532,18 +669,18 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   fab: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 30,
     right: 20,
     backgroundColor: COLORS.primary,
     borderRadius: 30,
     height: 56,
     paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     elevation: 8,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -551,36 +688,39 @@ const styles = StyleSheet.create({
   fabText: {
     color: COLORS.white,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginLeft: 8,
   },
   modalOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalContainer: {
     backgroundColor: COLORS.white,
     borderRadius: 16,
     padding: 24,
-    width: '90%',
-    maxHeight: '85%',
+    width: "90%",
+    maxHeight: "85%",
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.dark,
     marginBottom: 24,
-    textAlign: 'center',
+    textAlign: "center",
   },
   formGroup: {
     marginBottom: 20,
   },
   formLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.text,
     marginBottom: 8,
   },
@@ -597,11 +737,10 @@ const styles = StyleSheet.create({
   },
   selectedItinerary: {
     backgroundColor: COLORS.primaryLight,
-    borderColor: COLORS.primary,
   },
   itineraryName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.dark,
   },
   itineraryDates: {
@@ -610,24 +749,24 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   noItinerariesText: {
-    textAlign: 'center',
+    textAlign: "center",
     color: COLORS.gray,
     padding: 20,
   },
   loadingContainer: {
     height: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   errorContainer: {
     backgroundColor: COLORS.dangerLight,
     padding: 16,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   errorText: {
     color: COLORS.danger,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 12,
   },
   retryButton: {
@@ -638,7 +777,7 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: COLORS.white,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   dateInput: {
     borderWidth: 1,
@@ -648,8 +787,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.lightGray,
   },
   modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginTop: 10,
     gap: 12,
   },
@@ -657,14 +796,14 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 14,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   cancelButton: {
     backgroundColor: COLORS.lightGray,
   },
   cancelButtonText: {
     color: COLORS.text,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     fontSize: 16,
   },
   confirmButton: {
@@ -672,7 +811,7 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     color: COLORS.white,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     fontSize: 16,
   },
   disabledButton: {
