@@ -162,7 +162,7 @@ export default function CalendarScreen() {
     }
   }, [selectedItinerary]);
 
-  const fetchUserName = useCallback(async (token) => {
+  const fetchUserName = useCallback(async (token: any) => {
     if (!token) {
       setUserName("Guest");
       return;

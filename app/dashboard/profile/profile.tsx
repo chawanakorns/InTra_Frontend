@@ -53,21 +53,20 @@ export default function ProfileScreen() {
             style={styles.headerBackground}
             resizeMode="cover"
           >
-            <View style={styles.overlay}>
-              <Image
-                source={{
-                  uri:
-                    profile.imageUri?.trim() !== ''
-                      ? profile.imageUri
-                      : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=687&q=80',
-                }}
-                style={styles.avatar}
-              />
-              <Text style={styles.name}>{profile.fullName}</Text>
-              <Text style={styles.subtitle}>
-                {profile.aboutMe || 'Work hard in silence. Let your success be the noise.'}
-              </Text>
-            </View>
+<View style={styles.overlay}>
+  <Image
+    source={
+      profile.imageUri?.trim() !== ''
+        ? { uri: profile.imageUri }
+        : require('../../../assets/images/defaultprofile.png') // Replace with your actual asset path
+    }
+    style={styles.avatar}
+  />
+  <Text style={styles.name}>{profile.fullName}</Text>
+  <Text style={styles.subtitle}>
+    {profile.aboutMe || 'Hello! This is my profile.'}
+  </Text>
+</View>
           </ImageBackground>
 
           <View style={styles.curvedOverlay} />
