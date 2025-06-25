@@ -143,7 +143,7 @@ export default function TypeOfDining() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => router.replace("./typeOfcuisine")}
+        onPress={() => router.replace("./kindOfcuisine")}
         style={{
           padding: 15,
           borderRadius: 15,

@@ -98,3 +98,5 @@ export const useUserProfile = () => {
   }
   return context;
 };
+
+export default UserProfileProvider;
