@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Image,
   PanResponder,
@@ -15,7 +16,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import ItineraryModal from "../../../components/ItineraryModal";
@@ -286,6 +287,73 @@ export default function CalendarScreen() {
     setDisplayDate(newItineraryForState.startDate);
   };
 
+  const handleDeleteItinerary = async () => {
+    if (!selectedItinerary) return;
+
+    Alert.alert(
+      "Delete Itinerary",
+      `Are you sure you want to delete "${selectedItinerary.name}"? This action cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const itineraryIdToDelete = selectedItinerary.id;
+            try {
+              const token = await AsyncStorage.getItem("access_token");
+              if (!token) {
+                setLoginRequired(true);
+                return;
+              }
+
+              const response = await fetch(
+                `${BACKEND_ITINERARY_API_URL}/${itineraryIdToDelete}`,
+                {
+                  method: "DELETE",
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                }
+              );
+
+              if (response.status === 204) {
+                const updatedItineraries = itineraries.filter(
+                  (it) => it.id !== itineraryIdToDelete
+                );
+                setItineraries(updatedItineraries);
+
+                if (updatedItineraries.length > 0) {
+                  const newSelected = updatedItineraries[0];
+                  setSelectedItinerary(newSelected);
+                  setSelectedDate(newSelected.startDate);
+                  setDisplayDate(newSelected.startDate);
+                } else {
+                  setSelectedItinerary(null);
+                }
+              } else if (response.status === 401) {
+                setLoginRequired(true);
+                await AsyncStorage.removeItem("access_token");
+              } else {
+                const errorData = await response.json();
+                Alert.alert(
+                  "Error",
+                  errorData.detail || "Failed to delete itinerary."
+                );
+              }
+            } catch (err) {
+              console.error("Deletion error:", err);
+              Alert.alert(
+                "Error",
+                "An unexpected error occurred while deleting the itinerary."
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handlePreviousWeek = () => {
     setDisplayDate((current) => {
       const newDate = new Date(current);
@@ -420,6 +488,12 @@ export default function CalendarScreen() {
                     </Text>
                   )}
                 />
+                <TouchableOpacity
+                  onPress={handleDeleteItinerary}
+                  style={styles.deleteButton}
+                >
+                  <MaterialIcons name="delete-outline" size={26} color="#B91C1C" />
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -661,6 +735,10 @@ const styles = StyleSheet.create({
   iconStyle: { width: 20, height: 20 },
   dropdownArrow: { color: "#FFFFFF", fontSize: 16, marginLeft: 5 },
   dropdownArrowOpen: { transform: [{ rotate: "180deg" }] },
+  deleteButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
   calendarContainer: { marginBottom: 5 },
   weekControlContainer: {
     flexDirection: "row",
