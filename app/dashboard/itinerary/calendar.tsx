@@ -1,9 +1,11 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import polyline from "@mapbox/polyline";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { isSameDay, parse } from "date-fns";
+import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +21,7 @@ import {
   View,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
+import MapView, { Marker, Polyline } from "react-native-maps";
 import ItineraryModal from "../../../components/ItineraryModal";
 
 const BACKEND_ITINERARY_API_URL = Platform.select({
@@ -31,6 +34,12 @@ const BACKEND_AUTH_API_URL = Platform.select({
   android: "http://10.0.2.2:8000/auth",
   ios: "http://localhost:8000/auth",
   default: "http://localhost:8000/auth",
+});
+
+const BACKEND_RECOMMENDATIONS_API_URL = Platform.select({
+  android: "http://10.0.2.2:8000/api/recommendations",
+  ios: "http://localhost:8000/api/recommendations",
+  default: "http://localhost:8000/api/recommendations",
 });
 
 type ScheduleItem = {
@@ -55,6 +64,15 @@ type Itinerary = {
   schedule_items: ScheduleItem[];
 };
 
+type PlaceDetails = {
+  id: string;
+  name: string;
+  description: string;
+  isOpen?: boolean;
+  address?: string;
+  rating?: number;
+};
+
 const capitalize = (s: string | undefined): string => {
   if (!s) return "";
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
@@ -73,6 +91,7 @@ const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
   </View>
 );
 
+
 export default function CalendarScreen() {
   const router = useRouter();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -89,6 +108,21 @@ export default function CalendarScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loginRequired, setLoginRequired] = useState(false);
   const [userName, setUserName] = useState("Guest");
+  const [isDetailsVisible, setIsDetailsVisible] = useState(false);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [placeDetailsCache, setPlaceDetailsCache] = useState<
+    Record<string, PlaceDetails>
+  >({});
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState<
+    string | null
+  >(null);
+
+  const [routeCoordinates, setRouteCoordinates] = useState<
+    { latitude: number; longitude: number }[]
+  >([]);
+  const [isFetchingRoute, setIsFetchingRoute] = useState(false);
+  const mapRef = useRef<MapView>(null);
 
   const panY = useRef(new Animated.Value(0)).current;
   const panResponder = useRef(
@@ -119,6 +153,32 @@ export default function CalendarScreen() {
       },
     })
   ).current;
+
+  const coveredTimeSlots = useMemo(() => {
+    const covered = new Set<string>();
+    if (!selectedItinerary) return covered;
+
+    const itemsForDay = selectedItinerary.schedule_items.filter((item) =>
+      isSameDay(parse(item.scheduled_date, "yyyy-MM-dd", new Date()), selectedDate)
+    );
+
+    itemsForDay.forEach((item) => {
+      const [sH, sM] = item.scheduled_time.split(":").map(Number);
+      const startTimeInMinutes = sH * 60 + sM;
+      const endTimeInMinutes = startTimeInMinutes + item.duration_minutes;
+
+      for (let hour = sH + 1; hour * 60 < endTimeInMinutes; hour++) {
+        if (hour > 22) break;
+        const ampm = hour >= 12 ? "PM" : "AM";
+        let displayHour = hour % 12;
+        if (displayHour === 0) displayHour = 12;
+        const timeString = `${displayHour.toString().padStart(2, "0")}:00 ${ampm}`;
+        covered.add(timeString);
+      }
+    });
+
+    return covered;
+  }, [selectedItinerary, selectedDate]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -322,6 +382,7 @@ export default function CalendarScreen() {
                   (it) => it.id !== itineraryIdToDelete
                 );
                 setItineraries(updatedItineraries);
+                setIsDetailsVisible(false);
 
                 if (updatedItineraries.length > 0) {
                   const newSelected = updatedItineraries[0];
@@ -409,6 +470,91 @@ export default function CalendarScreen() {
     });
   };
 
+  const handleItemPress = async (item: ScheduleItem) => {
+    if (expandedItemId === item.place_id) {
+      setExpandedItemId(null);
+      setRouteCoordinates([]);
+      return;
+    }
+    
+    setRouteCoordinates([]);
+    setIsDescriptionExpanded(null);
+    setExpandedItemId(item.place_id);
+
+    if (!placeDetailsCache[item.place_id]) {
+      setIsFetchingDetails(true);
+      try {
+        const token = await AsyncStorage.getItem("access_token");
+        const response = await fetch(
+          `${BACKEND_RECOMMENDATIONS_API_URL}/place/${item.place_id}/details`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!response.ok) throw new Error("Failed to fetch place details");
+        const details: PlaceDetails = await response.json();
+        setPlaceDetailsCache((prev) => ({ ...prev, [item.place_id]: details }));
+      } catch (error) {
+        console.error("Error fetching place details:", error);
+        Alert.alert("Error", "Could not load place details.");
+        setExpandedItemId(null);
+      } finally {
+        setIsFetchingDetails(false);
+      }
+    }
+  };
+
+  const toggleDescriptionExpansion = (place_id: string) => {
+    setIsDescriptionExpanded(isDescriptionExpanded === place_id ? null : place_id);
+  };
+
+  const handleShowDirections = async (item: ScheduleItem) => {
+    if (routeCoordinates.length > 0) {
+      setRouteCoordinates([]);
+      return;
+    }
+
+    setIsFetchingRoute(true);
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Denied", "Please enable location services to get directions.");
+        return;
+      }
+      
+      const location = await Location.getCurrentPositionAsync({});
+      const origin = `${location.coords.latitude},${location.coords.longitude}`;
+      
+      const response = await fetch(
+        `${BACKEND_RECOMMENDATIONS_API_URL}/directions?origin=${origin}&destination_place_id=${item.place_id}`
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to fetch directions.");
+      }
+      
+      const data = await response.json();
+      const points = polyline.decode(data.encoded_polyline);
+      const coords = points.map((point) => ({
+        latitude: point[0],
+        longitude: point[1],
+      }));
+      setRouteCoordinates(coords);
+
+      setTimeout(() => {
+        mapRef.current?.fitToCoordinates(coords, {
+          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+          animated: true,
+        });
+      }, 250);
+
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Could not get directions.");
+    } finally {
+      setIsFetchingRoute(false);
+    }
+  };
+
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -475,6 +621,7 @@ export default function CalendarScreen() {
                       setSelectedItinerary(itinerary);
                       setSelectedDate(itinerary.startDate);
                       setDisplayDate(itinerary.startDate);
+                      setIsDetailsVisible(false);
                     }
                   }}
                   renderRightIcon={() => (
@@ -489,14 +636,54 @@ export default function CalendarScreen() {
                   )}
                 />
                 <TouchableOpacity
+                  onPress={() => setIsDetailsVisible(!isDetailsVisible)}
+                  style={styles.detailsButton}
+                >
+                  <MaterialIcons
+                    name={
+                      isDetailsVisible
+                        ? "keyboard-arrow-up"
+                        : "keyboard-arrow-down"
+                    }
+                    size={28}
+                    color="#6366F1"
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
                   onPress={handleDeleteItinerary}
                   style={styles.deleteButton}
                 >
-                  <MaterialIcons name="delete-outline" size={26} color="#B91C1C" />
+                  <MaterialIcons
+                    name="delete-outline"
+                    size={26}
+                    color="#B91C1C"
+                  />
                 </TouchableOpacity>
               </View>
             )}
           </View>
+          {isDetailsVisible && selectedItinerary && (
+            <View style={styles.detailsContainer}>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Trip Type:</Text>
+                <Text style={styles.detailValue}>{selectedItinerary.type}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Budget:</Text>
+                <Text style={styles.detailValue}>
+                  {capitalize(selectedItinerary.budget ?? undefined) || "Not Specified"}
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Dates:</Text>
+                <Text style={styles.detailValue}>
+                  {`${formatDate(selectedItinerary.startDate)} - ${formatDate(
+                    selectedItinerary.endDate
+                  )}`}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={styles.calendarContainer}>
@@ -508,7 +695,7 @@ export default function CalendarScreen() {
               <Text style={styles.navButtonText}>{"<"}</Text>
             </TouchableOpacity>
             <View style={styles.datesRow}>
-              {weekDates.map((date, index) => {
+              {weekDates.map((date) => {
                 const dayName = date
                   .toLocaleDateString("en-US", { weekday: "short" })
                   .toUpperCase();
@@ -533,7 +720,7 @@ export default function CalendarScreen() {
 
                 return (
                   <TouchableOpacity
-                    key={index}
+                    key={date.toISOString()}
                     style={[
                       styles.dateCell,
                       isSelected && styles.selectedDateCell,
@@ -568,7 +755,6 @@ export default function CalendarScreen() {
             </TouchableOpacity>
           </View>
         </View>
-
         {selectedItinerary ? (
           <View style={styles.timelineContainer}>
             <View style={styles.timelineHeader}>
@@ -576,61 +762,115 @@ export default function CalendarScreen() {
             </View>
             {timeSlots.map((time) => {
               const scheduleItems = getScheduleItemsForTimeSlot(time);
-              const formatTimeRange = (
-                startTimeStr: string,
-                duration: number
-              ) => {
+              scheduleItems.sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time));
+
+              let verticalOffset = 0;
+              if (scheduleItems.length > 0) {
+                const firstItemMinutes = parseInt(scheduleItems[0].scheduled_time.split(":")[1], 10);
+                verticalOffset = (firstItemMinutes / 60) * 60;
+              }
+
+              const isTimeLabelVisible = !coveredTimeSlots.has(time);
+              const formatTimeRange = (startTimeStr: string, duration: number) => {
                 const [h, m] = startTimeStr.split(":").map(Number);
                 const startDate = new Date();
                 startDate.setHours(h, m, 0, 0);
-                const endDate = new Date(
-                  startDate.getTime() + duration * 60000
-                );
-                const formatTime = (d: Date) =>
-                  d.toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  });
-                return `${formatTime(startDate)} - ${formatTime(endDate)}`;
+                const endDate = new Date(startDate.getTime() + duration * 60000);
+                const format = (d: Date) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                return `${format(startDate)} - ${format(endDate)}`;
               };
 
               return (
                 <View key={time} style={styles.timelineRow}>
-                  <Text style={styles.timelineTime}>{time}</Text>
+                  {isTimeLabelVisible ? (
+                    <Text style={styles.timelineTime}>{time}</Text>
+                  ) : (
+                    <View style={{ width: 80, marginRight: 10 }} />
+                  )}
                   <View style={styles.timelineDivider}>
-                    {scheduleItems.length > 0 && (
-                      <View style={styles.timelineDot} />
-                    )}
-                    <View style={styles.cardsContainer}>
-                      {scheduleItems.map((item, itemIndex) => (
-                        <View key={itemIndex} style={styles.scheduleItemCard}>
-                          <Image
-                            source={
-                              item.place_image
-                                ? { uri: item.place_image }
-                                : require("../../../assets/images/icon.png")
-                            }
-                            style={styles.cardImage}
-                          />
-                          <View style={styles.cardContent}>
-                            <Text
-                              style={styles.scheduleItemText}
-                              numberOfLines={1}
-                            >
-                              {item.place_name}
-                            </Text>
-                            <Text style={styles.scheduleItemDetails}>
-                              {capitalize(item.place_type) || "Activity"}
-                            </Text>
-                            <Text style={styles.scheduleItemTimeText}>
-                              {formatTimeRange(
-                                item.scheduled_time,
-                                item.duration_minutes
+                    <View style={{ paddingTop: verticalOffset }}>
+                      {scheduleItems.length > 0 && <View style={styles.timelineDot} />}
+                      <View style={styles.cardsContainer}>
+                        {scheduleItems.map((item) => {
+                          const isExpanded = expandedItemId === item.place_id;
+                          const fullDescription = placeDetailsCache[item.place_id]?.description || "";
+                          const isDescExpanded = isDescriptionExpanded === item.place_id;
+                          const isTruncatable = fullDescription.length > 120;
+                          const cardHeight = Math.max(80, (item.duration_minutes / 60) * 60);
+
+                          return (
+                            <View key={`${item.place_id}-${item.scheduled_time}`} style={{ marginBottom: 15 }}>
+                              <TouchableOpacity onPress={() => handleItemPress(item)}>
+                                <View style={[styles.scheduleItemCard, { minHeight: cardHeight }, isExpanded && styles.scheduleItemCardExpanded]}>
+                                  <Image source={item.place_image ? { uri: item.place_image } : require("../../../assets/images/icon.png")} style={styles.cardImage} />
+                                  <View style={styles.cardContent}>
+                                    <Text style={styles.scheduleItemText} numberOfLines={1}>{item.place_name}</Text>
+                                    <Text style={styles.scheduleItemDetails}>{capitalize(item.place_type) || "Activity"}</Text>
+                                    <Text style={styles.scheduleItemTimeText}>{formatTimeRange(item.scheduled_time, item.duration_minutes)}</Text>
+                                  </View>
+                                </View>
+                              </TouchableOpacity>
+                              {isExpanded && (
+                                <View style={styles.expandedDetailsContainer}>
+                                  {isFetchingDetails && !placeDetailsCache[item.place_id] ? (
+                                    <ActivityIndicator style={{ marginVertical: 20 }} color="#6366F1" />
+                                  ) : (
+                                    <>
+                                      <Text style={styles.detailsDescription}>
+                                        {isTruncatable && !isDescExpanded ? `${fullDescription.substring(0, 120)}...` : fullDescription}
+                                      </Text>
+                                      {isTruncatable && (
+                                        <TouchableOpacity onPress={() => toggleDescriptionExpansion(item.place_id)}>
+                                          <Text style={styles.showMoreText}>{isDescExpanded ? "Show less" : "Show more"}</Text>
+                                        </TouchableOpacity>
+                                      )}
+                                      <View style={styles.detailRow}>
+                                        <Text style={styles.detailLabel}>Status:</Text>
+                                        <Text style={[styles.detailValue, { color: placeDetailsCache[item.place_id]?.isOpen ? "#10B981" : "#EF4444" }]}>
+                                          {placeDetailsCache[item.place_id]?.isOpen ? "Open Now" : "Closed"}
+                                        </Text>
+                                      </View>
+                                      <TouchableOpacity
+                                        style={styles.mapButton}
+                                        onPress={() => handleShowDirections(item)}
+                                        disabled={isFetchingRoute}
+                                      >
+                                        {isFetchingRoute ? (
+                                          <ActivityIndicator color="#FFFFFF" />
+                                        ) : (
+                                          <>
+                                            <MaterialIcons name="directions" size={20} color="#FFFFFF" />
+                                            <Text style={styles.mapButtonText}>
+                                              {routeCoordinates.length > 0 ? "Hide Directions" : "Show Directions"}
+                                            </Text>
+                                          </>
+                                        )}
+                                      </TouchableOpacity>
+                                      
+                                      {routeCoordinates.length > 0 && (
+                                        <MapView
+                                          ref={mapRef}
+                                          style={styles.mapView}
+                                          showsUserLocation
+                                          initialRegion={{
+                                            latitude: routeCoordinates[0].latitude,
+                                            longitude: routeCoordinates[0].longitude,
+                                            latitudeDelta: 0.0922,
+                                            longitudeDelta: 0.0421,
+                                          }}
+                                        >
+                                          <Marker coordinate={routeCoordinates[routeCoordinates.length - 1]} title="Destination" />
+                                          <Polyline coordinates={routeCoordinates} strokeColor="#6366F1" strokeWidth={4} />
+                                        </MapView>
+                                      )}
+                                    </>
+                                  )}
+                                </View>
                               )}
-                            </Text>
-                          </View>
-                        </View>
-                      ))}
+                            </View>
+                          );
+                        })}
+                      </View>
                     </View>
                   </View>
                 </View>
@@ -638,7 +878,6 @@ export default function CalendarScreen() {
             })}
           </View>
         ) : (
-          // This view is now only shown if a user is logged in but has 0 itineraries.
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No Itineraries Found</Text>
             <Text style={styles.emptySubtitle}>Create your first</Text>
@@ -652,38 +891,20 @@ export default function CalendarScreen() {
   return (
     <View style={styles.screenContainer}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView
-          contentContainerStyle={styles.container}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           {renderContent()}
         </ScrollView>
-
-        {/* The button will only appear if the user is NOT a guest and the page is not loading. */}
         {!loginRequired && !isLoading && (
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => {
-              panY.setValue(0);
-              setModalVisible(true);
-            }}
-          >
+          <TouchableOpacity style={styles.addButton} onPress={() => { panY.setValue(0); setModalVisible(true); }}>
             <Text style={styles.addButtonText}>+</Text>
           </TouchableOpacity>
         )}
       </SafeAreaView>
-
-      <ItineraryModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onCreateItinerary={handleCreateItinerary}
-        panY={panY}
-        panResponder={panResponder}
-        backendApiUrl={BACKEND_ITINERARY_API_URL}
-      />
+      <ItineraryModal visible={modalVisible} onClose={() => setModalVisible(false)} onCreateItinerary={handleCreateItinerary} panY={panY} panResponder={panResponder} backendApiUrl={BACKEND_ITINERARY_API_URL} />
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   screenContainer: { flex: 1, position: "relative" },
@@ -738,6 +959,34 @@ const styles = StyleSheet.create({
   deleteButton: {
     marginLeft: 8,
     padding: 4,
+  },
+  detailsButton: {
+    marginLeft: 4,
+    padding: 4,
+  },
+  detailsContainer: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+  },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: "#4B5563",
+    fontWeight: "500",
+  },
+  detailValue: {
+    fontSize: 14,
+    color: "#1F2937",
+    fontWeight: "600",
+    flex: 1,
+    textAlign: "right",
   },
   calendarContainer: { marginBottom: 5 },
   weekControlContainer: {
@@ -811,7 +1060,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     paddingBottom: 100,
-    marginTop: 50, // Added margin for better spacing
+    marginTop: 50,
   },
   emptyTitle: {
     fontSize: 16,
@@ -856,9 +1105,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    marginBottom: 15,
     width: "100%",
-    height: 120,
     shadowColor: "#4A5568",
     shadowOffset: {
       width: 0,
@@ -867,6 +1114,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
+  },
+  scheduleItemCardExpanded: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderColor: "#6366F1",
+    borderWidth: 1.5,
+    borderBottomWidth: 0,
   },
   cardsContainer: { flex: 1, paddingTop: 5, paddingBottom: 5 },
   scheduleItemText: {
@@ -879,10 +1133,10 @@ const styles = StyleSheet.create({
   scheduleItemTimeText: { fontSize: 14, fontWeight: "bold", color: "#374151" },
   cardImage: {
     width: 90,
-    height: 120,
+    height: "100%",
     backgroundColor: "#E5E7EB",
-    borderTopLeftRadius: 12,
-    borderBottomLeftRadius: 12,
+    borderTopLeftRadius: 10,
+    borderBottomLeftRadius: 10,
   },
   cardContent: { padding: 12, flex: 1, justifyContent: "center" },
   centeredMessageContainer: {
@@ -912,4 +1166,49 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   loginButtonText: { color: "#FFFFFF", fontWeight: "bold", fontSize: 16 },
+  expandedDetailsContainer: {
+    padding: 15,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    marginTop: -2,
+    paddingTop: 15,
+    backgroundColor: "#F9FAFB",
+    borderColor: "#6366F1",
+    borderWidth: 1.5,
+    borderTopWidth: 0,
+  },
+  detailsDescription: {
+    fontSize: 14,
+    color: "#4B5563",
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  showMoreText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#6366F1",
+    marginBottom: 10,
+  },
+  mapButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#4B5563",
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 10,
+    minHeight: 40,
+  },
+  mapButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginLeft: 8,
+  },
+  mapView: {
+    height: 250,
+    width: "100%",
+    marginTop: 15,
+    borderRadius: 8,
+  },
 });
