@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { ImagePickerAsset, launchImageLibraryAsync, MediaTypeOptions } from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,9 +21,9 @@ import {
 import { useUserProfile } from "../../../../context/UserProfileContext";
 import { API_URL } from "../../../config";
 
+// Helper Functions
 const createFullImageUrl = (path?: string) => {
-  if (!path) return '';
-  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  if (!path || path.startsWith('http')) return path || '';
   return `${API_URL}${path}`;
 };
 
@@ -34,7 +34,8 @@ const getErrorMessage = (data: any, defaultMessage: string): string => {
   return defaultMessage;
 };
 
-const IconTextInput = ({ iconName, value, placeholder, onChangeText, multiline = false, editable = true, keyboardType = 'default' }: any) => (
+// Reusable Components
+const IconTextInput = ({ iconName, value, placeholder, onChangeText, multiline = false, editable = true }: any) => (
     <View style={[styles.inputContainer, !editable && styles.disabledInput]}>
         <MaterialIcons name={iconName} size={22} color="#6b7280" style={styles.inputIcon} />
         <TextInput
@@ -45,7 +46,6 @@ const IconTextInput = ({ iconName, value, placeholder, onChangeText, multiline =
             placeholderTextColor="#9ca3af"
             multiline={multiline}
             editable={editable}
-            keyboardType={keyboardType}
         />
     </View>
 );
@@ -57,38 +57,35 @@ export default function EditProfileScreen() {
   const [fullName, setFullName] = useState('');
   const [aboutMe, setAboutMe] = useState('');
   const [dob, setDob] = useState<Date | null>(null);
-  const [gender, setGender] = useState('');
   const [email, setEmail] = useState('');
   const [imageUri, setImageUri] = useState('');
   const [backgroundUri, setBackgroundUri] = useState('');
   
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (profile) {
       setFullName(profile.fullName || '');
       setAboutMe(profile.aboutMe || '');
       setDob(profile.dob ? new Date(profile.dob) : null);
-      setGender(profile.gender || '');
       setEmail(profile.email || '');
       setImageUri(createFullImageUrl(profile.imageUri));
       setBackgroundUri(createFullImageUrl(profile.backgroundUri));
-    } else {
-      fetchUserProfile();
     }
   }, [profile]);
 
   const pickImage = async (isProfileImage: boolean) => {
-    if (isLoading) return;
-    const result = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, quality: 1 });
+    if (isUploading) return;
+    const result = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: isProfileImage ? [1, 1] : [16, 9], quality: 0.8 });
     if (!result.canceled && result.assets && result.assets.length > 0) {
       await uploadImage(result.assets[0], isProfileImage);
     }
   };
 
   const uploadImage = async (asset: ImagePickerAsset, isProfileImage: boolean) => {
-    setIsLoading(true);
+    setIsUploading(true);
     try {
       const token = await AsyncStorage.getItem("access_token");
       if (!token) throw new Error("No access token found");
@@ -101,14 +98,15 @@ export default function EditProfileScreen() {
         const newPath = isProfileImage ? data.image_uri : data.background_uri;
         const newImageUrl = createFullImageUrl(newPath);
         isProfileImage ? setImageUri(newImageUrl) : setBackgroundUri(newImageUrl);
+        await fetchUserProfile(); // Refresh context
         Alert.alert("Success", "Image uploaded successfully!");
       } else {
         Alert.alert("Error", getErrorMessage(data, `Failed to upload image.`));
       }
     } catch (error) {
-      Alert.alert("Error", "An unrecoverable error occurred while uploading.");
+      Alert.alert("Error", "An unexpected error occurred while uploading.");
     } finally {
-      setIsLoading(false);
+      setIsUploading(false);
     }
   };
 
@@ -118,23 +116,28 @@ export default function EditProfileScreen() {
   };
 
   const handleSave = async () => {
-    if (isLoading) return;
-    setIsLoading(true);
+    if (isSaving) return;
+    setIsSaving(true);
     try {
       const token = await AsyncStorage.getItem("access_token");
       if (!token) throw new Error("No access token found");
-      const relativeImageUri = imageUri.startsWith(API_URL) ? imageUri.replace(API_URL, '') : imageUri;
-      const relativeBackgroundUri = backgroundUri.startsWith(API_URL) ? backgroundUri.replace(API_URL, '') : backgroundUri;
+      
       const formattedDob = dob ? dob.toISOString().split('T')[0] : null;
+      const payload = {
+          fullName,
+          aboutMe,
+          dob: formattedDob,
+      };
+
       const response = await fetch(`${API_URL}/auth/me`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, aboutMe, dob: formattedDob, gender, imageUri: relativeImageUri, backgroundUri: relativeBackgroundUri }),
+        body: JSON.stringify(payload),
       });
+
       if (response.ok) {
-        Alert.alert("Success", "Profile updated successfully!");
-        await fetchUserProfile();
-        router.back();
+        await fetchUserProfile(); // Refresh profile context
+        Alert.alert("Success", "Profile updated successfully!", [{ text: 'OK', onPress: () => router.back() }]);
       } else {
         const data = await response.json();
         Alert.alert("Error", getErrorMessage(data, "Failed to update profile."));
@@ -142,26 +145,37 @@ export default function EditProfileScreen() {
     } catch (error) {
       Alert.alert("Error", "An error occurred while updating profile.");
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
+  };
+
+  const handleEditPreferences = async () => {
+      Alert.alert(
+          "Update Preferences",
+          "This will take you to the questionnaire to update your travel style. Your current preferences will be cleared. Continue?",
+          [
+              {text: "Cancel", style: "cancel"},
+              {text: "Continue", onPress: () => router.push('/auth/personalize/kindOfusers')}
+          ]
+      )
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
             <ImageBackground 
                 source={backgroundUri ? { uri: backgroundUri } : require('../../../../assets/images/profile-bg.jpg')} 
                 style={styles.backgroundImage}
             >
-                <TouchableOpacity style={styles.editButtonBackground} onPress={() => pickImage(false)} disabled={isLoading}>
-                    <MaterialIcons name="edit" size={20} color="#fff" />
+                <TouchableOpacity style={styles.editButtonBackground} onPress={() => pickImage(false)} disabled={isUploading}>
+                    {isUploading ? <ActivityIndicator size="small" color="#fff" /> : <MaterialIcons name="edit" size={20} color="#fff" />}
                 </TouchableOpacity>
             </ImageBackground>
             <View style={styles.profileImageContainer}>
                 <Image source={imageUri ? { uri: imageUri } : require('../../../../assets/images/defaultprofile.png')} style={styles.profileImage} />
-                <TouchableOpacity style={styles.editButtonProfile} onPress={() => pickImage(true)} disabled={isLoading}>
-                    <MaterialIcons name="edit" size={20} color="#fff" />
+                <TouchableOpacity style={styles.editButtonProfile} onPress={() => pickImage(true)} disabled={isUploading}>
+                    {isUploading ? <ActivityIndicator size="small" color="#fff" /> : <MaterialIcons name="edit" size={20} color="#fff" />}
                 </TouchableOpacity>
             </View>
         </View>
@@ -169,26 +183,28 @@ export default function EditProfileScreen() {
         <View style={styles.formContainer}>
             <Text style={styles.title}>Edit Your Profile</Text>
             
-            <IconTextInput iconName="person-outline" value={fullName} placeholder="Full Name" onChangeText={setFullName} editable={!isLoading} />
+            <IconTextInput iconName="person-outline" value={fullName} placeholder="Full Name" onChangeText={setFullName} editable={!isSaving} />
+            <IconTextInput iconName="description" value={aboutMe} placeholder="About Me" onChangeText={setAboutMe} multiline editable={!isSaving} />
             
-            {/* FIX: Replaced "article-outline" with "description" */}
-            <IconTextInput iconName="description" value={aboutMe} placeholder="About Me" onChangeText={setAboutMe} multiline editable={!isLoading} />
-            
-            <TouchableOpacity onPress={() => !isLoading && setShowDatePicker(true)}>
+            <TouchableOpacity onPress={() => !isSaving && setShowDatePicker(true)}>
                 <View pointerEvents="none">
-                     <IconTextInput iconName="calendar-today" value={dob ? dob.toLocaleDateString('en-GB') : ''} placeholder="Date of Birth" editable={false} />
+                     <IconTextInput iconName="calendar-today" value={dob ? dob.toLocaleDateString('en-CA') : ''} placeholder="Date of Birth (YYYY-MM-DD)" editable={false} />
                 </View>
             </TouchableOpacity>
 
-            <IconTextInput iconName="wc" value={gender} placeholder="Gender" onChangeText={setGender} editable={!isLoading} />
             <IconTextInput iconName="mail-outline" value={email} placeholder="Email" editable={false} />
             
             {showDatePicker && (
                 <DateTimePicker value={dob || new Date()} mode="date" display="default" onChange={onChangeDate} maximumDate={new Date()} />
             )}
+            
+            <TouchableOpacity style={styles.preferencesButton} onPress={handleEditPreferences}>
+                <MaterialIcons name="tune" size={22} color="#fff" />
+                <Text style={styles.preferencesButtonText}>Update Travel Preferences</Text>
+            </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.saveButton, isLoading && styles.saveButtonDisabled]} onPress={handleSave} disabled={isLoading}>
-                {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Save Changes</Text>}
+            <TouchableOpacity style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} onPress={handleSave} disabled={isSaving}>
+                {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Save Profile Changes</Text>}
             </TouchableOpacity>
         </View>
       </ScrollView>
@@ -200,10 +216,10 @@ const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#f9fafb' },
     container: { paddingBottom: 60, alignItems: 'center' },
     header: { width: '100%', alignItems: 'center', marginBottom: 60 },
-    backgroundImage: { width: '100%', height: 200, justifyContent: 'flex-end', alignItems: 'flex-end' },
+    backgroundImage: { width: '100%', height: 180, justifyContent: 'flex-end', alignItems: 'flex-end', backgroundColor: '#e5e7eb' },
     editButtonBackground: { backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 20, margin: 10 },
-    profileImageContainer: { position: 'absolute', top: 140 },
-    profileImage: { width: 120, height: 120, borderRadius: 60, borderWidth: 4, borderColor: '#fff' },
+    profileImageContainer: { position: 'absolute', top: 120 },
+    profileImage: { width: 120, height: 120, borderRadius: 60, borderWidth: 4, borderColor: '#fff', backgroundColor: '#e5e7eb' },
     editButtonProfile: { position: 'absolute', bottom: 5, right: 5, backgroundColor: '#6366F1', padding: 8, borderRadius: 20 },
     formContainer: { width: '90%', marginTop: 20 },
     title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 24, color: '#1f2937' },
@@ -211,7 +227,9 @@ const styles = StyleSheet.create({
     inputIcon: { marginRight: 10 },
     textInput: { flex: 1, paddingVertical: 15, fontSize: 16, color: '#111827' },
     disabledInput: { backgroundColor: "#f3f4f6" },
-    saveButton: { backgroundColor: "#6366F1", padding: 18, borderRadius: 12, alignItems: "center", marginTop: 20, shadowColor: "#6366F1", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 8 },
+    preferencesButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: "#2563EB", padding: 18, borderRadius: 12, marginTop: 10 },
+    preferencesButtonText: { color: "#fff", fontWeight: "bold", fontSize: 16, marginLeft: 10 },
+    saveButton: { backgroundColor: "#6366F1", padding: 18, borderRadius: 12, alignItems: "center", marginTop: 20 },
     saveButtonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-    saveButtonDisabled: { backgroundColor: "#A5B4FC", shadowOpacity: 0 }
+    saveButtonDisabled: { backgroundColor: "#A5B4FC" }
 });

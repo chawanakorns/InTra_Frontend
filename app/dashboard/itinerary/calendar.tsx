@@ -23,6 +23,7 @@ import {
 import { Dropdown } from "react-native-element-dropdown";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import ItineraryModal from "../../../components/ItineraryModal";
+import { ScheduleItemEditModal } from "../../../components/ScheduleItemEditModal";
 
 const BACKEND_ITINERARY_API_URL = Platform.select({
   android: "http://10.0.2.2:8000/api/itineraries",
@@ -43,6 +44,7 @@ const BACKEND_RECOMMENDATIONS_API_URL = Platform.select({
 });
 
 type ScheduleItem = {
+  id: string;
   place_id: string;
   place_name: string;
   place_type?: string;
@@ -73,9 +75,14 @@ type PlaceDetails = {
   rating?: number;
 };
 
-const capitalize = (s: string | undefined): string => {
+// --- UPDATED: New function to handle underscores and capitalize words ---
+const formatAndCapitalize = (s: string | undefined): string => {
   if (!s) return "";
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  return s
+    .replace(/_/g, " ")
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
 };
 
 const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
@@ -123,6 +130,9 @@ export default function CalendarScreen() {
   >([]);
   const [isFetchingRoute, setIsFetchingRoute] = useState(false);
   const mapRef = useRef<MapView>(null);
+  
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState<ScheduleItem | null>(null);
 
   const panY = useRef(new Animated.Value(0)).current;
   const panResponder = useRef(
@@ -290,8 +300,9 @@ export default function CalendarScreen() {
         name: it.name,
         startDate: new Date(it.start_date),
         endDate: new Date(it.end_date),
-        schedule_items: (it.schedule_items || []).map((item: any) => ({
+        schedule_items: (it.schedule_items || []).map((item: any, index: number) => ({
           ...item,
+          id: item.id?.toString() ?? `${it.id}-${index}`, // Fallback ID for client-side ops
           scheduled_date: item.scheduled_date,
         })),
       }));
@@ -322,6 +333,97 @@ export default function CalendarScreen() {
       fetchItineraries();
     }, [fetchItineraries])
   );
+  
+  const isTimeConflict = (
+    newItem: { scheduled_date: string; scheduled_time: string; duration_minutes: number },
+    itemIdToIgnore: string
+  ): boolean => {
+    if (!selectedItinerary) return false;
+
+    const [newHours, newMinutes] = newItem.scheduled_time.split(':').map(Number);
+    const newStartTime = newHours * 60 + newMinutes;
+    const newEndTime = newStartTime + newItem.duration_minutes;
+
+    const conflictingItem = selectedItinerary.schedule_items.find(item => {
+      if (item.id === itemIdToIgnore) return false;
+      if (item.scheduled_date !== newItem.scheduled_date) return false;
+
+      const [existingHours, existingMinutes] = item.scheduled_time.split(':').map(Number);
+      const existingStartTime = existingHours * 60 + existingMinutes;
+      const existingEndTime = existingStartTime + item.duration_minutes;
+
+      return newStartTime < existingEndTime && newEndTime > existingStartTime;
+    });
+
+    return !!conflictingItem;
+  };
+
+  const handleOpenEditModal = (item: ScheduleItem) => {
+    setItemToEdit(item);
+    setIsEditModalVisible(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalVisible(false);
+    setItemToEdit(null);
+  };
+  
+  const handleSaveScheduleItem = (itemId: string | null, newDate: string, newTime: string) => {
+    if (!selectedItinerary || !itemId) return;
+
+    const itemToUpdate = selectedItinerary.schedule_items.find(i => i.id === itemId);
+    if (!itemToUpdate) return;
+    
+    const potentialNewItem = {
+      scheduled_date: newDate,
+      scheduled_time: newTime,
+      duration_minutes: itemToUpdate.duration_minutes
+    };
+
+    if (isTimeConflict(potentialNewItem, itemId)) {
+      Alert.alert("Time Conflict", "This activity conflicts with another scheduled item. Please choose a different time or date.");
+      return;
+    }
+
+    setSelectedItinerary(prev => {
+      if (!prev) return null;
+      const updatedItems = prev.schedule_items.map(item => {
+        if (item.id === itemId) {
+          return { ...item, scheduled_date: newDate, scheduled_time: newTime };
+        }
+        return item;
+      });
+      return { ...prev, schedule_items: updatedItems };
+    });
+
+    Alert.alert("Success", "Schedule item updated locally. Note: This change is temporary and will not be saved permanently.");
+    handleCloseEditModal();
+  };
+
+  const handleDeleteScheduleItem = (itemToDelete: ScheduleItem) => {
+    if (!selectedItinerary) return;
+
+    Alert.alert(
+      "Delete Item",
+      `Are you sure you want to delete "${itemToDelete.place_name}" from your itinerary? This action is temporary.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            setSelectedItinerary(prev => {
+              if (!prev) return null;
+              const updatedItems = prev.schedule_items.filter(i => i.id !== itemToDelete.id);
+              return { ...prev, schedule_items: updatedItems };
+            });
+            setExpandedItemId(null);
+            Alert.alert("Success", "Item removed locally.");
+          },
+        },
+      ]
+    );
+  };
 
   const handleCreateItinerary = (newItineraryFromResponse: any) => {
     setModalVisible(false);
@@ -334,8 +436,9 @@ export default function CalendarScreen() {
       startDate: new Date(newItineraryFromResponse.start_date),
       endDate: new Date(newItineraryFromResponse.end_date),
       schedule_items: (newItineraryFromResponse.schedule_items || []).map(
-        (item: any) => ({
+        (item: any, index: number) => ({
           ...item,
+          id: item.id?.toString() ?? `${newItineraryFromResponse.id}-${index}`,
           scheduled_date: item.scheduled_date,
         })
       ),
@@ -671,7 +774,7 @@ export default function CalendarScreen() {
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Budget:</Text>
                 <Text style={styles.detailValue}>
-                  {capitalize(selectedItinerary.budget ?? undefined) || "Not Specified"}
+                  {formatAndCapitalize(selectedItinerary.budget ?? undefined) || "Not Specified"}
                 </Text>
               </View>
               <View style={styles.detailRow}>
@@ -799,13 +902,13 @@ export default function CalendarScreen() {
                           const cardHeight = Math.max(80, (item.duration_minutes / 60) * 60);
 
                           return (
-                            <View key={`${item.place_id}-${item.scheduled_time}`} style={{ marginBottom: 15 }}>
+                            <View key={item.id} style={{ marginBottom: 15 }}>
                               <TouchableOpacity onPress={() => handleItemPress(item)}>
                                 <View style={[styles.scheduleItemCard, { minHeight: cardHeight }, isExpanded && styles.scheduleItemCardExpanded]}>
                                   <Image source={item.place_image ? { uri: item.place_image } : require("../../../assets/images/icon.png")} style={styles.cardImage} />
                                   <View style={styles.cardContent}>
                                     <Text style={styles.scheduleItemText} numberOfLines={1}>{item.place_name}</Text>
-                                    <Text style={styles.scheduleItemDetails}>{capitalize(item.place_type) || "Activity"}</Text>
+                                    <Text style={styles.scheduleItemDetails}>{formatAndCapitalize(item.place_type) || "Activity"}</Text>
                                     <Text style={styles.scheduleItemTimeText}>{formatTimeRange(item.scheduled_time, item.duration_minutes)}</Text>
                                   </View>
                                 </View>
@@ -830,6 +933,24 @@ export default function CalendarScreen() {
                                           {placeDetailsCache[item.place_id]?.isOpen ? "Open Now" : "Closed"}
                                         </Text>
                                       </View>
+
+                                      <View style={styles.actionButtonsRow}>
+                                        <TouchableOpacity
+                                            style={[styles.actionButton, styles.editButton]}
+                                            onPress={() => handleOpenEditModal(item)}
+                                        >
+                                            <MaterialIcons name="edit-calendar" size={20} color="#FFFFFF" />
+                                            <Text style={styles.actionButtonText}>Edit</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.actionButton, styles.deleteItemButton]}
+                                            onPress={() => handleDeleteScheduleItem(item)}
+                                        >
+                                            <MaterialIcons name="delete-forever" size={20} color="#FFFFFF" />
+                                            <Text style={styles.actionButtonText}>Delete</Text>
+                                        </TouchableOpacity>
+                                      </View>
+
                                       <TouchableOpacity
                                         style={styles.mapButton}
                                         onPress={() => handleShowDirections(item)}
@@ -901,6 +1022,13 @@ export default function CalendarScreen() {
         )}
       </SafeAreaView>
       <ItineraryModal visible={modalVisible} onClose={() => setModalVisible(false)} onCreateItinerary={handleCreateItinerary} panY={panY} panResponder={panResponder} backendApiUrl={BACKEND_ITINERARY_API_URL} />
+      <ScheduleItemEditModal
+        visible={isEditModalVisible}
+        onClose={handleCloseEditModal}
+        item={itemToEdit}
+        itinerary={selectedItinerary}
+        onSave={handleSaveScheduleItem}
+      />
     </View>
   );
 }
@@ -1189,6 +1317,39 @@ const styles = StyleSheet.create({
     color: "#6366F1",
     marginBottom: 10,
   },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 15,
+    marginBottom: 5,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    flex: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    elevation: 3,
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  editButton: {
+    backgroundColor: '#4338CA',
+    marginRight: 5,
+  },
+  deleteItemButton: {
+    backgroundColor: '#D946EF',
+    marginLeft: 5,
+  },
   mapButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1196,7 +1357,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#4B5563",
     paddingVertical: 10,
     borderRadius: 8,
-    marginTop: 10,
+    marginTop: 15,
     minHeight: 40,
   },
   mapButtonText: {
