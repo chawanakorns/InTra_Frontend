@@ -31,7 +31,7 @@ export default function PrefersTimes() {
       headerShown: false,
     });
 
-    const checkPersonalization = async () => {
+    const loadAndCheckSelections = async () => {
       try {
         const token = await AsyncStorage.getItem("access_token");
         if (!token) {
@@ -45,10 +45,22 @@ export default function PrefersTimes() {
 
         if (response.data.has_completed_personalization) {
           setPersonalizationCompleted(true);
-          router.replace("/dashboard"); // Changed to dashboard
+          router.replace("/dashboard");
+          return;
+        }
+
+        // Load preferred times if personalization not completed yet
+        const saved = await AsyncStorage.getItem("preferred_times");
+        if (saved) {
+          // Parse the saved labels and find their corresponding IDs to set the 'selected' state
+          const savedLabels = JSON.parse(saved);
+          const savedIds = data
+            .filter((item) => savedLabels.includes(item.label))
+            .map((item) => item.id);
+          setSelected(savedIds);
         }
       } catch (error) {
-        console.error("Error checking personalization status:", error);
+        console.error("Error checking personalization status or loading times:", error);
         if (error.response && error.response.status === 401) {
           await AsyncStorage.removeItem("access_token");
           router.replace("/auth/sign-in");
@@ -56,7 +68,7 @@ export default function PrefersTimes() {
       }
     };
 
-    checkPersonalization();
+    loadAndCheckSelections();
   }, []);
 
   const toggleSelection = (id) => {
@@ -69,19 +81,19 @@ export default function PrefersTimes() {
     }
     setSelected(newSelected);
 
-    // Safety check for data.find
-    const label = data.find((item) => item.id === id)?.label;
-    if (label) {
-      AsyncStorage.setItem(
-        "preferred_times",
-        JSON.stringify(newSelected.map((id) => data.find((item) => item.id === id)?.label || ""))
-      );
-    } else {
-      console.warn(`No matching label found for id: ${id}`);
-    }
+    // Save labels to AsyncStorage
+    AsyncStorage.setItem(
+      "preferred_times",
+      JSON.stringify(newSelected.map((selectedId) => data.find((item) => item.id === selectedId)?.label || ""))
+    );
   };
 
   const savePersonalization = async () => {
+    if (selected.length === 0) {
+      Alert.alert("Selection Required", "Please select at least one preferred time to finish.");
+      return;
+    }
+
     try {
       const token = await AsyncStorage.getItem("access_token");
       if (!token) {
@@ -94,10 +106,13 @@ export default function PrefersTimes() {
         preferred_activities: JSON.parse(await AsyncStorage.getItem("preferred_activities") || "[]"),
         preferred_cuisines: JSON.parse(await AsyncStorage.getItem("preferred_cuisines") || "[]"),
         preferred_dining: JSON.parse(await AsyncStorage.getItem("preferred_dining") || "[]"),
-        preferred_times: selected.map((id) => data.find((item) => item.id === id)?.label || ""),
+        // Ensure preferred_times are collected from the current 'selected' state, mapped to labels
+        preferred_times: selected.map((selectedId) => data.find((item) => item.id === selectedId)?.label || ""),
       };
 
-      await AsyncStorage.setItem("preferred_times", JSON.stringify(personalizationData.preferred_times));
+      // The line below is redundant as the selected state is already being saved in toggleSelection
+      // and we collect it again from `selected` for the API call.
+      // await AsyncStorage.setItem("preferred_times", JSON.stringify(personalizationData.preferred_times));
 
       const response = await axios.post("http://10.0.2.2:8000/auth/personalization", personalizationData, {
         headers: { Authorization: `Bearer ${token}` },
@@ -138,7 +153,7 @@ export default function PrefersTimes() {
   };
 
   if (personalizationCompleted) {
-    return null;
+    return null; // Don't render the component if personalization is already completed
   }
 
   return (
@@ -247,7 +262,8 @@ const styles = StyleSheet.create({
   },
   selectedCard: {
     borderWidth: 2,
-    borderColor: Colors.PRIMARY,
+    // Changed borderColor to a brighter, more distinct color
+    borderColor: '#FFC107', // Amber color for better visibility
   },
   image: {
     width: "100%",

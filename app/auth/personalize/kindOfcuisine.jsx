@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  Alert, // Import Alert for showing messages
   Dimensions,
   FlatList,
   Image,
@@ -50,7 +51,12 @@ export default function KindOfCuisine() {
       try {
         const saved = await AsyncStorage.getItem("preferred_cuisines");
         if (saved) {
-          setSelected(JSON.parse(saved));
+          // Parse the saved labels and find their corresponding IDs to set the 'selected' state
+          const savedLabels = JSON.parse(saved);
+          const savedIds = data
+            .filter((item) => savedLabels.includes(item.label))
+            .map((item) => item.id);
+          setSelected(savedIds);
         }
       } catch (error) {
         console.error("Error loading preferred_cuisines:", error);
@@ -70,16 +76,11 @@ export default function KindOfCuisine() {
     }
     setSelected(newSelected);
 
-    // Safety check for data.find
-    const label = data.find((item) => item.id === id)?.label;
-    if (label) {
-      AsyncStorage.setItem(
-        "preferred_cuisines",
-        JSON.stringify(newSelected.map((id) => data.find((item) => item.id === id)?.label || ""))
-      );
-    } else {
-      console.warn(`No matching label found for id: ${id}`);
-    }
+    // Save labels to AsyncStorage
+    AsyncStorage.setItem(
+      "preferred_cuisines",
+      JSON.stringify(newSelected.map((selectedId) => data.find((item) => item.id === selectedId)?.label || ""))
+    );
   };
 
   const renderItem = ({ item }) => {
@@ -96,6 +97,14 @@ export default function KindOfCuisine() {
         </View>
       </TouchableOpacity>
     );
+  };
+
+  const handleNext = () => {
+    if (selected.length === 0) {
+      Alert.alert("Selection Required", "Please select at least one cuisine type to continue.");
+      return;
+    }
+    router.replace("./typeOfdining");
   };
 
   return (
@@ -118,7 +127,7 @@ export default function KindOfCuisine() {
       />
 
       <TouchableOpacity
-        onPress={() => router.replace("./typeOfdining")}
+        onPress={handleNext}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -204,7 +213,8 @@ const styles = StyleSheet.create({
   },
   selectedCard: {
     borderWidth: 2,
-    borderColor: Colors.PRIMARY,
+    // Changed borderColor to a brighter, more distinct color
+    borderColor: '#FFC107', // Amber color for better visibility
   },
   image: {
     width: "100%",
