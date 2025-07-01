@@ -1,8 +1,9 @@
+// FILE: prefersTimes.jsx
 import { Colors } from "@/constants/Colors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import axios from "axios";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -23,6 +24,7 @@ const data = [
 export default function PrefersTimes() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { editMode } = useLocalSearchParams(); // Get the editMode param
   const [selected, setSelected] = useState([]);
   const [personalizationCompleted, setPersonalizationCompleted] = useState(false);
 
@@ -43,16 +45,15 @@ export default function PrefersTimes() {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (response.data.has_completed_personalization) {
+        // *** THE FIX: Only redirect if personalization is complete AND we are NOT in edit mode. ***
+        if (response.data.has_completed_personalization && !editMode) {
           setPersonalizationCompleted(true);
           router.replace("/dashboard");
           return;
         }
 
-        // Load preferred times if personalization not completed yet
         const saved = await AsyncStorage.getItem("preferred_times");
         if (saved) {
-          // Parse the saved labels and find their corresponding IDs to set the 'selected' state
           const savedLabels = JSON.parse(saved);
           const savedIds = data
             .filter((item) => savedLabels.includes(item.label))
@@ -69,10 +70,9 @@ export default function PrefersTimes() {
     };
 
     loadAndCheckSelections();
-  }, []);
+  }, [editMode]); // Add editMode to the dependency array
 
   const toggleSelection = (id) => {
-    console.log("Toggling selection for id:", id); // Debug log
     let newSelected;
     if (selected.includes(id)) {
       newSelected = selected.filter((item) => item !== id);
@@ -81,7 +81,6 @@ export default function PrefersTimes() {
     }
     setSelected(newSelected);
 
-    // Save labels to AsyncStorage
     AsyncStorage.setItem(
       "preferred_times",
       JSON.stringify(newSelected.map((selectedId) => data.find((item) => item.id === selectedId)?.label || ""))
@@ -106,13 +105,8 @@ export default function PrefersTimes() {
         preferred_activities: JSON.parse(await AsyncStorage.getItem("preferred_activities") || "[]"),
         preferred_cuisines: JSON.parse(await AsyncStorage.getItem("preferred_cuisines") || "[]"),
         preferred_dining: JSON.parse(await AsyncStorage.getItem("preferred_dining") || "[]"),
-        // Ensure preferred_times are collected from the current 'selected' state, mapped to labels
         preferred_times: selected.map((selectedId) => data.find((item) => item.id === selectedId)?.label || ""),
       };
-
-      // The line below is redundant as the selected state is already being saved in toggleSelection
-      // and we collect it again from `selected` for the API call.
-      // await AsyncStorage.setItem("preferred_times", JSON.stringify(personalizationData.preferred_times));
 
       const response = await axios.post("http://10.0.2.2:8000/auth/personalization", personalizationData, {
         headers: { Authorization: `Bearer ${token}` },
@@ -126,7 +120,7 @@ export default function PrefersTimes() {
           "preferred_dining",
           "preferred_times",
         ]);
-        router.replace("/dashboard"); // Changed to dashboard
+        router.replace("/dashboard");
       } else {
         Alert.alert("Error", "Failed to save personalization");
       }
@@ -153,7 +147,7 @@ export default function PrefersTimes() {
   };
 
   if (personalizationCompleted) {
-    return null; // Don't render the component if personalization is already completed
+    return null;
   }
 
   return (
@@ -199,7 +193,7 @@ export default function PrefersTimes() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => router.replace("./typeOfdining")}
+        onPress={() => router.replace({ pathname: "./typeOfdining", params: { editMode }})}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -224,7 +218,7 @@ export default function PrefersTimes() {
 }
 
 const CARD_SIZE = (Dimensions.get("window").width - 70) / 2;
-
+// Styles are the same, no changes needed
 const styles = StyleSheet.create({
   container: {
     padding: 25,
@@ -262,8 +256,7 @@ const styles = StyleSheet.create({
   },
   selectedCard: {
     borderWidth: 2,
-    // Changed borderColor to a brighter, more distinct color
-    borderColor: '#FFC107', // Amber color for better visibility
+    borderColor: '#FFC107',
   },
   image: {
     width: "100%",

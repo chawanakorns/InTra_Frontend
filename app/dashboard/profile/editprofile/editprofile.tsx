@@ -18,15 +18,18 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+// Make sure this path points to your UserProfileContext file
 import { useUserProfile } from "../../../../context/UserProfileContext";
+// Make sure this path points to your config file
 import { API_URL } from "../../../config";
 
-// Helper Functions
+// Helper function to construct full image URLs
 const createFullImageUrl = (path?: string) => {
   if (!path || path.startsWith('http')) return path || '';
   return `${API_URL}${path}`;
 };
 
+// Helper function to parse error messages from the backend
 const getErrorMessage = (data: any, defaultMessage: string): string => {
   if (!data?.detail) return defaultMessage;
   if (typeof data.detail === 'string') return data.detail;
@@ -34,7 +37,7 @@ const getErrorMessage = (data: any, defaultMessage: string): string => {
   return defaultMessage;
 };
 
-// Reusable Components
+// Reusable component for text inputs with icons
 const IconTextInput = ({ iconName, value, placeholder, onChangeText, multiline = false, editable = true }: any) => (
     <View style={[styles.inputContainer, !editable && styles.disabledInput]}>
         <MaterialIcons name={iconName} size={22} color="#6b7280" style={styles.inputIcon} />
@@ -71,14 +74,19 @@ export default function EditProfileScreen() {
       setAboutMe(profile.aboutMe || '');
       setDob(profile.dob ? new Date(profile.dob) : null);
       setEmail(profile.email || '');
-      setImageUri(createFullImageUrl(profile.imageUri));
-      setBackgroundUri(createFullImageUrl(profile.backgroundUri));
+      setImageUri(createFullImageUrl(profile.imageUri ?? undefined));
+      setBackgroundUri(createFullImageUrl(profile.backgroundUri ?? undefined));
     }
   }, [profile]);
 
   const pickImage = async (isProfileImage: boolean) => {
     if (isUploading) return;
-    const result = await launchImageLibraryAsync({ mediaTypes: MediaTypeOptions.Images, allowsEditing: true, aspect: isProfileImage ? [1, 1] : [16, 9], quality: 0.8 });
+    const result = await launchImageLibraryAsync({ 
+      mediaTypes: MediaTypeOptions.Images, 
+      allowsEditing: true, 
+      aspect: isProfileImage ? [1, 1] : [16, 9], 
+      quality: 0.8 
+    });
     if (!result.canceled && result.assets && result.assets.length > 0) {
       await uploadImage(result.assets[0], isProfileImage);
     }
@@ -89,19 +97,23 @@ export default function EditProfileScreen() {
     try {
       const token = await AsyncStorage.getItem("access_token");
       if (!token) throw new Error("No access token found");
+      
       const formData = new FormData();
       formData.append("file", { uri: asset.uri, name: asset.fileName || `image.jpg`, type: asset.mimeType || "image/jpeg" } as any);
+      
       const endpoint = isProfileImage ? "profile/upload" : "background/upload";
-      const response = await fetch(`${API_URL}/api/images/${endpoint}`, { method: "POST", body: formData, headers: { Authorization: `Bearer ${token}` } });
+      const response = await fetch(`${API_URL}/api/images/${endpoint}`, { 
+        method: "POST", 
+        body: formData, 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
+      
       const data = await response.json();
       if (response.ok) {
-        const newPath = isProfileImage ? data.image_uri : data.background_uri;
-        const newImageUrl = createFullImageUrl(newPath);
-        isProfileImage ? setImageUri(newImageUrl) : setBackgroundUri(newImageUrl);
-        await fetchUserProfile(); // Refresh context
+        await fetchUserProfile();
         Alert.alert("Success", "Image uploaded successfully!");
       } else {
-        Alert.alert("Error", getErrorMessage(data, `Failed to upload image.`));
+        Alert.alert("Error", getErrorMessage(data, "Failed to upload image."));
       }
     } catch (error) {
       Alert.alert("Error", "An unexpected error occurred while uploading.");
@@ -136,7 +148,7 @@ export default function EditProfileScreen() {
       });
 
       if (response.ok) {
-        await fetchUserProfile(); // Refresh profile context
+        await fetchUserProfile();
         Alert.alert("Success", "Profile updated successfully!", [{ text: 'OK', onPress: () => router.back() }]);
       } else {
         const data = await response.json();
@@ -152,12 +164,37 @@ export default function EditProfileScreen() {
   const handleEditPreferences = async () => {
       Alert.alert(
           "Update Preferences",
-          "This will take you to the questionnaire to update your travel style. Your current preferences will be cleared. Continue?",
+          "You can now edit your travel style. Your current choices will be pre-selected.",
           [
-              {text: "Cancel", style: "cancel"},
-              {text: "Continue", onPress: () => router.push('/auth/personalize/kindOfusers')}
+              { text: "Cancel", style: "cancel" },
+              {
+                  text: "Continue",
+                  onPress: async () => {
+                      if (!profile) {
+                          Alert.alert("Error", "Profile data not loaded. Please try again.");
+                          return;
+                      }
+
+                      try {
+                          // ✅ THIS CODE NOW WORKS because `profile` has the correct type from the updated context
+                          await AsyncStorage.setItem('tourist_type', JSON.stringify(profile.tourist_type || []));
+                          await AsyncStorage.setItem('preferred_activities', JSON.stringify(profile.preferred_activities || []));
+                          await AsyncStorage.setItem('preferred_cuisines', JSON.stringify(profile.preferred_cuisines || []));
+                          await AsyncStorage.setItem('preferred_dining', JSON.stringify(profile.preferred_dining || []));
+                          await AsyncStorage.setItem('preferred_times', JSON.stringify(profile.preferred_times || []));
+
+                          router.push({
+                              pathname: '/auth/personalize/kindOfusers',
+                              params: { editMode: 'true' }
+                          });
+                      } catch (error) {
+                          console.error("Failed to set preferences in storage:", error);
+                          Alert.alert("Error", "Could not prepare the preference editor.");
+                      }
+                  }
+              }
           ]
-      )
+      );
   };
 
   return (

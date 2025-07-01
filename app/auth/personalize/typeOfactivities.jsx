@@ -1,10 +1,11 @@
+// FILE: typeOfactivities.jsx
 import { Colors } from "@/constants/Colors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  Alert, // Import Alert for showing messages
+  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -40,6 +41,7 @@ const data = [
 export default function TypeOfActivities() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { editMode } = useLocalSearchParams(); // Get the editMode param
   const [selected, setSelected] = useState([]);
 
   useEffect(() => {
@@ -51,7 +53,6 @@ export default function TypeOfActivities() {
       try {
         const saved = await AsyncStorage.getItem("preferred_activities");
         if (saved) {
-          // Parse the saved labels and find their corresponding IDs to set the 'selected' state
           const savedLabels = JSON.parse(saved);
           const savedIds = data
             .filter((item) => savedLabels.includes(item.label))
@@ -67,7 +68,6 @@ export default function TypeOfActivities() {
   }, []);
 
   const toggleSelection = (id) => {
-    console.log("Toggling selection for id:", id); // Debug log
     let newSelected;
     if (selected.includes(id)) {
       newSelected = selected.filter((item) => item !== id);
@@ -76,7 +76,6 @@ export default function TypeOfActivities() {
     }
     setSelected(newSelected);
 
-    // Save labels to AsyncStorage
     AsyncStorage.setItem(
       "preferred_activities",
       JSON.stringify(newSelected.map((selectedId) => data.find((item) => item.id === selectedId)?.label || ""))
@@ -104,7 +103,11 @@ export default function TypeOfActivities() {
       Alert.alert("Selection Required", "Please select at least one activity to continue.");
       return;
     }
-    router.replace("./kindOfcuisine");
+    // Pass the editMode param to the next screen
+    router.replace({
+      pathname: "./kindOfcuisine",
+      params: { editMode }
+    });
   };
 
   return (
@@ -150,7 +153,7 @@ export default function TypeOfActivities() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => router.replace("./kindOfusers")}
+        onPress={() => router.replace({ pathname: "./kindOfusers", params: { editMode }})}
         style={{
           padding: 15,
           borderRadius: 15,
@@ -175,7 +178,7 @@ export default function TypeOfActivities() {
 }
 
 const CARD_SIZE = (Dimensions.get("window").width - 70) / 2;
-
+// Styles are the same, no changes needed
 const styles = StyleSheet.create({
   container: {
     padding: 25,
@@ -213,8 +216,7 @@ const styles = StyleSheet.create({
   },
   selectedCard: {
     borderWidth: 2,
-    // Changed borderColor to a brighter, more distinct color
-    borderColor: '#FFC107', // Amber color for better visibility
+    borderColor: '#FFC107',
   },
   image: {
     width: "100%",

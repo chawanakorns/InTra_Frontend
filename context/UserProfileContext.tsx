@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useState } from 'react';
 import { Platform } from 'react-native';
 
 const BACKEND_AUTH_API_URL = Platform.select({
@@ -8,15 +8,22 @@ const BACKEND_AUTH_API_URL = Platform.select({
   default: "http://localhost:8000/auth",
 });
 
-interface UserProfile {
+// ✅ UPDATED INTERFACE: Added all preference fields
+export interface UserProfile {
   id: number;
-  fullName: string;
+  fullName: string | null;
   email: string;
-  dob?: string;
-  gender?: string;
-  aboutMe?: string;
-  imageUri?: string;
-  backgroundUri?: string;
+  dob: string | null;
+  gender: string | null;
+  hasCompletedPersonalization: boolean;
+  aboutMe: string | null;
+  imageUri: string | null;
+  backgroundUri: string | null;
+  tourist_type: string[] | null;
+  preferred_activities: string[] | null;
+  preferred_cuisines: string[] | null;
+  preferred_dining: string[] | null;
+  preferred_times: string[] | null;
 }
 
 interface UserProfileContextType {
@@ -32,13 +39,11 @@ export const UserProfileProvider = ({ children }: { children: React.ReactNode })
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     setIsLoading(true);
     try {
-      // First, check if a token exists.
       const token = await AsyncStorage.getItem('access_token');
       
-      // If no token, the user is a guest. Set profile to null and stop.
       if (!token) {
         setProfile(null);
         setIsLoading(false);
@@ -54,7 +59,8 @@ export const UserProfileProvider = ({ children }: { children: React.ReactNode })
 
       if (response.ok) {
         const data = await response.json();
-        // Map the backend response to the frontend UserProfile interface
+        
+        // ✅ UPDATED MAPPING: Map all fields from the backend, including preferences
         setProfile({
           id: data.id,
           fullName: data.full_name,
@@ -64,9 +70,14 @@ export const UserProfileProvider = ({ children }: { children: React.ReactNode })
           aboutMe: data.about_me,
           imageUri: data.image_uri,
           backgroundUri: data.background_uri,
+          hasCompletedPersonalization: data.has_completed_personalization,
+          tourist_type: data.tourist_type,
+          preferred_activities: data.preferred_activities,
+          preferred_cuisines: data.preferred_cuisines,
+          preferred_dining: data.preferred_dining,
+          preferred_times: data.preferred_times,
         });
       } else {
-        // Handle cases like an expired token
         setProfile(null);
         if (response.status === 401) {
             await AsyncStorage.removeItem('access_token');
@@ -78,7 +89,7 @@ export const UserProfileProvider = ({ children }: { children: React.ReactNode })
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const clearUserProfile = () => {
     setProfile(null);
