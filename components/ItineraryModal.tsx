@@ -14,6 +14,12 @@ import {
   View
 } from 'react-native';
 
+// A simplified type for checking itinerary date ranges.
+interface SimpleItinerary {
+  startDate: Date;
+  endDate: Date;
+}
+
 interface ItineraryModalProps {
   visible: boolean;
   onClose: () => void;
@@ -21,6 +27,7 @@ interface ItineraryModalProps {
   panY: Animated.Value;
   panResponder: PanResponderInstance;
   backendApiUrl: string;
+  itineraries: SimpleItinerary[]; // New prop to receive existing itineraries
 }
 
 const BUDGET_OPTIONS = ["Low", "Medium", "High", "Custom"];
@@ -31,7 +38,8 @@ export default function ItineraryModal({
   onCreateItinerary,
   panY,
   panResponder,
-  backendApiUrl
+  backendApiUrl,
+  itineraries, // Destructure the new prop
 }: ItineraryModalProps) {
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(new Date());
@@ -44,6 +52,9 @@ export default function ItineraryModal({
   const [budgetType, setBudgetType] = useState<string | null>(null);
   const [customBudget, setCustomBudget] = useState('');
   const [currency, setCurrency] = useState('USD');
+
+  // New state to hold the warning message for overlapping dates.
+  const [overlapWarning, setOverlapWarning] = useState<string | null>(null);
 
   // This hook runs every time the modal's visibility changes.
   useEffect(() => {
@@ -60,8 +71,40 @@ export default function ItineraryModal({
       setStartDate(today);
       setEndDate(tomorrow);
       setAutoGenerate(false);
+      setOverlapWarning(null); // Reset warning on open
     }
   }, [visible]);
+
+  // --- FIX: New effect to check for date overlaps ---
+  useEffect(() => {
+    if (!visible || !itineraries || itineraries.length === 0) {
+      setOverlapWarning(null);
+      return;
+    }
+
+    const currentStart = new Date(startDate);
+    currentStart.setHours(0, 0, 0, 0);
+
+    const currentEnd = new Date(endDate);
+    currentEnd.setHours(23, 59, 59, 999);
+
+    const overlappingItinerary = itineraries.find(it => {
+      const existingStart = new Date(it.startDate);
+      existingStart.setHours(0, 0, 0, 0);
+
+      const existingEnd = new Date(it.endDate);
+      existingEnd.setHours(23, 59, 59, 999);
+
+      // Overlap condition: (StartA <= EndB) and (EndA >= StartB)
+      return currentStart <= existingEnd && currentEnd >= existingStart;
+    });
+
+    if (overlappingItinerary) {
+      setOverlapWarning('Warning: This date range overlaps with an existing itinerary.');
+    } else {
+      setOverlapWarning(null);
+    }
+  }, [startDate, endDate, itineraries, visible]);
 
 
   const handleSave = async () => {
@@ -215,12 +258,17 @@ export default function ItineraryModal({
               value={startDate}
               mode="date"
               display="default"
+              // --- FIX: Prevent selecting past dates ---
+              minimumDate={new Date()}
               onChange={(_, selectedDate) => {
                 setShowStartDatePicker(Platform.OS === 'ios');
                 if (selectedDate) {
                   setStartDate(selectedDate);
-                  if (selectedDate > endDate) {
-                    setEndDate(new Date(selectedDate.getTime() + 86400000));
+                  // --- FIX: Adjust end date if it's now before the start date ---
+                  if (selectedDate >= endDate) {
+                    const newEndDate = new Date(selectedDate);
+                    newEndDate.setDate(newEndDate.getDate() + 1);
+                    setEndDate(newEndDate);
                   }
                 }
               }}
@@ -244,6 +292,13 @@ export default function ItineraryModal({
                 if (selectedDate) setEndDate(selectedDate);
               }}
             />
+          )}
+
+          {/* --- FIX: Display warning for overlapping dates --- */}
+          {overlapWarning && (
+            <View style={styles.warningContainer}>
+              <Text style={styles.warningText}>{overlapWarning}</Text>
+            </View>
           )}
 
           <View style={styles.modalSwitchContainer}>
@@ -381,6 +436,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6366F1',
     fontWeight: 'bold',
+  },
+  warningContainer: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FBBF24',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  warningText: {
+    color: '#B45309',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   modalSwitchContainer: {
     flexDirection: 'row',

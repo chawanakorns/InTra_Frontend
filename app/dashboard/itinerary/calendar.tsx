@@ -331,6 +331,11 @@ export default function CalendarScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchItineraries();
+      // --- FIX: Reset expansion states when the screen is focused ---
+      setExpandedItemId(null);
+      setIsDescriptionExpanded(null);
+      setRouteCoordinates([]);
+      setIsDetailsVisible(false);
     }, [fetchItineraries])
   );
   
@@ -1021,7 +1026,16 @@ export default function CalendarScreen() {
           </TouchableOpacity>
         )}
       </SafeAreaView>
-      <ItineraryModal visible={modalVisible} onClose={() => setModalVisible(false)} onCreateItinerary={handleCreateItinerary} panY={panY} panResponder={panResponder} backendApiUrl={BACKEND_ITINERARY_API_URL} />
+      <ItineraryModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onCreateItinerary={handleCreateItinerary}
+        panY={panY}
+        panResponder={panResponder}
+        backendApiUrl={BACKEND_ITINERARY_API_URL}
+        // --- FIX: Pass itineraries to the modal ---
+        itineraries={itineraries}
+      />
       <ScheduleItemEditModal
         visible={isEditModalVisible}
         onClose={handleCloseEditModal}
