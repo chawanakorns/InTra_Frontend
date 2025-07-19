@@ -1,4 +1,3 @@
-// FILE: prefersTimes.jsx
 import { Colors } from "@/constants/Colors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
@@ -6,6 +5,7 @@ import axios from "axios";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
   FlatList,
@@ -24,67 +24,36 @@ const data = [
 export default function PrefersTimes() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { editMode } = useLocalSearchParams(); // Get the editMode param
+  const { editMode } = useLocalSearchParams();
   const [selected, setSelected] = useState([]);
-  const [personalizationCompleted, setPersonalizationCompleted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    navigation.setOptions({
-      headerShown: false,
-    });
+    navigation.setOptions({ headerShown: false });
 
-    const loadAndCheckSelections = async () => {
+    const loadSelections = async () => {
       try {
-        const token = await AsyncStorage.getItem("access_token");
-        if (!token) {
-          router.replace("/auth/sign-in");
-          return;
-        }
-
-        const response = await axios.get("http://10.0.2.2:8000/auth/me", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        // *** THE FIX: Only redirect if personalization is complete AND we are NOT in edit mode. ***
-        if (response.data.has_completed_personalization && !editMode) {
-          setPersonalizationCompleted(true);
-          router.replace("/dashboard");
-          return;
-        }
-
         const saved = await AsyncStorage.getItem("preferred_times");
         if (saved) {
           const savedLabels = JSON.parse(saved);
-          const savedIds = data
-            .filter((item) => savedLabels.includes(item.label))
-            .map((item) => item.id);
+          const savedIds = data.filter((item) => savedLabels.includes(item.label)).map((item) => item.id);
           setSelected(savedIds);
         }
       } catch (error) {
-        console.error("Error checking personalization status or loading times:", error);
-        if (error.response && error.response.status === 401) {
-          await AsyncStorage.removeItem("access_token");
-          router.replace("/auth/sign-in");
-        }
+        console.error("Error loading preferred_times:", error);
       }
     };
+    loadSelections();
+  }, []);
 
-    loadAndCheckSelections();
-  }, [editMode]); // Add editMode to the dependency array
-
-  const toggleSelection = (id) => {
-    let newSelected;
-    if (selected.includes(id)) {
-      newSelected = selected.filter((item) => item !== id);
-    } else {
-      newSelected = [...selected, id];
-    }
+  const toggleSelection = async (id) => {
+    const newSelected = selected.includes(id)
+      ? selected.filter((item) => item !== id)
+      : [...selected, id];
     setSelected(newSelected);
 
-    AsyncStorage.setItem(
-      "preferred_times",
-      JSON.stringify(newSelected.map((selectedId) => data.find((item) => item.id === selectedId)?.label || ""))
-    );
+    const labelsToSave = newSelected.map((selectedId) => data.find((item) => item.id === selectedId)?.label || "");
+    await AsyncStorage.setItem("preferred_times", JSON.stringify(labelsToSave));
   };
 
   const savePersonalization = async () => {
@@ -93,10 +62,14 @@ export default function PrefersTimes() {
       return;
     }
 
+    setIsLoading(true);
+
     try {
-      const token = await AsyncStorage.getItem("access_token");
+      const token = await AsyncStorage.getItem("firebase_id_token");
       if (!token) {
+        Alert.alert("Authentication Error", "You are not logged in.");
         router.replace("/auth/sign-in");
+        setIsLoading(false);
         return;
       }
 
@@ -108,56 +81,48 @@ export default function PrefersTimes() {
         preferred_times: selected.map((selectedId) => data.find((item) => item.id === selectedId)?.label || ""),
       };
 
-      const response = await axios.post("http://10.0.2.2:8000/auth/personalization", personalizationData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.post(
+        "http://10.0.2.2:8000/auth/personalization",
+        personalizationData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      await AsyncStorage.multiRemove([
+        "tourist_type",
+        "preferred_activities",
+        "preferred_cuisines",
+        "preferred_dining",
+        "preferred_times",
+      ]);
 
-      if (response.status === 200) {
-        await AsyncStorage.multiRemove([
-          "tourist_type",
-          "preferred_activities",
-          "preferred_cuisines",
-          "preferred_dining",
-          "preferred_times",
-        ]);
-        router.replace("/dashboard");
-      } else {
-        Alert.alert("Error", "Failed to save personalization");
-      }
+      Alert.alert("Success!", "Your preferences have been saved.");
+      router.replace("/dashboard");
+
     } catch (error) {
-      console.error("Error saving personalization:", error);
-      Alert.alert("Error", "Network error or invalid data");
+      console.error("Error saving personalization:", error.response ? error.response.data : error);
+      Alert.alert("Error", "Failed to save your preferences. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const renderItem = ({ item }) => {
     const isSelected = selected.includes(item.id);
-
     return (
       <TouchableOpacity
         style={[styles.card, isSelected && styles.selectedCard]}
         onPress={() => toggleSelection(item.id)}
       >
         <Image source={item.image} style={styles.image} />
-        <View style={styles.overlay}>
-          <Text style={styles.label}>{item.label}</Text>
-        </View>
+        <View style={styles.overlay}><Text style={styles.label}>{item.label}</Text></View>
       </TouchableOpacity>
     );
   };
 
-  if (personalizationCompleted) {
-    return null;
-  }
-
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Almost Finished!</Text>
-      <Text style={styles.subtitle}>
-        We need to question some questionnaires,{"\n"}for improving your
-        itinerary plans.
-      </Text>
-
+      <Text style={styles.subtitle}>We need to question some questionnaires,{"\n"}for improving your itinerary plans.</Text>
       <Text style={styles.question}>What is your preferred times to travel?</Text>
 
       <FlatList
@@ -169,109 +134,34 @@ export default function PrefersTimes() {
         style={{ marginTop: 15 }}
       />
 
-      <TouchableOpacity
-        onPress={savePersonalization}
-        style={{
-          padding: 15,
-          borderRadius: 15,
-          marginTop: 20,
-          borderWidth: 1,
-          borderColor: Colors.PRIMARY,
-          backgroundColor: Colors.PRIMARY,
-        }}
-      >
-        <Text
-          style={{
-            fontFamily: "outfit",
-            fontSize: 16,
-            color: Colors.WHITE,
-            textAlign: "center",
-          }}
-        >
-          Finished
-        </Text>
+      <TouchableOpacity onPress={savePersonalization} style={[styles.button, styles.primaryButton]} disabled={isLoading}>
+        {isLoading ? (<ActivityIndicator color={Colors.WHITE} />) : (<Text style={styles.buttonText}>Finished</Text>)}
       </TouchableOpacity>
 
       <TouchableOpacity
         onPress={() => router.replace({ pathname: "./typeOfdining", params: { editMode }})}
-        style={{
-          padding: 15,
-          borderRadius: 15,
-          marginTop: 20,
-          borderWidth: 1,
-          backgroundColor: Colors.WHITE,
-        }}
+        style={[styles.button, styles.secondaryButton]}
+        disabled={isLoading}
       >
-        <Text
-          style={{
-            fontFamily: "outfit",
-            fontSize: 16,
-            color: Colors.BLACK,
-            textAlign: "center",
-          }}
-        >
-          Previous
-        </Text>
+        <Text style={[styles.buttonText, { color: Colors.BLACK }]}>Previous</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const CARD_SIZE = (Dimensions.get("window").width - 70) / 2;
-// Styles are the same, no changes needed
 const styles = StyleSheet.create({
-  container: {
-    padding: 25,
-    paddingTop: 50,
-    backgroundColor: Colors.BLUE,
-    flex: 1,
-  },
-  title: {
-    fontSize: 28,
-    color: Colors.WHITE,
-    fontFamily: "outfit-bold",
-    textAlign: "center",
-    marginTop: 80,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.WHITE,
-    fontFamily: "outfit",
-    textAlign: "center",
-    marginTop: 10,
-  },
-  question: {
-    fontSize: 16,
-    color: Colors.WHITE,
-    fontFamily: "outfit-bold",
-    marginTop: 120,
-  },
-  card: {
-    width: CARD_SIZE,
-    height: 130,
-    marginVertical: 10,
-    borderRadius: 15,
-    overflow: "hidden",
-    backgroundColor: Colors.GRAY,
-  },
-  selectedCard: {
-    borderWidth: 2,
-    borderColor: '#FFC107',
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-    position: "absolute",
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  label: {
-    color: Colors.WHITE,
-    fontFamily: "outfit-bold",
-    fontSize: 16,
-  },
+  container: { padding: 25, paddingTop: 50, backgroundColor: Colors.BLUE, flex: 1 },
+  title: { fontSize: 28, color: Colors.WHITE, fontFamily: "outfit-bold", textAlign: "center", marginTop: 80 },
+  subtitle: { fontSize: 14, color: Colors.WHITE, fontFamily: "outfit", textAlign: "center", marginTop: 10 },
+  question: { fontSize: 16, color: Colors.WHITE, fontFamily: "outfit-bold", marginTop: 120 },
+  card: { width: CARD_SIZE, height: 130, marginVertical: 10, borderRadius: 15, overflow: "hidden", backgroundColor: Colors.GRAY },
+  selectedCard: { borderWidth: 2, borderColor: '#FFC107' },
+  image: { width: "100%", height: "100%", position: "absolute" },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
+  label: { color: Colors.WHITE, fontFamily: "outfit-bold", fontSize: 16 },
+  button: { padding: 15, borderRadius: 15, marginTop: 20, borderWidth: 1, flexDirection: 'row', justifyContent: 'center' },
+  primaryButton: { borderColor: Colors.PRIMARY, backgroundColor: Colors.PRIMARY },
+  secondaryButton: { backgroundColor: Colors.WHITE },
+  buttonText: { fontFamily: "outfit", fontSize: 16, color: Colors.WHITE, textAlign: "center" },
 });
