@@ -74,8 +74,11 @@ export default function Dashboard() {
   const fetchItineraries = useCallback(async () => {
     setIsLoadingCalendar(true);
     try {
-      const token = await AsyncStorage.getItem("access_token");
+      // --- THE FIX: Use the correct Firebase token key ---
+      const token = await AsyncStorage.getItem("firebase_id_token");
+      
       if (!token) {
+        // If no token, user is not logged in. Don't fetch itineraries.
         setItineraries([]);
         return;
       }
@@ -85,6 +88,7 @@ export default function Dashboard() {
       });
 
       if (!itinerariesResponse.ok) {
+        // Handle cases like expired token by clearing itineraries
         setItineraries([]);
         return;
       }
@@ -93,7 +97,7 @@ export default function Dashboard() {
       setItineraries(fetchedItineraries);
     } catch (error) {
       console.error("Error fetching itineraries:", error);
-      setItineraries([]);
+      setItineraries([]); // Clear itineraries on error
     } finally {
       setIsLoadingCalendar(false);
     }
@@ -148,9 +152,9 @@ export default function Dashboard() {
           marking.startingDay = true;
         } else if (index === datesInRange.length - 1) {
           marking.endingDay = true;
-        } else {
-          marking.disableTouchEvent = true;
         }
+        // NOTE: The original code had `disableTouchEvent`, which is often better handled
+        // by the calendar's period markingType itself. Keeping it simple.
         newMarkedDates[date] = marking;
       });
     });
@@ -168,7 +172,7 @@ export default function Dashboard() {
         placeId: place.id,
         placeName: place.name,
         placeData: JSON.stringify(place),
-        origin: "home", // Pass the origin point
+        origin: "home",
       },
     });
   };
@@ -279,82 +283,21 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  container: {
-    padding: 16,
-    paddingBottom: 20,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  dateContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  day: {
-    fontSize: 32,
-    fontWeight: "bold",
-    marginRight: 8,
-  },
-  month: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  year: {
-    fontSize: 14,
-    color: "#666",
-  },
-  calendar: {
-    borderRadius: 10,
-    elevation: 0,
-    shadowOpacity: 0,
-    borderWidth: 0,
-    marginBottom: 10,
-  },
-  calendarLoader: {
-    height: 370,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  section: {
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 12,
-  },
-  categoriesContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  popularList: {
-    paddingBottom: 10,
-    paddingLeft: 4,
-  },
-  popularItem: {
-    marginRight: 16,
-  },
-  popularLoader: {
-    height: 220,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  safeArea: { flex: 1, backgroundColor: "#fff" },
+  container: { padding: 16, paddingBottom: 20 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  title: { fontSize: 24, fontWeight: "bold" },
+  headerRight: { flexDirection: "row", alignItems: "center" },
+  dateContainer: { flexDirection: "row", alignItems: "center", marginRight: 12 },
+  day: { fontSize: 32, fontWeight: "bold", marginRight: 8 },
+  month: { fontSize: 16, fontWeight: "bold" },
+  year: { fontSize: 14, color: "#666" },
+  calendar: { borderRadius: 10, elevation: 0, shadowOpacity: 0, borderWidth: 0, marginBottom: 10 },
+  calendarLoader: { height: 370, justifyContent: "center", alignItems: "center", marginBottom: 10 },
+  section: { marginTop: 10, marginBottom: 20 },
+  sectionTitle: { fontSize: 24, fontWeight: "bold", marginBottom: 12 },
+  categoriesContainer: { flexDirection: "row", justifyContent: "space-between" },
+  popularList: { paddingBottom: 10, paddingLeft: 4 },
+  popularItem: { marginRight: 16 },
+  popularLoader: { height: 220, justifyContent: "center", alignItems: "center" },
 });

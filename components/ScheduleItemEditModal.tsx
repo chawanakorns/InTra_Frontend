@@ -2,14 +2,12 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
 import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-// --- FIX: Type definitions moved directly into this file ---
 type ScheduleItem = {
   id: string;
   place_id: string;
   place_name: string;
   scheduled_date: string;
   scheduled_time: string;
-  // Other properties are optional
   [key: string]: any; 
 };
 
@@ -17,7 +15,6 @@ type Itinerary = {
   id: string;
   startDate: Date;
   endDate: Date;
-  // Other properties are optional
   [key: string]: any;
 };
 
@@ -28,7 +25,6 @@ interface Props {
   onClose: () => void;
   onSave: (itemId: string | null, newDate: string, newTime: string) => void;
 }
-// --- End of Fix ---
 
 export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerary, onClose, onSave }) => {
   const [date, setDate] = useState(new Date());
@@ -38,7 +34,6 @@ export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerar
 
   useEffect(() => {
     if (item) {
-        // Use a less ambiguous way to set the initial date and time
         const [year, month, day] = item.scheduled_date.split('-').map(Number);
         const [hours, minutes] = item.scheduled_time.split(':').map(Number);
         const initialDateTime = new Date(year, month - 1, day, hours, minutes);
@@ -63,15 +58,9 @@ export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerar
   };
 
   const handleSave = () => {
-    // The item's original ID is used if it exists (update), otherwise it's null (create)
     const itemId = item.id || null; 
-    
-    // Format date to YYYY-MM-DD
     const scheduled_date = date.toISOString().split('T')[0];
-    
-    // Format time to HH:MM
     const scheduled_time = time.toTimeString().slice(0, 5);
-    
     onSave(itemId, scheduled_date, scheduled_time);
   };
 

@@ -52,12 +52,7 @@ type Category = "all" | "attraction" | "restaurant";
 
 const getCategory = (placeType: string | null): Exclude<Category, "all"> => {
   const typeStr = placeType?.toLowerCase() || "";
-  if (
-    typeStr.includes("restaurant") ||
-    typeStr.includes("food") ||
-    typeStr.includes("cafe") ||
-    typeStr.includes("bakery")
-  ) {
+  if (typeStr.includes("restaurant") || typeStr.includes("food") || typeStr.includes("cafe") || typeStr.includes("bakery")) {
     return "restaurant";
   }
   return "attraction";
@@ -67,9 +62,7 @@ const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
   <View style={styles.centeredContainer}>
     <MaterialIcons name="lock-outline" size={60} color={COLORS.gray} />
     <Text style={styles.emptyTitle}>Login Required</Text>
-    <Text style={styles.messageText}>
-      Please log in to view your saved bookmarks.
-    </Text>
+    <Text style={styles.messageText}>Please log in to view your saved bookmarks.</Text>
     <TouchableOpacity style={styles.loginButton} onPress={onLoginPress}>
       <Text style={styles.loginButtonText}>Go to Login</Text>
     </TouchableOpacity>
@@ -92,7 +85,7 @@ export default function BookmarksScreen() {
     setLoginRequired(false);
 
     try {
-      const token = await AsyncStorage.getItem("access_token");
+      const token = await AsyncStorage.getItem("firebase_id_token"); // <-- CORRECTED TOKEN KEY
       if (!token) {
         setLoginRequired(true);
         setBookmarks([]);
@@ -105,7 +98,7 @@ export default function BookmarksScreen() {
 
       if (response.status === 401) {
         setLoginRequired(true);
-        await AsyncStorage.removeItem("access_token");
+        await AsyncStorage.removeItem("firebase_id_token"); // <-- CORRECTED TOKEN KEY
         setBookmarks([]);
         return;
       }
@@ -141,11 +134,7 @@ export default function BookmarksScreen() {
       `Are you sure you want to remove "${bookmark.place_name}" from your bookmarks?`,
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: () => removeBookmark(bookmark.id),
-        },
+        { text: "Remove", style: "destructive", onPress: () => removeBookmark(bookmark.id) },
       ]
     );
   };
@@ -154,7 +143,7 @@ export default function BookmarksScreen() {
     const originalBookmarks = [...bookmarks];
     setBookmarks(bookmarks.filter((b) => b.id !== bookmarkId));
     try {
-      const token = await AsyncStorage.getItem("access_token");
+      const token = await AsyncStorage.getItem("firebase_id_token"); // <-- CORRECTED TOKEN KEY
       if (!token) throw new Error("Authentication required");
 
       const response = await fetch(
@@ -199,41 +188,28 @@ export default function BookmarksScreen() {
   const filteredBookmarks = bookmarks.filter((bookmark) => {
     const name = bookmark.place_name || "";
     const address = bookmark.place_address || "";
-    const matchesSearch =
-      name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      address.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase()) || address.toLowerCase().includes(searchQuery.toLowerCase());
     const category = getCategory(bookmark.place_type);
-    const matchesCategory =
-      selectedCategory === "all" || category === selectedCategory;
+    const matchesCategory = selectedCategory === "all" || category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
   const getCategoryCount = (category: Category) => {
     if (category === "all") return bookmarks.length;
-    return bookmarks.filter((b) => getCategory(b.place_type) === category)
-      .length;
+    return bookmarks.filter((b) => getCategory(b.place_type) === category).length;
   };
 
   const renderStars = (rating: number | null) => {
-    if (rating === null || rating < 1)
-      return <Text style={styles.noRatingText}>No rating</Text>;
+    if (rating === null || rating < 1) return <Text style={styles.noRatingText}>No rating</Text>;
     const fullStars = Math.floor(rating);
     const halfStar = rating % 1 >= 0.5;
     const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
 
     return (
       <View style={styles.rating}>
-        {Array.from({ length: fullStars }, (_, i) => (
-          <Ionicons key={`full-${i}`} name="star" style={styles.star} />
-        ))}
+        {Array.from({ length: fullStars }, (_, i) => <Ionicons key={`full-${i}`} name="star" style={styles.star} />)}
         {halfStar && <Ionicons key="half" name="star-half" style={styles.star} />}
-        {Array.from({ length: emptyStars }, (_, i) => (
-          <Ionicons
-            key={`empty-${i}`}
-            name="star-outline"
-            style={styles.star}
-          />
-        ))}
+        {Array.from({ length: emptyStars }, (_, i) => <Ionicons key={`empty-${i}`} name="star-outline" style={styles.star} />)}
         <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
       </View>
     );
@@ -248,13 +224,9 @@ export default function BookmarksScreen() {
         </View>
       );
     }
-
     if (loginRequired) {
-      return (
-        <LoginRequiredView onLoginPress={() => router.replace("/auth/sign-in")} />
-      );
+      return <LoginRequiredView onLoginPress={() => router.replace("/auth/sign-in")} />;
     }
-
     if (error) {
       return (
         <View style={styles.centeredContainer}>
@@ -266,59 +238,35 @@ export default function BookmarksScreen() {
         </View>
       );
     }
-
     if (bookmarks.length === 0) {
       return (
         <View style={styles.centeredContainer}>
           <MaterialIcons name="bookmark-border" size={60} color={COLORS.gray} />
           <Text style={styles.emptyTitle}>No Bookmarks Yet</Text>
-          <Text style={styles.messageText}>
-            Tap the bookmark icon on a place to save it here.
-          </Text>
+          <Text style={styles.messageText}>Tap the bookmark icon on a place to save it here.</Text>
         </View>
       );
     }
-
     if (filteredBookmarks.length === 0) {
       return (
         <View style={styles.centeredContainer}>
           <MaterialIcons name="search-off" size={60} color={COLORS.gray} />
           <Text style={styles.emptyTitle}>No Results Found</Text>
-          <Text style={styles.messageText}>
-            Try adjusting your search or filters.
-          </Text>
+          <Text style={styles.messageText}>Try adjusting your search or filters.</Text>
         </View>
       );
     }
-
     return filteredBookmarks.map((bookmark) => (
-      <TouchableOpacity
-        key={bookmark.id}
-        style={styles.bookmarkCard}
-        onPress={() => handleNavigateToDetail(bookmark)}
-      >
-        <Image
-          source={{
-            uri:
-              bookmark.place_image ||
-              "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&h=400&fit=crop",
-          }}
-          style={styles.bookmarkImage}
-        />
+      <TouchableOpacity key={bookmark.id} style={styles.bookmarkCard} onPress={() => handleNavigateToDetail(bookmark)}>
+        <Image source={{ uri: bookmark.place_image || "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&h=400&fit=crop" }} style={styles.bookmarkImage} />
         <View style={styles.cardContent}>
-          <Text style={styles.bookmarkName} numberOfLines={1}>
-            {bookmark.place_name}
-          </Text>
+          <Text style={styles.bookmarkName} numberOfLines={1}>{bookmark.place_name}</Text>
           <Text style={styles.bookmarkLocation} numberOfLines={1}>
-            <Ionicons name="location-outline" size={14} color={COLORS.text} />{" "}
-            {bookmark.place_address || "No address"}
+            <Ionicons name="location-outline" size={14} color={COLORS.text} />{" "}{bookmark.place_address || "No address"}
           </Text>
           <View style={styles.cardFooter}>
             {renderStars(bookmark.place_rating)}
-            <TouchableOpacity
-              style={styles.removeButton}
-              onPress={() => confirmRemoveBookmark(bookmark)}
-            >
+            <TouchableOpacity style={styles.removeButton} onPress={() => confirmRemoveBookmark(bookmark)}>
               <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
             </TouchableOpacity>
           </View>
@@ -328,19 +276,8 @@ export default function BookmarksScreen() {
   };
 
   const CategoryButton = ({ name, value }: { name: string; value: Category }) => (
-    <TouchableOpacity
-      style={[
-        styles.categoryButton,
-        selectedCategory === value && styles.activeCategoryButton,
-      ]}
-      onPress={() => setSelectedCategory(value)}
-    >
-      <Text
-        style={[
-          styles.categoryButtonText,
-          selectedCategory === value && styles.activeCategoryText,
-        ]}
-      >
+    <TouchableOpacity style={[styles.categoryButton, selectedCategory === value && styles.activeCategoryButton]} onPress={() => setSelectedCategory(value)}>
+      <Text style={[styles.categoryButtonText, selectedCategory === value && styles.activeCategoryText]}>
         {name} ({getCategoryCount(value)})
       </Text>
     </TouchableOpacity>
@@ -351,17 +288,10 @@ export default function BookmarksScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>My Bookmarks</Text>
       </View>
-
       <View style={styles.controlsContainer}>
         <View style={styles.searchBar}>
           <Ionicons name="search" size={20} color={COLORS.gray} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by name or address..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor={COLORS.gray}
-          />
+          <TextInput style={styles.searchInput} placeholder="Search by name or address..." value={searchQuery} onChangeText={setSearchQuery} placeholderTextColor={COLORS.gray} />
         </View>
         <View style={styles.categoryContainer}>
           <CategoryButton name="All" value="all" />
@@ -369,18 +299,7 @@ export default function BookmarksScreen() {
           <CategoryButton name="Restaurants" value="restaurant" />
         </View>
       </View>
-
-      <ScrollView
-        style={styles.bookmarksList}
-        contentContainerStyle={{ paddingBottom: 30, flexGrow: 1 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[COLORS.primary]}
-          />
-        }
-      >
+      <ScrollView style={styles.bookmarksList} contentContainerStyle={{ paddingBottom: 30, flexGrow: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}>
         {renderContent()}
       </ScrollView>
     </SafeAreaView>
@@ -389,133 +308,34 @@ export default function BookmarksScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.lightGray },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
-    backgroundColor: COLORS.white,
-  },
+  header: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, backgroundColor: COLORS.white },
   title: { fontSize: 32, fontWeight: "bold", color: COLORS.dark },
-  controlsContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.lightGray,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 48,
-    marginBottom: 16,
-  },
+  controlsContainer: { paddingHorizontal: 20, paddingBottom: 16, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: COLORS.lightGray, borderRadius: 12, paddingHorizontal: 16, height: 48, marginBottom: 16 },
   searchInput: { flex: 1, fontSize: 16, color: COLORS.dark, marginLeft: 10 },
   categoryContainer: { flexDirection: "row", justifyContent: "space-around" },
-  categoryButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: COLORS.lightGray,
-  },
+  categoryButton: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, backgroundColor: COLORS.lightGray },
   activeCategoryButton: { backgroundColor: COLORS.primaryLight },
   categoryButtonText: { color: COLORS.text, fontWeight: "600" },
   activeCategoryText: { color: COLORS.primary, fontWeight: "bold" },
   bookmarksList: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
-  bookmarkCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-  },
-  bookmarkImage: {
-    width: "100%",
-    height: 160,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
+  bookmarkCard: { backgroundColor: COLORS.white, borderRadius: 16, marginBottom: 20, elevation: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6 },
+  bookmarkImage: { width: "100%", height: 160, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
   cardContent: { padding: 16 },
-  bookmarkName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: COLORS.dark,
-    marginBottom: 6,
-  },
-  bookmarkLocation: {
-    fontSize: 14,
-    color: COLORS.text,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+  bookmarkName: { fontSize: 20, fontWeight: "bold", color: COLORS.dark, marginBottom: 6 },
+  bookmarkLocation: { fontSize: 14, color: COLORS.text, marginBottom: 12, flexDirection: "row", alignItems: "center" },
+  cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   rating: { flexDirection: "row", alignItems: "center" },
   star: { fontSize: 18, color: COLORS.warning, marginRight: 2 },
-  ratingText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.dark,
-    marginLeft: 6,
-  },
+  ratingText: { fontSize: 14, fontWeight: "600", color: COLORS.dark, marginLeft: 6 },
   noRatingText: { fontSize: 14, color: COLORS.gray, fontStyle: "italic" },
-  removeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: COLORS.dangerLight,
-  },
-  centeredContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  messageText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.text,
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: COLORS.dark,
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  errorText: {
-    color: COLORS.danger,
-    fontSize: 16,
-    textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 22,
-  },
-  retryButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
+  removeButton: { width: 40, height: 40, borderRadius: 20, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.dangerLight },
+  centeredContainer: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 40 },
+  messageText: { marginTop: 12, fontSize: 16, color: COLORS.text, textAlign: "center", marginBottom: 24, lineHeight: 22 },
+  emptyTitle: { fontSize: 22, fontWeight: "bold", color: COLORS.dark, marginBottom: 8, textAlign: "center" },
+  errorText: { color: COLORS.danger, fontSize: 16, textAlign: "center", marginBottom: 20, lineHeight: 22 },
+  retryButton: { backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
   retryButtonText: { color: COLORS.white, fontWeight: "600", fontSize: 16 },
-  loginButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
+  loginButton: { backgroundColor: COLORS.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 },
   loginButtonText: { color: COLORS.white, fontWeight: "bold", fontSize: 16 },
 });

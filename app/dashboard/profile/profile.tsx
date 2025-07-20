@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { signOut } from 'firebase/auth';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,10 +15,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { auth } from '../../../config/firebaseConfig';
 import { useUserProfile } from '../../../context/UserProfileContext';
 import { API_URL } from '../../config';
 
-// A view to show when the user is not logged in.
 const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
   <View style={styles.centeredContainer}>
     <MaterialIcons name="person-off" size={60} color="#9CA3AF" />
@@ -29,38 +30,19 @@ const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
   </View>
 );
 
-// Helper function to construct full image URLs for display.
 const createFullImageUrl = (path?: string) => {
   if (!path) return null;
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   return `${API_URL}${path}`;
 };
 
-// Helper function to calculate age from a date string (YYYY-MM-DD).
-const calculateAge = (dobString?: string): string | number => {
-    if (!dobString) return "--";
-    const birthDate = new Date(dobString);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
-    }
-    return age;
-};
-
-// Reusable components for the UI.
 const StatItem = ({ value, label }: { value: string | number, label: string }) => (
     <View style={styles.statItem}>
         <Text style={styles.statNumber}>{value}</Text>
         <Text style={styles.statLabel}>{label}</Text>
     </View>
 );
-const InfoTag = ({ text }: { text: string }) => (
-    <View style={styles.tag}>
-        <Text style={styles.tagText}>{text}</Text>
-    </View>
-);
+
 const MenuButton = ({ icon, label, onPress }: { icon: any, label: string, onPress: () => void }) => (
     <TouchableOpacity style={styles.menuButton} onPress={onPress}>
         <View style={styles.iconBg}>
@@ -80,10 +62,17 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       const fetchData = async () => {
+        // This ensures the profile data is fresh when the screen is focused
         await fetchUserProfile();
+        
         try {
-          const token = await AsyncStorage.getItem('access_token');
-          if (!token) return;
+          // --- THE FIX: Use 'firebase_id_token' ---
+          const token = await AsyncStorage.getItem('firebase_id_token');
+          if (!token) {
+            setItineraryCount(0);
+            setBookmarkCount(0);
+            return;
+          }
 
           const [itinerariesRes, bookmarksRes] = await Promise.all([
             fetch(`${API_URL}/api/itineraries/`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -97,7 +86,7 @@ export default function ProfileScreen() {
         }
       };
       fetchData();
-    }, [])
+    }, [fetchUserProfile])
   );
 
   const handleLogout = () => {
@@ -107,8 +96,9 @@ export default function ProfileScreen() {
         text: "Log Out", style: "destructive",
         onPress: async () => {
           try {
-            await AsyncStorage.removeItem('access_token');
-            fetchUserProfile();
+            await signOut(auth);
+            await AsyncStorage.removeItem('firebase_id_token'); // --- THE FIX ---
+            fetchUserProfile(); // This will clear the profile in the context
             router.replace('/auth/sign-in');
           } catch (error) {
             Alert.alert("Error", "An unexpected error occurred during logout.");
@@ -126,8 +116,8 @@ export default function ProfileScreen() {
     return <SafeAreaView style={styles.safeContainer}><LoginRequiredView onLoginPress={() => router.replace('/auth/sign-in')} /></SafeAreaView>;
   }
   
-  const profileImageUri = createFullImageUrl(profile.imageUri);
-  const backgroundImageUri = createFullImageUrl(profile.backgroundUri);
+  const profileImageUri = createFullImageUrl(profile.imageUri ?? undefined);
+  const backgroundImageUri = createFullImageUrl(profile.backgroundUri ?? undefined);
 
   return (
     <SafeAreaView style={styles.safeContainer}>
@@ -138,7 +128,6 @@ export default function ProfileScreen() {
             style={styles.headerBackground}
           />
         </View>
-
         <View style={styles.profileDetailsContainer}>
           <Image
             source={profileImageUri ? { uri: profileImageUri } : require('../../../assets/images/defaultprofile.png')}
@@ -148,20 +137,16 @@ export default function ProfileScreen() {
           <Text style={styles.emailText}>{profile.email}</Text>
           <Text style={styles.aboutText}>{profile.aboutMe || 'A passionate traveler exploring the world.'}</Text>
         </View>
-
         <View style={styles.statsContainer}>
             <StatItem value={itineraryCount} label="Trips" />
             <StatItem value={bookmarkCount} label="Bookmarks" />
-
         </View>
-
         <View style={styles.menuContainer}>
             <MenuButton icon="edit" label="Edit Profile" onPress={() => router.push('/dashboard/profile/editprofile/editprofile')} />
             <MenuButton icon="luggage" label="My Trips" onPress={() => router.push('/dashboard/itinerary/calendar')} />
             <MenuButton icon="bookmarks" label="Bookmarks" onPress={() => router.push('/dashboard/bookmark/bookmarks')} />
             <MenuButton icon="settings" label="Settings" onPress={() => router.push('/dashboard/profile/setting/setting')} />
         </View>
-
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <MaterialIcons name="logout" size={22} color="#EF4444" />
             <Text style={styles.logoutButtonText}>Log Out</Text>
@@ -181,9 +166,6 @@ const styles = StyleSheet.create({
     name: { fontSize: 26, fontWeight: 'bold', color: '#1f2937', marginTop: 15 },
     emailText: { fontSize: 16, color: '#6b7280', marginTop: 4 },
     aboutText: { fontSize: 14, color: '#4b5563', textAlign: 'center', marginTop: 12, paddingHorizontal: 20, lineHeight: 20 },
-    tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 15 },
-    tag: { backgroundColor: '#eef2ff', borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12, margin: 4 },
-    tagText: { color: '#4338ca', fontWeight: '500', fontSize: 12 },
     statsContainer: { flexDirection: 'row', justifyContent: 'space-around', width: '90%', alignSelf: 'center', backgroundColor: '#fff', borderRadius: 16, paddingVertical: 20, marginTop: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 5 },
     statItem: { alignItems: 'center', width: '33%' },
     statNumber: { fontSize: 20, fontWeight: 'bold', color: '#1f2937' },

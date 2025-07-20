@@ -18,18 +18,14 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-// Make sure this path points to your UserProfileContext file
 import { useUserProfile } from "../../../../context/UserProfileContext";
-// Make sure this path points to your config file
 import { API_URL } from "../../../config";
 
-// Helper function to construct full image URLs
 const createFullImageUrl = (path?: string) => {
   if (!path || path.startsWith('http')) return path || '';
   return `${API_URL}${path}`;
 };
 
-// Helper function to parse error messages from the backend
 const getErrorMessage = (data: any, defaultMessage: string): string => {
   if (!data?.detail) return defaultMessage;
   if (typeof data.detail === 'string') return data.detail;
@@ -37,7 +33,6 @@ const getErrorMessage = (data: any, defaultMessage: string): string => {
   return defaultMessage;
 };
 
-// Reusable component for text inputs with icons
 const IconTextInput = ({ iconName, value, placeholder, onChangeText, multiline = false, editable = true }: any) => (
     <View style={[styles.inputContainer, !editable && styles.disabledInput]}>
         <MaterialIcons name={iconName} size={22} color="#6b7280" style={styles.inputIcon} />
@@ -95,7 +90,7 @@ export default function EditProfileScreen() {
   const uploadImage = async (asset: ImagePickerAsset, isProfileImage: boolean) => {
     setIsUploading(true);
     try {
-      const token = await AsyncStorage.getItem("access_token");
+      const token = await AsyncStorage.getItem("firebase_id_token"); // <-- CORRECTED TOKEN KEY
       if (!token) throw new Error("No access token found");
       
       const formData = new FormData();
@@ -116,6 +111,7 @@ export default function EditProfileScreen() {
         Alert.alert("Error", getErrorMessage(data, "Failed to upload image."));
       }
     } catch (error) {
+      console.error("Image upload error:", error);
       Alert.alert("Error", "An unexpected error occurred while uploading.");
     } finally {
       setIsUploading(false);
@@ -131,7 +127,7 @@ export default function EditProfileScreen() {
     if (isSaving) return;
     setIsSaving(true);
     try {
-      const token = await AsyncStorage.getItem("access_token");
+      const token = await AsyncStorage.getItem("firebase_id_token"); // <-- CORRECTED TOKEN KEY
       if (!token) throw new Error("No access token found");
       
       const formattedDob = dob ? dob.toISOString().split('T')[0] : null;
@@ -155,6 +151,7 @@ export default function EditProfileScreen() {
         Alert.alert("Error", getErrorMessage(data, "Failed to update profile."));
       }
     } catch (error) {
+      console.error("Profile save error:", error);
       Alert.alert("Error", "An error occurred while updating profile.");
     } finally {
       setIsSaving(false);
@@ -176,7 +173,6 @@ export default function EditProfileScreen() {
                       }
 
                       try {
-                          // ✅ THIS CODE NOW WORKS because `profile` has the correct type from the updated context
                           await AsyncStorage.setItem('tourist_type', JSON.stringify(profile.tourist_type || []));
                           await AsyncStorage.setItem('preferred_activities', JSON.stringify(profile.preferred_activities || []));
                           await AsyncStorage.setItem('preferred_cuisines', JSON.stringify(profile.preferred_cuisines || []));

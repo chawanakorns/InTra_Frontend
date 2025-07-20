@@ -73,10 +73,8 @@ export default function AttractionsScreen() {
 
       const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const apiUrl = `${BACKEND_API_URL}?latitude=${location.coords.latitude}&longitude=${location.coords.longitude}`;
-      console.log("Fetching attractions from:", apiUrl);
-
-      const token = await AsyncStorage.getItem('access_token');
-      console.log("Auth token found:", token ? "Yes" : "No");
+      
+      const token = await AsyncStorage.getItem('firebase_id_token'); // <-- CORRECTED TOKEN KEY
 
       const headers: Record<string, string> = {
         Accept: "application/json",
@@ -85,7 +83,6 @@ export default function AttractionsScreen() {
 
       if (token) {
         headers.Authorization = `Bearer ${token}`;
-        console.log("Added Authorization header for attractions");
       }
 
       const response = await fetch(apiUrl, { method: 'GET', headers });
@@ -96,7 +93,6 @@ export default function AttractionsScreen() {
       }
 
       const data = await response.json();
-      console.log("Attraction data fetched:", data.length, "places found");
 
       if (!Array.isArray(data)) {
         throw new Error("Received non-array data from server");
@@ -108,11 +104,9 @@ export default function AttractionsScreen() {
     } catch (err) {
       console.error("Error fetching attractions:", err);
       let message = "Failed to load attractions.";
-
       if (err instanceof Error) {
         message += ` ${err.message}`;
       }
-
       setError(message);
     } finally {
       setLoading(false);
@@ -131,11 +125,7 @@ export default function AttractionsScreen() {
   };
 
   const renderPlace = ({ item }: { item: Place }) => (
-    <AttractionCard
-      attraction={item}
-      onPress={() => handlePlacePress(item)}
-      style={styles.cardStyle}
-    />
+    <AttractionCard attraction={item} onPress={() => handlePlacePress(item)} style={styles.cardStyle} />
   );
 
   if (loading) {
@@ -161,12 +151,7 @@ export default function AttractionsScreen() {
         </TouchableOpacity>
       </View>
 
-      <TextInput
-        style={styles.search}
-        placeholder="Search attractions..."
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
+      <TextInput style={styles.search} placeholder="Search attractions..." value={searchQuery} onChangeText={setSearchQuery} />
 
       {error && (
         <View style={styles.errorContainer}>
@@ -177,11 +162,7 @@ export default function AttractionsScreen() {
         </View>
       )}
 
-      {!error && (
-        <Text style={styles.resultCount}>
-          {filteredPlaces.length} attraction{filteredPlaces.length !== 1 ? "s" : ""}
-        </Text>
-      )}
+      {!error && <Text style={styles.resultCount}>{filteredPlaces.length} attraction{filteredPlaces.length !== 1 ? "s" : ""}</Text>}
 
       <FlatList
         data={filteredPlaces}
@@ -193,9 +174,7 @@ export default function AttractionsScreen() {
             <View style={styles.emptyContainer}>
               <MaterialIcons name="place" size={60} color="#ccc" />
               <Text style={styles.emptyText}>No attractions found</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={loadPlaces}>
-                <Text style={styles.retryButtonText}>Try Again</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={styles.retryButton} onPress={loadPlaces}><Text style={styles.retryButtonText}>Try Again</Text></TouchableOpacity>
             </View>
           ) : null
         }
@@ -205,97 +184,20 @@ export default function AttractionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-    padding: 16,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    flex: 1,
-    marginLeft: 16,
-    color: "#1F2937",
-  },
-  refreshButton: {
-    padding: 4,
-  },
-  search: {
-    backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 16,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  resultCount: {
-    color: "#6B7280",
-    fontSize: 14,
-    marginBottom: 16,
-    fontWeight: "500",
-  },
-  listContainer: {
-    paddingBottom: 20,
-  },
-  cardStyle: {
-    marginHorizontal: 0,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 16,
-    color: "#6B7280",
-    fontSize: 16,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingTop: 60,
-  },
-  emptyText: {
-    color: "#6B7280",
-    fontSize: 16,
-    marginTop: 16,
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  errorContainer: {
-    backgroundColor: "#FEE2E2",
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 16,
-    alignItems: "center",
-  },
-  errorText: {
-    color: "#B91C1C",
-    fontSize: 14,
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  retryButton: {
-    backgroundColor: "#6366F1",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
+  container: { flex: 1, backgroundColor: "#F9FAFB", padding: 16 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
+  headerTitle: { fontSize: 20, fontWeight: "bold", flex: 1, marginLeft: 16, color: "#1F2937" },
+  refreshButton: { padding: 4 },
+  search: { backgroundColor: "#fff", padding: 14, borderRadius: 12, marginBottom: 16, fontSize: 16, borderWidth: 1, borderColor: "#E5E7EB", elevation: 1, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
+  resultCount: { color: "#6B7280", fontSize: 14, marginBottom: 16, fontWeight: "500" },
+  listContainer: { paddingBottom: 20 },
+  cardStyle: { marginHorizontal: 0 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingText: { marginTop: 16, color: "#6B7280", fontSize: 16 },
+  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 60 },
+  emptyText: { color: "#6B7280", fontSize: 16, marginTop: 16, marginBottom: 20, textAlign: "center" },
+  errorContainer: { backgroundColor: "#FEE2E2", padding: 16, borderRadius: 8, marginBottom: 16, alignItems: "center" },
+  errorText: { color: "#B91C1C", fontSize: 14, marginBottom: 12, textAlign: "center" },
+  retryButton: { backgroundColor: "#6366F1", paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 },
+  retryButtonText: { color: "#fff", fontWeight: "600" },
 });
