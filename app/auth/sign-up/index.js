@@ -16,8 +16,6 @@ import {
   View
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
-// IMPORTANT: Adjust this path based on your file structure.
-// This assumes firebaseConfig.js is in the root, and this file is in app/auth/sign-up/.
 import { auth } from "../../../config/firebaseConfig";
 
 export default function SignUp() {
@@ -45,8 +43,18 @@ export default function SignUp() {
   const handleEmailChange = (text) => { setEmail(text); if (text.trim().length > 0) setIsEmailValid(validateEmail(text.trim())); else setIsEmailValid(true); };
   const onChangeDate = (event, selectedDate) => { setShowDatePicker(false); if (selectedDate) { setDate(selectedDate); } };
   const showDatepicker = () => setShowDatePicker(true);
-  const formatDate = (date) => date.toLocaleDateString("en-CA");
-  const formatDateForAPI = (date) => date.toISOString().split("T")[0];
+  
+  // --- THE FIX: Use a timezone-safe formatting method ---
+  const formatDateForDisplayAndAPI = (dateToFormat) => {
+    // getFullYear(), getMonth(), and getDate() are based on the device's local timezone.
+    const year = dateToFormat.getFullYear();
+    const month = (dateToFormat.getMonth() + 1).toString().padStart(2, '0'); // +1 because months are 0-indexed
+    const day = dateToFormat.getDate().toString().padStart(2, '0');
+    
+    // This creates a "YYYY-MM-DD" string that correctly reflects the user's selection.
+    return `${year}-${month}-${day}`;
+  };
+
   const validateForm = () => {
     if (!fullName.trim()) { Alert.alert("Error", "Please enter your full name"); return false; }
     if (!email.trim()) { Alert.alert("Error", "Please enter your email address"); return false; }
@@ -57,13 +65,9 @@ export default function SignUp() {
   };
 
   const handleSignUp = async () => {
-    if (!auth) {
-      Alert.alert("Configuration Error", "Firebase is not configured correctly.");
-      console.error("Firebase 'auth' object is undefined. Check import path from firebaseConfig.js.");
+    if (!validateForm()) {
       return;
     }
-    if (!validateForm()) return;
-
     setIsLoading(true);
     const API_BASE_URL = "http://10.0.2.2:8000";
 
@@ -73,16 +77,35 @@ export default function SignUp() {
       await updateProfile(user, { displayName: fullName.trim() });
       const token = await user.getIdToken();
       await AsyncStorage.setItem("firebase_id_token", token);
-      await axios.post(`${API_BASE_URL}/auth/sync`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      const profileData = { fullName: fullName.trim(), dob: formatDateForAPI(date), gender: gender };
-      await axios.put(`${API_BASE_URL}/auth/me`, profileData, { headers: { Authorization: `Bearer ${token}` } });
+      
+      const syncData = {
+        fullName: fullName.trim(),
+        // --- THE FIX: Use the new safe formatting function ---
+        dob: formatDateForDisplayAndAPI(date),
+        gender: gender,
+      };
+
+      await axios.post(
+        `${API_BASE_URL}/auth/sync`,
+        syncData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
       router.replace("auth/personalize/kindOfusers");
     } catch (error) {
       console.error("Registration error:", error);
       let errorMessage = "Registration failed. Please try again.";
-      if (error.code === "auth/email-already-in-use") { errorMessage = "This email address is already registered."; }
-      else if (error.code === 'auth/invalid-email') { errorMessage = "The email address is not valid."; }
-      else if (error.code === 'auth/weak-password') { errorMessage = "The password is too weak."; }
+      if (error.response) {
+        errorMessage = error.response.data.detail || "An error occurred on the server.";
+      } else if (error.code) {
+        if (error.code === "auth/email-already-in-use") {
+          errorMessage = "This email address is already registered.";
+        } else if (error.code === 'auth/invalid-email') {
+          errorMessage = "The email address is not valid.";
+        } else if (error.code === 'auth/weak-password') {
+          errorMessage = "The password is too weak.";
+        }
+      }
       Alert.alert("Error", errorMessage);
     } finally {
       setIsLoading(false);
@@ -99,7 +122,8 @@ export default function SignUp() {
         <View style={{ width: "48%" }}>
           <Text style={styles.labelText}>Date of Birth</Text>
           <TouchableOpacity style={styles.dateInput} onPress={showDatepicker}>
-            <Text style={styles.dateText}>{formatDate(date)}</Text>
+            {/* --- THE FIX: Use the same safe formatter for display --- */}
+            <Text style={styles.dateText}>{formatDateForDisplayAndAPI(date)}</Text>
             <Ionicons name="calendar" size={20} color={Colors.GRAY} />
           </TouchableOpacity>
           {showDatePicker && (<DateTimePicker value={date} mode="date" display="default" onChange={onChangeDate} maximumDate={new Date()} minimumDate={new Date(1900, 0, 1)}/>)}
@@ -114,12 +138,8 @@ export default function SignUp() {
       <View style={{ marginTop: 10 }}><Text style={styles.labelText}>Confirm Password</Text><TextInput secureTextEntry={true} style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Enter Confirm Password" /></View>
       <TouchableOpacity onPress={handleSignUp} disabled={isLoading} style={[styles.button, isLoading && styles.disabledButton]}>
         <>
-          {isLoading && (
-            <ActivityIndicator size="small" color={Colors.WHITE} style={{ marginRight: 10 }} />
-          )}
-          <Text style={styles.buttonText}>
-            {isLoading ? "Creating Account..." : "Sign Up"}
-          </Text>
+          {isLoading && (<ActivityIndicator size="small" color={Colors.WHITE} style={{ marginRight: 10 }} />)}
+          <Text style={styles.buttonText}>{isLoading ? "Creating Account..." : "Sign Up"}</Text>
         </>
       </TouchableOpacity>
       <View style={styles.footer}><Text style={styles.footerText}>Already have an account? </Text><TouchableOpacity onPress={() => router.replace("auth/sign-in")}><Text style={styles.footerLink}>Login</Text></TouchableOpacity></View>
