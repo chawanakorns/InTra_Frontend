@@ -62,11 +62,8 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       const fetchData = async () => {
-        // This ensures the profile data is fresh when the screen is focused
         await fetchUserProfile();
-        
         try {
-          // --- THE FIX: Use 'firebase_id_token' ---
           const token = await AsyncStorage.getItem('firebase_id_token');
           if (!token) {
             setItineraryCount(0);
@@ -97,7 +94,7 @@ export default function ProfileScreen() {
         onPress: async () => {
           try {
             await signOut(auth);
-            await AsyncStorage.removeItem('firebase_id_token'); // --- THE FIX ---
+            await AsyncStorage.removeItem('firebase_id_token');
             fetchUserProfile(); // This will clear the profile in the context
             router.replace('/auth/sign-in');
           } catch (error) {

@@ -85,20 +85,18 @@ export default function CalendarScreen() {
   const [itemToEdit, setItemToEdit] = useState<ScheduleItem | null>(null);
   const panY = useRef(new Animated.Value(0)).current;
 
-  const panResponder = PanResponder.create({
+  const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_evt, gestureState) => gestureState.dy > 0,
     onPanResponderMove: Animated.event([null, { dy: panY }], { useNativeDriver: false }),
     onPanResponderRelease: (_, gestureState) => {
-      if (gestureState.dy > 100) {
-        Animated.timing(panY, { toValue: 500, duration: 200, useNativeDriver: true, }).start(() => {
-          setModalVisible(false);
-          panY.setValue(0);
-        });
+      if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+        Animated.timing(panY, { toValue: 500, duration: 200, useNativeDriver: true }).start(() => { setModalVisible(false); panY.setValue(0); });
       } else {
-        Animated.spring(panY, { toValue: 0, useNativeDriver: true, }).start();
+        Animated.spring(panY, { toValue: 0, useNativeDriver: true }).start();
       }
     },
-  });
+  })).current;
 
   const coveredTimeSlots = useMemo(() => {
     const covered = new Set<string>();
@@ -119,7 +117,7 @@ export default function CalendarScreen() {
 
   useEffect(() => { const timer = setInterval(() => setCurrentTime(new Date()), 60000); return () => clearInterval(timer); }, []);
   useEffect(() => { const startOfWeek = new Date(displayDate); startOfWeek.setDate(displayDate.getDate() - displayDate.getDay()); setWeekDates(Array.from({ length: 7 }, (_, i) => new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i))); }, [displayDate]);
-  useEffect(() => { if (selectedItinerary) { const selectedDay = new Date(selectedDate.setHours(0, 0, 0, 0)); const itineraryStartDay = new Date(selectedItinerary.startDate.setHours(0, 0, 0, 0)); const itineraryEndDay = new Date(selectedItinerary.endDate.setHours(0, 0, 0, 0)); if (selectedDay < itineraryStartDay || selectedDay > itineraryEndDay) { setSelectedDate(new Date(selectedItinerary.startDate)); setDisplayDate(new Date(selectedItinerary.startDate)); } } }, [selectedItinerary, selectedDate]);
+  useEffect(() => { if (selectedItinerary) { const selectedDay = new Date(selectedDate); selectedDay.setHours(0, 0, 0, 0); const itineraryStartDay = new Date(selectedItinerary.startDate); itineraryStartDay.setHours(0, 0, 0, 0); const itineraryEndDay = new Date(selectedItinerary.endDate); itineraryEndDay.setHours(0, 0, 0, 0); if (selectedDay < itineraryStartDay || selectedDay > itineraryEndDay) { setSelectedDate(new Date(selectedItinerary.startDate)); setDisplayDate(new Date(selectedItinerary.startDate)); } } }, [selectedItinerary, selectedDate]);
 
   const fetchUserName = useCallback(async (token: string | null) => {
     if (!token) { setUserName("Guest"); return; }
@@ -158,9 +156,76 @@ export default function CalendarScreen() {
   const isTimeConflict = (newItem: { scheduled_date: string; scheduled_time: string; duration_minutes: number }, itemIdToIgnore: string): boolean => { if (!selectedItinerary) return false; const newStartTime = parseInt(newItem.scheduled_time.split(':')[0]) * 60 + parseInt(newItem.scheduled_time.split(':')[1]); const newEndTime = newStartTime + newItem.duration_minutes; return !!selectedItinerary.schedule_items.find(item => { if (item.id === itemIdToIgnore || item.scheduled_date !== newItem.scheduled_date) return false; const existingStartTime = parseInt(item.scheduled_time.split(':')[0]) * 60 + parseInt(item.scheduled_time.split(':')[1]); const existingEndTime = existingStartTime + item.duration_minutes; return newStartTime < existingEndTime && newEndTime > existingStartTime; }); };
   const handleOpenEditModal = (item: ScheduleItem) => { setItemToEdit(item); setIsEditModalVisible(true); };
   const handleCloseEditModal = () => { setIsEditModalVisible(false); setItemToEdit(null); };
+
+  const handleSaveScheduleItem = async (itemId: string | null, newDate: string, newTime: string) => {
+    if (!selectedItinerary || !itemId) return;
   
-  const handleSaveScheduleItem = (itemId: string | null, newDate: string, newTime: string) => { if (!selectedItinerary || !itemId) return; const itemToUpdate = selectedItinerary.schedule_items.find(i => i.id === itemId); if (!itemToUpdate) return; if (isTimeConflict({ scheduled_date: newDate, scheduled_time: newTime, duration_minutes: itemToUpdate.duration_minutes }, itemId)) { Alert.alert("Time Conflict", "This activity conflicts with another. Please choose a different time."); return; } setSelectedItinerary(prev => prev ? { ...prev, schedule_items: prev.schedule_items.map(item => item.id === itemId ? { ...item, scheduled_date: newDate, scheduled_time: newTime } : item) } : null); Alert.alert("Success", "Schedule item updated locally (temporary)."); handleCloseEditModal(); };
-  const handleDeleteScheduleItem = (itemToDelete: ScheduleItem) => { if (!selectedItinerary) return; Alert.alert("Delete Item", `Delete "${itemToDelete.place_name}"? This is temporary.`, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => { setSelectedItinerary(prev => prev ? { ...prev, schedule_items: prev.schedule_items.filter(i => i.id !== itemToDelete.id) } : null); setExpandedItemId(null); Alert.alert("Success", "Item removed locally."); }, }, ]); };
+    const originalItinerary = JSON.parse(JSON.stringify(selectedItinerary));
+    
+    // Optimistic UI Update
+    setSelectedItinerary(prev => {
+      if (!prev) return null;
+      const updatedItems = prev.schedule_items.map(item =>
+        item.id === itemId ? { ...item, scheduled_date: newDate, scheduled_time: newTime } : item
+      );
+      return { ...prev, schedule_items: updatedItems };
+    });
+    handleCloseEditModal();
+  
+    try {
+      const token = await AsyncStorage.getItem("firebase_id_token");
+      if (!token) throw new Error("Authentication token not found.");
+  
+      const payload = { scheduled_date: newDate, scheduled_time: newTime };
+      const response = await fetch(`${BACKEND_ITINERARY_API_URL}/items/${itemId}`, {
+        method: "PUT",
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+  
+      if (!response.ok) throw new Error((await response.json()).detail || "Failed to save changes.");
+      
+      Alert.alert("Success", "Schedule item has been updated.");
+      // Optional: Refetch for ultimate data consistency
+      // await fetchItineraries(); 
+    } catch (error) {
+      setSelectedItinerary(originalItinerary); // Rollback on error
+      console.error("Error updating schedule item:", error);
+      Alert.alert("Update Failed", error instanceof Error ? error.message : "An unknown error occurred.");
+    }
+  };
+  
+  const handleDeleteScheduleItem = async (itemToDelete: ScheduleItem) => {
+    if (!selectedItinerary) return;
+    Alert.alert("Delete Item", `Delete "${itemToDelete.place_name}"?`,
+      [{ text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try {
+          const token = await AsyncStorage.getItem("firebase_id_token");
+          if (!token) { setLoginRequired(true); return; }
+
+          const response = await fetch(`${BACKEND_ITINERARY_API_URL}/items/${itemToDelete.id}`, {
+            method: "DELETE", headers: { Authorization: `Bearer ${token}` }
+          });
+
+          if (response.status === 204) {
+            setSelectedItinerary(prev => {
+              if (!prev) return null;
+              return { ...prev, schedule_items: prev.schedule_items.filter(i => i.id !== itemToDelete.id) };
+            });
+            setExpandedItemId(null);
+            Alert.alert("Success", "Item removed successfully.");
+          } else {
+            throw new Error((await response.json()).detail || "Failed to delete item.");
+          }
+        } catch (error) {
+          console.error("Error deleting schedule item:", error);
+          Alert.alert("Error", error instanceof Error ? error.message : "An unknown error occurred.");
+        }
+      },
+    }]);
+  };
+  
   const handleCreateItinerary = (newItineraryFromResponse: any) => { setModalVisible(false); const newItineraryForState: Itinerary = { id: newItineraryFromResponse.id.toString(), name: newItineraryFromResponse.name, type: newItineraryFromResponse.type, budget: newItineraryFromResponse.budget, startDate: new Date(newItineraryFromResponse.start_date), endDate: new Date(newItineraryFromResponse.end_date), schedule_items: (newItineraryFromResponse.schedule_items || []).map((item: any, index: number) => ({ ...item, id: item.id?.toString() ?? `${newItineraryFromResponse.id}-${index}` })), }; setItineraries(prev => [newItineraryForState, ...prev]); setSelectedItinerary(newItineraryForState); setSelectedDate(newItineraryForState.startDate); setDisplayDate(newItineraryForState.startDate); };
 
   const handleDeleteItinerary = async () => {
@@ -182,33 +247,15 @@ export default function CalendarScreen() {
   const formatDateHeader = (date: Date) => date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const getTimeOfDay = (date: Date) => { const h = date.getHours(); if (h < 12) return "Good Morning"; if (h < 17) return "Good Afternoon"; return "Good Evening"; };
   const timeSlots = Array.from({ length: 17 }, (_, i) => { const h = 6 + i; return `${(h % 12 || 12).toString().padStart(2, "0")}:00 ${h >= 12 ? "PM" : "AM"}`; });
-  const getScheduleItemsForTimeSlot = (timeSlot: string): ScheduleItem[] => { if (!selectedItinerary) return []; const [hourStr, ampm] = timeSlot.split(/[: ]/); let hour = parseInt(hourStr, 10); if (ampm === "PM" && hour !== 12) hour += 12; if (ampm === "AM" && hour === 12) hour = 0; return selectedItinerary.schedule_items.filter(item => { const itemDate = parse(item.scheduled_date, "yyyy-MM-dd", new Date()); return isSameDay(itemDate, selectedDate) && parseInt(item.scheduled_time.split(":")[0]) === hour; }); };
-
-  const handleItemPress = async (item: ScheduleItem) => {
-    if (expandedItemId === item.place_id) { setExpandedItemId(null); setRouteCoordinates([]); return; }
-    setRouteCoordinates([]);
-    setIsDescriptionExpanded(null);
-    setExpandedItemId(item.place_id);
-    if (!placeDetailsCache[item.place_id]) {
-      setIsFetchingDetails(true);
-      try {
-        const token = await AsyncStorage.getItem("firebase_id_token");
-        const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/place/${item.place_id}/details`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-        if (!response.ok) throw new Error("Failed to fetch place details");
-        const details: PlaceDetails = await response.json();
-        setPlaceDetailsCache(prev => ({ ...prev, [item.place_id]: details }));
-      } catch (error) { console.error("Error fetching place details:", error); Alert.alert("Error", "Could not load place details."); setExpandedItemId(null);
-      } finally { setIsFetchingDetails(false); }
-    }
-  };
-
-  const toggleDescriptionExpansion = (place_id: string) => setIsDescriptionExpanded(isDescriptionExpanded === place_id ? null : place_id);
-  const handleShowDirections = async (item: ScheduleItem) => { if (routeCoordinates.length > 0) { setRouteCoordinates([]); return; } setIsFetchingRoute(true); try { let { status } = await Location.requestForegroundPermissionsAsync(); if (status !== "granted") { Alert.alert("Permission Denied", "Location is needed for directions."); return; } const location = await Location.getCurrentPositionAsync({}); const origin = `${location.coords.latitude},${location.coords.longitude}`; const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/directions?origin=${origin}&destination_place_id=${item.place_id}`); if (!response.ok) { throw new Error((await response.json()).detail || "Failed to fetch directions."); } const data = await response.json(); const coords = polyline.decode(data.encoded_polyline).map(p => ({ latitude: p[0], longitude: p[1] })); setRouteCoordinates(coords); mapRef.current?.fitToCoordinates(coords, { edgePadding: { top: 50, right: 50, bottom: 50, left: 50 }, animated: true, }); } catch (error) { console.error(error); Alert.alert("Error", "Could not get directions."); } finally { setIsFetchingRoute(false); } };
+  const getScheduleItemsForTimeSlot = (timeSlot: string): ScheduleItem[] => { if (!selectedItinerary) return []; const parts = timeSlot.match(/(\d+):(\d+)\s(AM|PM)/); if (!parts) return []; let hour12 = parseInt(parts[1], 10); const ampm = parts[3]; let hour24 = hour12; if (ampm === 'PM' && hour12 < 12) { hour24 += 12; } if (ampm === 'AM' && hour12 === 12) { hour24 = 0; } return selectedItinerary.schedule_items.filter((item) => { const itemDate = parse(item.scheduled_date, "yyyy-MM-dd", new Date()); if (!isSameDay(itemDate, selectedDate)) { return false; } const itemHour24 = parseInt(item.scheduled_time.split(":")[0], 10); return itemHour24 === hour24; }); };
+  const handleItemPress = async (item: ScheduleItem) => { if (expandedItemId === item.id) { setExpandedItemId(null); setRouteCoordinates([]); return; } setRouteCoordinates([]); setIsDescriptionExpanded(null); setExpandedItemId(item.id); if (!placeDetailsCache[item.place_id]) { setIsFetchingDetails(true); try { const token = await AsyncStorage.getItem("firebase_id_token"); const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/place/${item.place_id}/details`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); if (!response.ok) throw new Error("Failed to fetch place details"); const details: PlaceDetails = await response.json(); setPlaceDetailsCache(prev => ({ ...prev, [item.place_id]: details })); } catch (error) { console.error("Error fetching place details:", error); Alert.alert("Error", "Could not load place details."); setExpandedItemId(null); } finally { setIsFetchingDetails(false); } } };
+  const toggleDescriptionExpansion = (itemId: string) => setIsDescriptionExpanded(isDescriptionExpanded === itemId ? null : itemId);
+  const handleShowDirections = async (item: ScheduleItem) => { if (routeCoordinates.length > 0) { setRouteCoordinates([]); return; } setIsFetchingRoute(true); try { let { status } = await Location.requestForegroundPermissionsAsync(); if (status !== "granted") { Alert.alert("Permission Denied", "Location is needed for directions."); return; } const location = await Location.getCurrentPositionAsync({}); const origin = `${location.coords.latitude},${location.coords.longitude}`; const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/directions?origin=${origin}&destination_place_id=${item.place_id}`); if (!response.ok) { throw new Error((await response.json()).detail || "Failed to fetch directions."); } const data = await response.json(); const coords = polyline.decode(data.encoded_polyline).map(p => ({ latitude: p[0], longitude: p[1] })); setRouteCoordinates(coords); mapRef.current?.fitToCoordinates(coords, { edgePadding: { top: 50, right: 50, bottom: 50, left: 50 }, animated: true, }); } catch (error) { console.error(error); Alert.alert("Error", "Could not get directions."); } finally { setIsFetchingRoute(false); } };
 
   const renderContent = () => {
-    if (isLoading) { return (<View style={styles.centeredMessageContainer}><ActivityIndicator size="large" color="#6366F1" /><Text style={styles.loadingText}>Loading your itineraries...</Text></View>); }
-    if (loginRequired) { return (<LoginRequiredView onLoginPress={() => router.replace("/auth/sign-in")} />); }
-    if (error) { return (<View style={styles.centeredMessageContainer}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryButton} onPress={fetchItineraries}><Text style={styles.retryButtonText}>Retry</Text></TouchableOpacity></View>); }
+    if (isLoading) { return <View style={styles.centeredMessageContainer}><ActivityIndicator size="large" color="#6366F1" /><Text style={styles.loadingText}>Loading your itineraries...</Text></View>; }
+    if (loginRequired) { return <LoginRequiredView onLoginPress={() => router.replace("/auth/sign-in")} />; }
+    if (error) { return <View style={styles.centeredMessageContainer}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryButton} onPress={fetchItineraries}><Text style={styles.retryButtonText}>Retry</Text></TouchableOpacity></View>; }
     return (
       <>
         <View style={styles.header}>
@@ -217,7 +264,7 @@ export default function CalendarScreen() {
             <Text style={styles.date}>{formatDateHeader(selectedDate)}</Text>
             {itineraries.length > 0 && (
               <View style={styles.itineraryPicker}>
-                <Dropdown style={styles.dropdown} data={itineraries.map(it => ({ label: it.name, value: it.id }))} value={selectedItinerary?.id} onChange={item => { const it = itineraries.find(i => i.id === item.value); if (it) { setSelectedItinerary(it); setSelectedDate(it.startDate); setDisplayDate(it.startDate); setIsDetailsVisible(false); } }} labelField="label" valueField="value" placeholder="Select Itinerary" placeholderStyle={styles.placeholderStyle} selectedTextStyle={styles.selectedTextStyle} iconStyle={styles.iconStyle} onFocus={() => setIsDropdownOpen(true)} onBlur={() => setIsDropdownOpen(false)} renderRightIcon={() => <Text style={[styles.dropdownArrow, isDropdownOpen && styles.dropdownArrowOpen]}>▼</Text>} />
+                <Dropdown style={styles.dropdown} data={itineraries.map(it => ({ label: it.name, value: it.id }))} value={selectedItinerary?.id} onChange={item => { const it = itineraries.find(i => i.id === item.value); if (it) { setSelectedItinerary(it); setSelectedDate(new Date(it.startDate)); setDisplayDate(new Date(it.startDate)); setIsDetailsVisible(false); } }} labelField="label" valueField="value" placeholder="Select Itinerary" placeholderStyle={styles.placeholderStyle} selectedTextStyle={styles.selectedTextStyle} iconStyle={styles.iconStyle} onFocus={() => setIsDropdownOpen(true)} onBlur={() => setIsDropdownOpen(false)} renderRightIcon={() => <Text style={[styles.dropdownArrow, isDropdownOpen && styles.dropdownArrowOpen]}>▼</Text>} />
                 <TouchableOpacity onPress={() => setIsDetailsVisible(!isDetailsVisible)} style={styles.detailsButton}><MaterialIcons name={isDetailsVisible ? "keyboard-arrow-up" : "keyboard-arrow-down"} size={28} color="#6366F1" /></TouchableOpacity>
                 <TouchableOpacity onPress={handleDeleteItinerary} style={styles.deleteButton}><MaterialIcons name="delete-outline" size={26} color="#B91C1C" /></TouchableOpacity>
               </View>
@@ -254,7 +301,8 @@ export default function CalendarScreen() {
           <View style={styles.timelineContainer}>
             <View style={styles.timelineHeader}><Text style={styles.timelineTitle}>Timeline</Text></View>
             {timeSlots.map(time => {
-              const itemsInSlot = getScheduleItemsForTimeSlot(time).sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time));
+              const itemsInSlot = getScheduleItemsForTimeSlot(time);
+              itemsInSlot.sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time));
               const offset = itemsInSlot.length > 0 ? (parseInt(itemsInSlot[0].scheduled_time.split(":")[1]) / 60) * 60 : 0;
               return (
                 <View key={time} style={styles.timelineRow}>
@@ -264,11 +312,12 @@ export default function CalendarScreen() {
                       {itemsInSlot.length > 0 && <View style={styles.timelineDot} />}
                       <View style={styles.cardsContainer}>
                         {itemsInSlot.map(item => {
-                          const isExpanded = expandedItemId === item.place_id;
+                          const isExpanded = expandedItemId === item.id;
                           const details = placeDetailsCache[item.place_id];
                           const desc = details?.description || "";
-                          const isDescExpanded = isDescriptionExpanded === item.place_id;
+                          const isDescExpanded = isDescriptionExpanded === item.id;
                           const cardHeight = Math.max(80, (item.duration_minutes / 60) * 60);
+                          const timeRange = `${new Date(`1970-01-01T${item.scheduled_time}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} - ${new Date(new Date(`1970-01-01T${item.scheduled_time}`).getTime() + item.duration_minutes * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
                           return (
                             <View key={item.id} style={{ marginBottom: 15 }}>
                               <TouchableOpacity onPress={() => handleItemPress(item)}>
@@ -277,7 +326,7 @@ export default function CalendarScreen() {
                                   <View style={styles.cardContent}>
                                     <Text style={styles.scheduleItemText} numberOfLines={1}>{item.place_name}</Text>
                                     <Text style={styles.scheduleItemDetails}>{formatAndCapitalize(item.place_type) || "Activity"}</Text>
-                                    <Text style={styles.scheduleItemTimeText}>{`${new Date(`1970-01-01T${item.scheduled_time}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} - ${new Date(new Date(`1970-01-01T${item.scheduled_time}`).getTime() + item.duration_minutes * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}</Text>
+                                    <Text style={styles.scheduleItemTimeText}>{timeRange}</Text>
                                   </View>
                                 </View>
                               </TouchableOpacity>
@@ -286,7 +335,7 @@ export default function CalendarScreen() {
                                   {isFetchingDetails && !details ? <ActivityIndicator style={{ marginVertical: 20 }} color="#6366F1" /> : (
                                     <>
                                       <Text style={styles.detailsDescription}>{desc.length > 120 && !isDescExpanded ? `${desc.substring(0, 120)}...` : desc}</Text>
-                                      {desc.length > 120 && <TouchableOpacity onPress={() => toggleDescriptionExpansion(item.place_id)}><Text style={styles.showMoreText}>{isDescExpanded ? "Show less" : "Show more"}</Text></TouchableOpacity>}
+                                      {desc.length > 120 && <TouchableOpacity onPress={() => toggleDescriptionExpansion(item.id)}><Text style={styles.showMoreText}>{isDescExpanded ? "Show less" : "Show more"}</Text></TouchableOpacity>}
                                       <View style={styles.detailRow}><Text style={styles.detailLabel}>Status:</Text><Text style={[styles.detailValue, { color: details?.isOpen ? "#10B981" : "#EF4444" }]}>{details?.isOpen ? "Open Now" : "Closed"}</Text></View>
                                       <View style={styles.actionButtonsRow}>
                                         <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={() => handleOpenEditModal(item)}><MaterialIcons name="edit-calendar" size={20} color="#FFFFFF" /><Text style={styles.actionButtonText}>Edit</Text></TouchableOpacity>
@@ -379,7 +428,7 @@ const styles = StyleSheet.create({
   timelineDot: { position: "absolute", top: 9, left: -6, width: 12, height: 12, borderRadius: 6, backgroundColor: "#6366F1", borderWidth: 2, borderColor: "#FFFFFF", zIndex: 1 },
   emptyState: { alignItems: "center", flex: 1, justifyContent: "center", paddingBottom: 100, marginTop: 50 },
   emptyTitle: { fontSize: 16, color: "#9CA3AF", marginBottom: 16, textAlign: "center" },
-  emptySubtitle: { fontSize: 36, color: "#1F2937", fontWeight: "bold", textAlign: "center", lineHeight: 40 },
+  emptySubtitle: { fontSize: 24, color: "#1F2937", fontWeight: "bold", textAlign: "center", lineHeight: 30 },
   addButton: { position: "absolute", bottom: 30, right: 30, width: 60, height: 60, borderRadius: 30, backgroundColor: "#6366F1", justifyContent: "center", alignItems: "center", elevation: 5, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 },
   addButtonText: { fontSize: 30, color: "#FFFFFF", fontWeight: "bold", marginBottom: 2 },
   itineraryDateCell: { backgroundColor: "rgba(99, 102, 241, 0.15)", borderRadius: 21 },
