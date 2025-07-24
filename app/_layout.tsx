@@ -1,7 +1,22 @@
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
+import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from "react-native";
-import { UserProfileProvider } from "../context/UserProfileContext";
+import { UserProfileProvider, useUserProfile } from "../context/UserProfileContext";
+import { registerForPushNotificationsAsync } from '../services/notificationService';
+
+function NotificationHandler() {
+    const { profile } = useUserProfile();
+    useEffect(() => {
+        if (profile) {
+            console.log("User is logged in, registering for push notifications.");
+            registerForPushNotificationsAsync();
+        } else {
+            console.log("User is not logged in, skipping push notification registration.");
+        }
+    }, [profile]);
+    return null;
+}
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -25,8 +40,11 @@ export default function RootLayout() {
 
   return (
     <UserProfileProvider>
+      <NotificationHandler />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="dashboard" />
       </Stack>
     </UserProfileProvider>
   );

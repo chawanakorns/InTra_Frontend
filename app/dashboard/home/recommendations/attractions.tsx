@@ -17,9 +17,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AttractionCard from "../../../../components/AttractionCard";
 
 const BACKEND_API_URL = Platform.select({
-  android: "http://10.0.2.2:8000/api/recommendations/attractions",
-  ios: "http://localhost:8000/api/recommendations/attractions",
-  default: "http://localhost:8000/api/recommendations/attractions",
+  android: "http://192.168.1.10:8000/api/recommendations/attractions",
+  ios: "http://192.168.1.10:8000/api/recommendations/attractions",
+  default: "http://192.168.1.10:8000/api/recommendations/attractions",
 });
 
 interface Place {
