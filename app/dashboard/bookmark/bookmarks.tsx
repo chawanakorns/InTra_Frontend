@@ -19,9 +19,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const BACKEND_API_URL = Platform.select({
-  android: "http://10.0.2.2:8000",
-  ios: "http://localhost:8000",
-  default: "http://localhost:8000",
+  android: "http://192.168.1.10:8000",
+  ios: "http://192.168.1.10:8000",
+  default: "http://192.168.1.10:8000",
 });
 
 const COLORS = {

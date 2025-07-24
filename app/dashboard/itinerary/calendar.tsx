@@ -26,19 +26,19 @@ import ItineraryModal from "../../../components/ItineraryModal";
 import { ScheduleItemEditModal } from "../../../components/ScheduleItemEditModal";
 
 const BACKEND_ITINERARY_API_URL = Platform.select({
-  android: "http://10.0.2.2:8000/api/itineraries",
-  ios: "http://localhost:8000/api/itineraries",
-  default: "http://localhost:8000/api/itineraries",
+  android: "http://192.168.1.10:8000/api/itineraries",
+  ios: "http://192.168.1.10:8000/api/itineraries",
+  default: "http://192.168.1.10:8000/api/itineraries",
 });
 const BACKEND_AUTH_API_URL = Platform.select({
-  android: "http://10.0.2.2:8000/auth",
-  ios: "http://localhost:8000/auth",
-  default: "http://localhost:8000/auth",
+  android: "http://192.168.1.10:8000/auth",
+  ios: "http://192.168.1.10:8000/auth",
+  default: "http://192.168.1.10:8000/auth",
 });
 const BACKEND_RECOMMENDATIONS_API_URL = Platform.select({
-  android: "http://10.0.2.2:8000/api",
-  ios: "http://localhost:8000/api",
-  default: "http://localhost:8000/api",
+  android: "http://192.168.1.10:8000/api",
+  ios: "http://192.168.1.10:8000/api",
+  default: "http://192.168.1.10:8000/api",
 });
 
 type ScheduleItem = { id: string; place_id: string; place_name: string; place_type?: string; place_address?: string; place_rating?: number; place_image?: string; scheduled_date: string; scheduled_time: string; duration_minutes: number; };
