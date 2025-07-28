@@ -1,27 +1,41 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { SafeAreaView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  SafeAreaView, StyleSheet, Switch, Text,
+  TouchableOpacity, View, Alert
+} from 'react-native';
+import * as Notifications from 'expo-notifications';
+import { registerForPushNotificationsAsync, sendNotificationToBackend } from '../../services/notification';
 
 export default function SettingsScreen() {
   const router = useRouter();
-
-  // Updated toggle states to match image
+  const [pushToken, setPushToken] = useState<string | null>(null);
   const [securityNotifications, setSecurityNotifications] = useState(true);
   const [reminders, setReminders] = useState(false);
   const [recommendations, setRecommendations] = useState(true);
   const [tips, setTips] = useState(true);
 
+  useEffect(() => {
+    registerForPushNotificationsAsync().then(token => {
+      if (token) setPushToken(token);
+    });
+
+    const subscription = Notifications.addNotificationReceivedListener(notification => {
+      Alert.alert("New Notification", notification.request.content.title + '\n' + notification.request.content.body);
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  const triggerTestNotification = async (title: string, body: string) => {
+    if (pushToken) {
+      await sendNotificationToBackend(pushToken, title, body);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Pagination dots */}
-      <View style={styles.dotsContainer}>
-        <View style={[styles.dot, { backgroundColor: '#D1D5DB' }]} />
-        <View style={[styles.dot, { backgroundColor: '#6B7280' }]} />
-        <View style={[styles.dot, { backgroundColor: '#D1D5DB' }]} />
-      </View>
-
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.push('/dashboard/profile/profile')}>
           <MaterialIcons name="arrow-back" size={24} color="#1F2937" />
@@ -29,73 +43,52 @@ export default function SettingsScreen() {
         <Text style={styles.title}>Settings</Text>
       </View>
 
-      {/* Notification Settings */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Notifications</Text>
-        <Text style={styles.sectionSubtitle}>
-          Select the kinds of notifications you get about your attractions and restaurants
-        </Text>
+        <Text style={styles.sectionSubtitle}>Choose your preferences</Text>
 
-        {/* Security */}
         <View style={styles.notificationItem}>
           <View style={styles.notificationText}>
-            <Text style={styles.notificationTitle}>Security Informations</Text>
-            <Text style={styles.notificationDescription}>Password Resets, Login Attempt</Text>
+            <Text style={styles.notificationTitle}>Security</Text>
+            <Text style={styles.notificationDescription}>Password resets, login attempts</Text>
           </View>
-          <Switch
-            trackColor={{ false: '#E5E7EB', true: '#6366F1' }}
-            thumbColor="#FFFFFF"
-            onValueChange={setSecurityNotifications}
-            value={securityNotifications}
-          />
+          <Switch value={securityNotifications} onValueChange={(v) => {
+            setSecurityNotifications(v);
+            if (v) triggerTestNotification("Security Alert", "New login attempt detected");
+          }} />
         </View>
 
-        {/* Reminders */}
         <View style={styles.notificationItem}>
           <View style={styles.notificationText}>
             <Text style={styles.notificationTitle}>Reminders</Text>
-            <Text style={styles.notificationDescription}>
-              To remind the upcoming plans in your itineraries
-            </Text>
+            <Text style={styles.notificationDescription}>Upcoming travel plans</Text>
           </View>
-          <Switch
-            trackColor={{ false: '#E5E7EB', true: '#6366F1' }}
-            thumbColor="#FFFFFF"
-            onValueChange={setReminders}
-            value={reminders}
-          />
+          <Switch value={reminders} onValueChange={(v) => {
+            setReminders(v);
+            if (v) triggerTestNotification("Reminder", "Trip starts in 2 days");
+          }} />
         </View>
 
-        {/* Recommendations */}
         <View style={styles.notificationItem}>
           <View style={styles.notificationText}>
             <Text style={styles.notificationTitle}>Recommendations</Text>
-            <Text style={styles.notificationDescription}>
-              Show the popular tourist attractions and restaurants
-            </Text>
+            <Text style={styles.notificationDescription}>Nearby places to explore</Text>
           </View>
-          <Switch
-            trackColor={{ false: '#E5E7EB', true: '#6366F1' }}
-            thumbColor="#FFFFFF"
-            onValueChange={setRecommendations}
-            value={recommendations}
-          />
+          <Switch value={recommendations} onValueChange={(v) => {
+            setRecommendations(v);
+            if (v) triggerTestNotification("Recommendation", "Don't miss the floating market!");
+          }} />
         </View>
 
-        {/* Tips */}
         <View style={styles.notificationItem}>
           <View style={styles.notificationText}>
-            <Text style={styles.notificationTitle}>Tips about upcoming itinerary’s plans</Text>
-            <Text style={styles.notificationDescription}>
-              To suggest to prepare for unexpected events for your upcoming plans
-            </Text>
+            <Text style={styles.notificationTitle}>Tips</Text>
+            <Text style={styles.notificationDescription}>Useful advice before departure</Text>
           </View>
-          <Switch
-            trackColor={{ false: '#E5E7EB', true: '#6366F1' }}
-            thumbColor="#FFFFFF"
-            onValueChange={setTips}
-            value={tips}
-          />
+          <Switch value={tips} onValueChange={(v) => {
+            setTips(v);
+            if (v) triggerTestNotification("Travel Tip", "Bring an umbrella, rain expected!");
+          }} />
         </View>
       </View>
     </SafeAreaView>
@@ -103,66 +96,14 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  dotsContainer: {
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginHorizontal: 3,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    marginBottom: 10,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginLeft: 10,
-  },
-  section: {
-    paddingHorizontal: 24,
-    paddingTop: 30,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 5,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 25,
-  },
-  notificationItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  notificationText: {
-    flex: 1,
-    marginRight: 10,
-  },
-  notificationTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1F2937',
-    marginBottom: 5,
-  },
-  notificationDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 20 },
+  title: { fontSize: 24, fontWeight: 'bold', marginLeft: 10 },
+  section: { padding: 20 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold' },
+  sectionSubtitle: { fontSize: 14, color: '#666', marginBottom: 20 },
+  notificationItem: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  notificationText: { flex: 1 },
+  notificationTitle: { fontSize: 16, fontWeight: '600' },
+  notificationDescription: { fontSize: 14, color: '#666' },
 });
