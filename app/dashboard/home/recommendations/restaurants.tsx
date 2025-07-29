@@ -15,11 +15,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import RestaurantCard from "../../../../components/RestaurantCard";
+import { API_URL } from "../../../config";
 
 const BACKEND_API_URL = Platform.select({
-  android: "http://192.168.1.10:8000/api/recommendations/restaurants",
-  ios: "http://192.168.1.10:8000/api/recommendations/restaurants",
-  default: "http://192.168.1.10:8000/api/recommendations/restaurants",
+  android: `${API_URL}/api/recommendations/restaurants`,
+  ios: `${API_URL}/api/recommendations/restaurants`,
+  default: `${API_URL}/api/recommendations/restaurants`,
 });
 
 interface Place {

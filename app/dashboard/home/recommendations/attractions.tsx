@@ -15,11 +15,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AttractionCard from "../../../../components/AttractionCard";
+import { API_URL } from "../../../config";
 
 const BACKEND_API_URL = Platform.select({
-  android: "http://192.168.1.10:8000/api/recommendations/attractions",
-  ios: "http://192.168.1.10:8000/api/recommendations/attractions",
-  default: "http://192.168.1.10:8000/api/recommendations/attractions",
+  android: `${API_URL}/api/recommendations/attractions`,
+  ios: `${API_URL}/api/recommendations/attractions`,
+  default: `${API_URL}/api/recommendations/attractions`,
 });
 
 interface Place {

@@ -24,21 +24,21 @@ import { Dropdown } from "react-native-element-dropdown";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import ItineraryModal from "../../../components/ItineraryModal";
 import { ScheduleItemEditModal } from "../../../components/ScheduleItemEditModal";
-
+import { API_URL } from "../../config";
 const BACKEND_ITINERARY_API_URL = Platform.select({
-  android: "http://192.168.1.10:8000/api/itineraries",
-  ios: "http://192.168.1.10:8000/api/itineraries",
-  default: "http://192.168.1.10:8000/api/itineraries",
+  android: `${API_URL}/api/itineraries`,
+  ios: `${API_URL}/api/itineraries`,
+  default: `${API_URL}/api/itineraries`,
 });
 const BACKEND_AUTH_API_URL = Platform.select({
-  android: "http://192.168.1.10:8000/auth",
-  ios: "http://192.168.1.10:8000/auth",
-  default: "http://192.168.1.10:8000/auth",
+  android: `${API_URL}/auth`,
+  ios: `${API_URL}/auth`,
+  default: `${API_URL}/auth`,
 });
 const BACKEND_RECOMMENDATIONS_API_URL = Platform.select({
-  android: "http://192.168.1.10:8000/api",
-  ios: "http://192.168.1.10:8000/api",
-  default: "http://192.168.1.10:8000/api",
+  android: `${API_URL}/api`,
+  ios: `${API_URL}/api`,
+  default: `${API_URL}/api`,
 });
 
 type ScheduleItem = { id: string; place_id: string; place_name: string; place_type?: string; place_address?: string; place_rating?: number; place_image?: string; scheduled_date: string; scheduled_time: string; duration_minutes: number; };
@@ -246,7 +246,7 @@ export default function CalendarScreen() {
   const handleNextWeek = () => { setDisplayDate(current => { const newDate = new Date(current); newDate.setDate(current.getDate() + 7); return newDate; }); };
   const formatDateHeader = (date: Date) => date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const getTimeOfDay = (date: Date) => { const h = date.getHours(); if (h < 12) return "Good Morning"; if (h < 17) return "Good Afternoon"; return "Good Evening"; };
-  const timeSlots = Array.from({ length: 17 }, (_, i) => { const h = 6 + i; return `${(h % 12 || 12).toString().padStart(2, "0")}:00 ${h >= 12 ? "PM" : "AM"}`; });
+  const timeSlots = Array.from({ length: 24 }, (_, i) => { const h = i; return `${(h % 12 || 12).toString().padStart(2, "0")}:00 ${h >= 12 ? "PM" : "AM"}`; });
   const getScheduleItemsForTimeSlot = (timeSlot: string): ScheduleItem[] => { if (!selectedItinerary) return []; const parts = timeSlot.match(/(\d+):(\d+)\s(AM|PM)/); if (!parts) return []; let hour12 = parseInt(parts[1], 10); const ampm = parts[3]; let hour24 = hour12; if (ampm === 'PM' && hour12 < 12) { hour24 += 12; } if (ampm === 'AM' && hour12 === 12) { hour24 = 0; } return selectedItinerary.schedule_items.filter((item) => { const itemDate = parse(item.scheduled_date, "yyyy-MM-dd", new Date()); if (!isSameDay(itemDate, selectedDate)) { return false; } const itemHour24 = parseInt(item.scheduled_time.split(":")[0], 10); return itemHour24 === hour24; }); };
   const handleItemPress = async (item: ScheduleItem) => { if (expandedItemId === item.id) { setExpandedItemId(null); setRouteCoordinates([]); return; } setRouteCoordinates([]); setIsDescriptionExpanded(null); setExpandedItemId(item.id); if (!placeDetailsCache[item.place_id]) { setIsFetchingDetails(true); try { const token = await AsyncStorage.getItem("firebase_id_token"); const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/place/${item.place_id}/details`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); if (!response.ok) throw new Error("Failed to fetch place details"); const details: PlaceDetails = await response.json(); setPlaceDetailsCache(prev => ({ ...prev, [item.place_id]: details })); } catch (error) { console.error("Error fetching place details:", error); Alert.alert("Error", "Could not load place details."); setExpandedItemId(null); } finally { setIsFetchingDetails(false); } } };
   const toggleDescriptionExpansion = (itemId: string) => setIsDescriptionExpanded(isDescriptionExpanded === itemId ? null : itemId);

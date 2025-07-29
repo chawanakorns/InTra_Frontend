@@ -17,11 +17,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { API_URL } from "../../config";
 
 const BACKEND_API_URL = Platform.select({
-  android: "http://192.168.1.10:8000",
-  ios: "http://192.168.1.10:8000",
-  default: "http://192.168.1.10:8000",
+  android: `${API_URL}`,
+  ios: `${API_URL}`,
+  default: `${API_URL}`,
 });
 
 const COLORS = {
