@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import { auth } from "../../../config/firebaseConfig";
+import { API_URL } from '../../config'; // <-- THE FIX: Import the centralized URL
 
 export default function SignUp() {
   const navigation = useNavigation();
@@ -44,14 +45,10 @@ export default function SignUp() {
   const onChangeDate = (event, selectedDate) => { setShowDatePicker(false); if (selectedDate) { setDate(selectedDate); } };
   const showDatepicker = () => setShowDatePicker(true);
   
-  // --- THE FIX: Use a timezone-safe formatting method ---
   const formatDateForDisplayAndAPI = (dateToFormat) => {
-    // getFullYear(), getMonth(), and getDate() are based on the device's local timezone.
     const year = dateToFormat.getFullYear();
-    const month = (dateToFormat.getMonth() + 1).toString().padStart(2, '0'); // +1 because months are 0-indexed
+    const month = (dateToFormat.getMonth() + 1).toString().padStart(2, '0');
     const day = dateToFormat.getDate().toString().padStart(2, '0');
-    
-    // This creates a "YYYY-MM-DD" string that correctly reflects the user's selection.
     return `${year}-${month}-${day}`;
   };
 
@@ -69,7 +66,6 @@ export default function SignUp() {
       return;
     }
     setIsLoading(true);
-    const API_BASE_URL = "http://192.168.1.10:8000";
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
@@ -80,13 +76,12 @@ export default function SignUp() {
       
       const syncData = {
         fullName: fullName.trim(),
-        // --- THE FIX: Use the new safe formatting function ---
         dob: formatDateForDisplayAndAPI(date),
         gender: gender,
       };
 
       await axios.post(
-        `${API_BASE_URL}/auth/sync`,
+        `${API_URL}/auth/sync`, // <-- THE FIX: Use API_URL
         syncData,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -97,6 +92,8 @@ export default function SignUp() {
       let errorMessage = "Registration failed. Please try again.";
       if (error.response) {
         errorMessage = error.response.data.detail || "An error occurred on the server.";
+      } else if (error.isAxiosError) {
+          errorMessage = "Network Error: Could not connect to the server. Please check your connection and try again.";
       } else if (error.code) {
         if (error.code === "auth/email-already-in-use") {
           errorMessage = "This email address is already registered.";
@@ -122,7 +119,6 @@ export default function SignUp() {
         <View style={{ width: "48%" }}>
           <Text style={styles.labelText}>Date of Birth</Text>
           <TouchableOpacity style={styles.dateInput} onPress={showDatepicker}>
-            {/* --- THE FIX: Use the same safe formatter for display --- */}
             <Text style={styles.dateText}>{formatDateForDisplayAndAPI(date)}</Text>
             <Ionicons name="calendar" size={20} color={Colors.GRAY} />
           </TouchableOpacity>

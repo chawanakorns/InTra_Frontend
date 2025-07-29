@@ -26,6 +26,14 @@ interface Props {
   onSave: (itemId: string | null, newDate: string, newTime: string) => void;
 }
 
+// --- THE FIX: Add the same timezone-safe date formatter here ---
+const formatDateToYYYYMMDD = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerary, onClose, onSave }) => {
   const [date, setDate] = useState(new Date());
   const [time, setTime] = useState(new Date());
@@ -59,7 +67,8 @@ export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerar
 
   const handleSave = () => {
     const itemId = item.id || null; 
-    const scheduled_date = date.toISOString().split('T')[0];
+    // --- THE FIX: Use our new timezone-safe formatter ---
+    const scheduled_date = formatDateToYYYYMMDD(date);
     const scheduled_time = time.toTimeString().slice(0, 5);
     onSave(itemId, scheduled_date, scheduled_time);
   };
@@ -79,7 +88,7 @@ export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerar
           <View style={styles.pickerContainer}>
             <Text style={styles.label}>Date:</Text>
             <TouchableOpacity style={styles.pickerButton} onPress={() => setShowDatePicker(true)}>
-                <Text style={styles.pickerText}>{date.toLocaleDateString('en-CA')}</Text>
+                <Text style={styles.pickerText}>{formatDateToYYYYMMDD(date)}</Text>
             </TouchableOpacity>
           </View>
           
@@ -124,7 +133,7 @@ export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerar
     </Modal>
   );
 };
-
+// Styles remain the same
 const styles = StyleSheet.create({
     centeredView: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: 'rgba(0,0,0,0.5)' },
     modalView: { width: '90%', backgroundColor: "white", borderRadius: 20, padding: 25, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },

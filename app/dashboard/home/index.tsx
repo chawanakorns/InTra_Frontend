@@ -5,22 +5,17 @@ import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
-  View,
+  View
 } from "react-native";
 import { Calendar, DateData } from "react-native-calendars";
 import { MarkedDates } from "react-native-calendars/src/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryItem from "../../../components/CategoryItem";
 import PopularDestinationCard from "../../../components/PopularDestinationCard";
-
-const API_URL = Platform.select({
-  android: "http://10.0.2.2:8000",
-  default: "http://127.0.0.1:8000",
-});
+import { API_URL } from "../../config";
 
 interface Itinerary {
   id: number;

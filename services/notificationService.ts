@@ -2,13 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
-
-const BACKEND_AUTH_API_URL = Platform.select({
-  android: "http://10.0.2.2:8000/auth",
-  ios: "http://localhost:8000/auth",
-  default: "http://localhost:8000/auth",
-});
+import { API_URL } from '../app/config'; // <-- THE FIX: Import the centralized URL
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -29,7 +23,7 @@ export async function sendTokenToBackend(token: string) {
     }
 
     await axios.post(
-      `${BACKEND_AUTH_API_URL}/fcm-token`,
+      `${API_URL}/auth/fcm-token`, // <-- THE FIX: Use API_URL
       { fcm_token: token },
       { headers: { Authorization: `Bearer ${authToken}` } }
     );
@@ -59,10 +53,8 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 
   try {
-    // ACTION REQUIRED: Replace with your actual Expo Project ID
-    // You can find this on your project page at expo.dev
     const token = (await Notifications.getExpoPushTokenAsync({
-      projectId: 'YOUR_EXPO_PROJECT_ID_HERE',
+      projectId: '274b91e6-8a77-42dd-af30-079499a02c07',
     })).data;
     
     console.log('Expo Push Token:', token);

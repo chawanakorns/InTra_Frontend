@@ -3,16 +3,14 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { useNavigation, useRouter } from "expo-router";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, StyleSheet, Text,
   TextInput, TouchableOpacity, View,
 } from "react-native";
-// --- NEW IMPORTS ---
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../../config/firebaseConfig"; // Adjust this path if needed
-
-const API_BASE_URL = "http://192.168.1.10:8000";
+import { auth } from "../../../config/firebaseConfig";
+import { API_URL } from '../../config'; // <-- THE FIX: Import the centralized URL
 
 export default function SignIn() {
   const navigation = useNavigation();
@@ -55,22 +53,18 @@ export default function SignIn() {
 
     setIsLoading(true);
     try {
-      // Step 1: Sign in with Firebase
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
 
-      // Step 2: Get the Firebase ID token
       const token = await user.getIdToken();
       await AsyncStorage.setItem("firebase_id_token", token);
 
-      // Step 3: Sync user with your backend to create/get profile
       const syncResponse = await axios.post(
-        `${API_BASE_URL}/auth/sync`,
-        {}, // Empty body, token is in the header
+        `${API_URL}/auth/sync`, // <-- THE FIX: Use API_URL
+        {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Step 4: Navigate based on personalization status from your backend
       if (syncResponse.data.has_completed_personalization) {
         router.replace("dashboard");
       } else {
@@ -78,12 +72,16 @@ export default function SignIn() {
       }
     } catch (error) {
       console.error("Sign-In Error:", error);
-      const errorCode = error.code;
       let errorMessage = "An unexpected error occurred. Please try again.";
-      if (errorCode === 'auth/user-not-found' || errorCode === 'auth/wrong-password' || errorCode === 'auth/invalid-credential') {
-        errorMessage = "Invalid email or password.";
-      } else if (errorCode === 'auth/invalid-email') {
-        errorMessage = "Please enter a valid email address.";
+      if (error.isAxiosError) {
+          errorMessage = "Network Error: Could not connect to the server. Please check your connection and try again.";
+      } else if (error.code) {
+          const errorCode = error.code;
+          if (errorCode === 'auth/user-not-found' || errorCode === 'auth/wrong-password' || errorCode === 'auth/invalid-credential') {
+            errorMessage = "Invalid email or password.";
+          } else if (errorCode === 'auth/invalid-email') {
+            errorMessage = "Please enter a valid email address.";
+          }
       }
       Alert.alert("Sign In Failed", errorMessage);
     } finally {
@@ -139,7 +137,6 @@ export default function SignIn() {
     </View>
   );
 }
-// Styles (style) are unchanged
 const style = StyleSheet.create({
   container: { padding: 25, paddingTop: 50, backgroundColor: Colors.BLUE, height: "100%" },
   title: { fontFamily: "outfit-bold", color: Colors.WHITE, fontSize: 30, marginTop: 30 },

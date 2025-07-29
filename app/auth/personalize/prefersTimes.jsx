@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { API_URL } from '../../config'; // <-- THE FIX: Import the centralized URL
 
 const data = [
   { id: "1", label: "Daytime", image: require("../../../assets/images/adventurous.jpg") },
@@ -82,7 +83,7 @@ export default function PrefersTimes() {
       };
 
       await axios.post(
-        "http://10.0.2.2:8000/auth/personalization",
+        `${API_URL}/auth/personalization`, // <-- THE FIX: Use API_URL
         personalizationData,
         { headers: { Authorization: `Bearer ${token}` } }
       );

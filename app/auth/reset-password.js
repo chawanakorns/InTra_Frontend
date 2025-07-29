@@ -3,14 +3,15 @@ import axios from "axios";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { API_URL } from '../config'; // <-- THE FIX: Import the centralized URL
 
 export default function ResetPassword() {
   const router = useRouter();
@@ -43,8 +44,7 @@ export default function ResetPassword() {
 
     setIsLoading(true);
     try {
-      const API_BASE_URL = "http://10.0.2.2:8000";
-      await axios.post(`${API_BASE_URL}/auth/reset-password`, {
+      await axios.post(`${API_URL}/auth/reset-password`, { // <-- THE FIX: Use API_URL
         token: token,
         new_password: newPassword,
       });

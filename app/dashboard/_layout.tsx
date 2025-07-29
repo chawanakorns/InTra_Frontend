@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import React, { useEffect } from 'react'; // <-- IMPORT useEffect
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { registerForPushNotificationsAsync } from '../../services/notificationService'; // <-- IMPORT THE SERVICE
 
 const COLORS = {
   primary: "#6366F1",
@@ -29,6 +31,16 @@ function TabBarIcon({
 
 export default function RootLayout() {
   const insets = useSafeAreaInsets();
+
+  // --- ADD THIS HOOK ---
+  // This hook runs when the component mounts, which is perfect for one-time setup tasks
+  // like registering for push notifications after a user logs in.
+  useEffect(() => {
+    // We call the function to get permission and the token.
+    // The service itself handles sending the token to your backend.
+    registerForPushNotificationsAsync();
+  }, []); // The empty dependency array [] ensures this effect runs only once.
+  // --------------------
 
   return (
     <SafeAreaProvider>

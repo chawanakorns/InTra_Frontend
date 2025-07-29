@@ -31,6 +31,14 @@ interface ItineraryModalProps {
 
 const BUDGET_OPTIONS = ["Low", "Medium", "High", "Custom"];
 
+// --- THE FIX: A timezone-safe date formatter ---
+const formatDateToYYYYMMDD = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0'); // getMonth() is 0-indexed
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function ItineraryModal({
   visible,
   onClose,
@@ -98,13 +106,11 @@ export default function ItineraryModal({
     }
     setIsCreating(true);
 
-    // --- THE FIX: Use the correct Firebase token key ---
     const token = await AsyncStorage.getItem('firebase_id_token');
     if (!token) {
       Alert.alert('Authentication Error', 'Please log in again.');
       setIsCreating(false);
-      onClose(); // Close modal and force re-login
-      // You might want to navigate to login screen here: router.replace('/auth/sign-in');
+      onClose();
       return;
     }
 
@@ -118,9 +124,10 @@ export default function ItineraryModal({
     const payload = {
       name,
       budget: budgetPayload,
-      type: "Personalized", // This could be dynamic based on auto-generate
-      start_date: startDate.toISOString().split('T')[0],
-      end_date: endDate.toISOString().split('T')[0],
+      type: autoGenerate ? "Auto-generated" : "Customized",
+      // --- THE FIX: Use our new timezone-safe formatter ---
+      start_date: formatDateToYYYYMMDD(startDate),
+      end_date: formatDateToYYYYMMDD(endDate),
     };
 
     const endpoint = autoGenerate ? `${backendApiUrl}/generate` : `${backendApiUrl}/`;
@@ -180,7 +187,7 @@ export default function ItineraryModal({
 
   return (
     <Modal
-      animationType="none" // Use none because we are controlling it with Animated
+      animationType="none"
       transparent={true}
       visible={visible}
       onRequestClose={onClose}
@@ -205,7 +212,7 @@ export default function ItineraryModal({
           <View style={styles.datePickerContainer}>
             <Text style={styles.dateLabel}>Start Date</Text>
             <TouchableOpacity onPress={() => setShowStartDatePicker(true)}>
-              <Text style={styles.dateText}>{startDate.toLocaleDateString('en-CA')}</Text>
+              <Text style={styles.dateText}>{formatDateToYYYYMMDD(startDate)}</Text>
             </TouchableOpacity>
           </View>
           {showStartDatePicker && (
@@ -231,7 +238,7 @@ export default function ItineraryModal({
           <View style={styles.datePickerContainer}>
             <Text style={styles.dateLabel}>End Date</Text>
             <TouchableOpacity onPress={() => setShowEndDatePicker(true)}>
-              <Text style={styles.dateText}>{endDate.toLocaleDateString('en-CA')}</Text>
+              <Text style={styles.dateText}>{formatDateToYYYYMMDD(endDate)}</Text>
             </TouchableOpacity>
           </View>
           {showEndDatePicker && (
@@ -275,7 +282,7 @@ export default function ItineraryModal({
     </Modal>
   );
 }
-
+// Styles remain the same
 const styles = StyleSheet.create({
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   modalContent: { backgroundColor: 'white', paddingHorizontal: 20, paddingTop: 10, borderTopRightRadius: 20, borderTopLeftRadius: 20, paddingBottom: 40 },
