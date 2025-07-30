@@ -1,6 +1,7 @@
+// file: components/ItineraryModal.tsx
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as Notifications from 'expo-notifications';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,6 +18,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+// --- NEW: Import the notification hook ---
+import { useNotification } from '../context/NotificationContext';
 
 interface SimpleItinerary {
   startDate: Date;
@@ -44,6 +47,9 @@ export default function ItineraryModal({
   backendApiUrl,
   itineraries,
 }: ItineraryModalProps) {
+  // --- NEW: Get the notification function ---
+  const { addNotification } = useNotification();
+  
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date(new Date().setDate(new Date().getDate() + 1)));
@@ -91,6 +97,21 @@ export default function ItineraryModal({
     setOverlapWarning(overlappingItinerary ? 'Warning: This date range overlaps with an existing itinerary.' : null);
   }, [startDate, endDate, itineraries, visible]);
 
+  const savePersistentNotification = async (title: string, body: string, token: string) => {
+    try {
+      await fetch(`${backendApiUrl.replace('/itineraries', '/notifications')}/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title, body }),
+      });
+    } catch (error) {
+      console.error('Failed to save persistent notification:', error);
+    }
+  };
+
   const handleSave = async () => {
     if (!name) {
       Alert.alert('Missing Information', 'Please provide a name for your itinerary.');
@@ -116,7 +137,7 @@ export default function ItineraryModal({
     const payload = {
       name,
       budget: budgetPayload,
-      type: 'Personalized',
+      type: autoGenerate ? 'Auto-generated' : 'Personalized',
       start_date: startDate.toISOString().split('T')[0],
       end_date: endDate.toISOString().split('T')[0],
     };
@@ -137,26 +158,29 @@ export default function ItineraryModal({
       if (!response.ok) {
         throw new Error(responseData.detail || 'Failed to create itinerary');
       }
-
+      
+      // --- NEW: Trigger Notifications on Success ---
+      addNotification('Itinerary created successfully!', 'success');
+      await savePersistentNotification(
+        `New Itinerary: ${name}`,
+        `Your trip from ${payload.start_date} to ${payload.end_date} is ready.`,
+        token
+      );
+      
+      // Call the parent callback to update UI
       onCreateItinerary(responseData);
 
-      // ✅ Trigger local notification for auto-generate
-      if (autoGenerate) {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'AI Itinerary Created ✨',
-            body: `Your trip "${name}" has been generated.`,
-          },
-          trigger: null,
-        });
-      }
     } catch (error: any) {
+      addNotification('Failed to create itinerary.', 'error');
       Alert.alert('Creation Failed', error.message);
     } finally {
       setIsCreating(false);
     }
   };
 
+  // The rest of the component (renderBudgetButtons, renderCustomBudgetInput, JSX, styles) remains the same
+  // ... (pasting the rest for completeness)
+  
   const renderBudgetButtons = () => (
     <View>
       <Text style={styles.label}>Budget (Optional)</Text>
@@ -294,6 +318,7 @@ export default function ItineraryModal({
   );
 }
 
+// Styles remain the same
 const styles = StyleSheet.create({
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   modalContent: {

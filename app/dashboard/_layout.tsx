@@ -1,3 +1,5 @@
+// file: app/dashboard/profile/_layout.tsx
+
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import {
@@ -13,7 +15,6 @@ const COLORS = {
   dark: "#111827",
 };
 
-// A helper component for consistent icon rendering
 function TabBarIcon({
   name,
   color,
@@ -27,7 +28,7 @@ function TabBarIcon({
   return <Ionicons size={24} name={iconName as any} color={color} />;
 }
 
-export default function RootLayout() {
+export default function DashboardTabLayout() {
   const insets = useSafeAreaInsets();
 
   return (
@@ -44,8 +45,8 @@ export default function RootLayout() {
             backgroundColor: COLORS.white,
             borderTopWidth: 1,
             borderTopColor: COLORS.lightGray,
-            elevation: 5, // Shadow for Android
-            shadowColor: COLORS.dark, // Shadow for iOS
+            elevation: 5,
+            shadowColor: COLORS.dark,
             shadowOffset: { width: 0, height: -2 },
             shadowOpacity: 0.05,
             shadowRadius: 4,
@@ -95,13 +96,21 @@ export default function RootLayout() {
           }}
         />
 
-        {/* Hidden Routes */}
+        {/* --- MODIFIED: Notification screen is now hidden from the tab bar --- */}
+        <Tabs.Screen
+          name="notification" // This still refers to the app/dashboard/notification directory
+          options={{
+            href: null, // This hides the tab from the navigation bar
+          }}
+        />
+
+        {/* Other Hidden Routes */}
         <Tabs.Screen name="home/recommendations" options={{ href: null }} />
         <Tabs.Screen name="profile/setting" options={{ href: null }} />
         <Tabs.Screen
           name="profile/editprofile/editprofile"
           options={{
-            href: null, // hides it from the tab bar
+            href: null,
           }}
         />
       </Tabs>

@@ -1,7 +1,11 @@
+// file: app/dashboard/_layout.tsx
+
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { UserProfileProvider } from "../context/UserProfileContext";
+// --- NEW: Import the NotificationProvider ---
+import { NotificationProvider } from "../context/NotificationContext";
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -24,10 +28,13 @@ export default function RootLayout() {
   }
 
   return (
-    <UserProfileProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-      </Stack>
-    </UserProfileProvider>
+    // --- WRAP with NotificationProvider ---
+    <NotificationProvider>
+      <UserProfileProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+        </Stack>
+      </UserProfileProvider>
+    </NotificationProvider>
   );
 }

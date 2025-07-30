@@ -43,6 +43,12 @@ interface Place {
   placeId: string;
 }
 
+// Interface for fetching only the data we need for the badge
+interface NotificationStatus {
+  id: number;
+  is_read: boolean;
+}
+
 const getDatesInRange = (startDateStr: string, endDateStr: string): string[] => {
   const dates = [];
   let currentDate = new Date(`${startDateStr}T00:00:00Z`);
@@ -72,26 +78,25 @@ export default function Dashboard() {
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [popularDestinations, setPopularDestinations] = useState<Place[]>([]);
   const [isLoadingPopular, setIsLoadingPopular] = useState(true);
+  
+  // State for holding the count of unread notifications
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchItineraries = useCallback(async () => {
     setIsLoadingCalendar(true);
     try {
       const token = await AsyncStorage.getItem("firebase_id_token");
-
       if (!token) {
         setItineraries([]);
         return;
       }
-
       const itinerariesResponse = await fetch(`${API_URL}/api/itineraries/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!itinerariesResponse.ok) {
         setItineraries([]);
         return;
       }
-
       const fetchedItineraries: Itinerary[] = await itinerariesResponse.json();
       setItineraries(fetchedItineraries);
     } catch (error) {
@@ -120,11 +125,37 @@ export default function Dashboard() {
     }
   }, []);
 
+  // Function to fetch notifications and count the unread ones
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem("firebase_id_token");
+      if (!token) {
+        setUnreadCount(0);
+        return;
+      }
+      const response = await fetch(`${API_URL}/api/notifications/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const notifications: NotificationStatus[] = await response.json();
+        const count = notifications.filter(n => !n.is_read).length;
+        setUnreadCount(count);
+      } else {
+        setUnreadCount(0);
+      }
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+      setUnreadCount(0);
+    }
+  }, []);
+
+  // useFocusEffect will run all fetch functions every time the screen is focused
   useFocusEffect(
     useCallback(() => {
       fetchItineraries();
       fetchPopularDestinations();
-    }, [fetchItineraries, fetchPopularDestinations])
+      fetchUnreadCount();
+    }, [fetchItineraries, fetchPopularDestinations, fetchUnreadCount])
   );
 
   const markedDates = useMemo(() => {
@@ -184,10 +215,17 @@ export default function Dashboard() {
           <Text style={styles.title}>InTra</Text>
           <View style={styles.headerRight}>
             <TouchableOpacity
-              onPress={() => router.push("../dashboard/notifications")}
-              style={styles.notificationIcon}
+              // --- THIS IS THE CORRECTED LINE ---
+              onPress={() => router.push("../dashboard/notification/index")}
+              style={styles.notificationButton}
             >
               <Ionicons name="notifications-outline" size={28} color="#6366F1" />
+              {/* Badge for unread notifications */}
+              {unreadCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
             <View style={styles.dateContainer}>
               <Text style={styles.day}>{new Date().getDate()}</Text>
@@ -299,8 +337,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  notificationIcon: {
+  notificationButton: {
     marginRight: 16,
+    padding: 4, // Added for easier pressing
+  },
+  notificationBadge: {
+    position: 'absolute',
+    right: -2,
+    top: -2,
+    backgroundColor: 'red',
+    borderRadius: 9,
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fff',
+  },
+  notificationBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   dateContainer: {
     flexDirection: "row",
