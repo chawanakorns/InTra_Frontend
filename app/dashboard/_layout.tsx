@@ -98,7 +98,7 @@ export default function DashboardTabLayout() {
 
         {/* --- MODIFIED: Notification screen is now hidden from the tab bar --- */}
         <Tabs.Screen
-          name="notification" // This still refers to the app/dashboard/notification directory
+          name="notifications/index" // This still refers to the app/dashboard/notification directory
           options={{
             href: null, // This hides the tab from the navigation bar
           }}

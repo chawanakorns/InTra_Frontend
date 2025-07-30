@@ -2,11 +2,13 @@
 
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { formatDistanceToNow } from 'date-fns';
+// --- MODIFIED: Import 'format' instead of 'formatDistanceToNow' ---
+import { format } from 'date-fns';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   RefreshControl,
@@ -93,6 +95,38 @@ export default function NotificationsScreen() {
     }
   };
 
+  const handleClearAll = async () => {
+    Alert.alert(
+      "Clear All Notifications",
+      "Are you sure you want to delete all notifications? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('firebase_id_token');
+              const response = await fetch(`${API_URL}/api/notifications/`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` },
+              });
+
+              if (response.ok) {
+                setNotifications([]);
+              } else {
+                Alert.alert("Error", "Failed to clear notifications.");
+              }
+            } catch (error) {
+              console.error("Failed to clear notifications:", error);
+              Alert.alert("Error", "An unexpected error occurred.");
+            }
+          },
+          style: "destructive",
+        },
+      ]
+    );
+  };
+
   const renderItem = ({ item }: { item: Notification }) => (
     <TouchableOpacity
       style={[styles.notificationItem, !item.is_read && styles.unreadItem]}
@@ -105,7 +139,10 @@ export default function NotificationsScreen() {
       <View style={styles.textContainer}>
         <Text style={styles.title}>{item.title}</Text>
         {item.body && <Text style={styles.body}>{item.body}</Text>}
-        <Text style={styles.date}>{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</Text>
+        {/* --- MODIFIED: Format the date to show Day, Month, Year, and Time --- */}
+        <Text style={styles.date}>
+          {format(new Date(item.created_at), 'MMM d, yyyy, h:mm a')}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -135,7 +172,14 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.header}>Notifications</Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>Notifications</Text>
+        {notifications.length > 0 && (
+          <TouchableOpacity onPress={handleClearAll} style={styles.clearButton}>
+            <MaterialIcons name="clear-all" size={28} color="#6B7280" />
+          </TouchableOpacity>
+        )}
+      </View>
       {notifications.length === 0 ? (
         <View style={styles.centeredContainer}>
           <MaterialIcons name="notifications-off" size={60} color="#9CA3AF" />
@@ -157,13 +201,22 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { fontSize: 32,
-    fontWeight: 'bold',
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 10,
+  },
+  header: {
+    fontSize: 32,
+    fontWeight: 'bold',
     color: '#1F2937',
-    textAlign: 'left' },
+  },
+  clearButton: {
+    padding: 6,
+  },
   list: { paddingHorizontal: 20 },
   notificationItem: { flexDirection: 'row', backgroundColor: '#FFFFFF', padding: 15, borderRadius: 12, marginBottom: 15, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
   unreadItem: { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' },

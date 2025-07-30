@@ -1,8 +1,9 @@
+// file: app/dashboard/itinerary/calendar.tsx
 import { MaterialIcons } from "@expo/vector-icons";
 import polyline from "@mapbox/polyline";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import { isSameDay, parse } from "date-fns";
+import { format, isSameDay, parse } from "date-fns";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,22 +25,17 @@ import { Dropdown } from "react-native-element-dropdown";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import ItineraryModal from "../../../components/ItineraryModal";
 import { ScheduleItemEditModal } from "../../../components/ScheduleItemEditModal";
+import { useNotification } from "../../../context/NotificationContext";
 
-const BACKEND_ITINERARY_API_URL = Platform.select({
-  android: "http://10.0.2.2:8000/api/itineraries",
-  ios: "http://localhost:8000/api/itineraries",
-  default: "http://localhost:8000/api/itineraries",
+const API_URL = Platform.select({
+  android: 'http://10.0.2.2:8000',
+  default: 'http://127.0.0.1:8000',
 });
-const BACKEND_AUTH_API_URL = Platform.select({
-  android: "http://10.0.2.2:8000/auth",
-  ios: "http://localhost:8000/auth",
-  default: "http://localhost:8000/auth",
-});
-const BACKEND_RECOMMENDATIONS_API_URL = Platform.select({
-  android: "http://10.0.2.2:8000/api",
-  ios: "http://localhost:8000/api",
-  default: "http://localhost:8000/api",
-});
+
+const BACKEND_ITINERARY_API_URL = `${API_URL}/api/itineraries`;
+const BACKEND_AUTH_API_URL = `${API_URL}/auth`;
+const BACKEND_RECOMMENDATIONS_API_URL = `${API_URL}/api`;
+const BACKEND_NOTIFICATION_API_URL = `${API_URL}/api/notifications`;
 
 type ScheduleItem = { id: string; place_id: string; place_name: string; place_type?: string; place_address?: string; place_rating?: number; place_image?: string; scheduled_date: string; scheduled_time: string; duration_minutes: number; };
 type Itinerary = { id: string; type: string; budget: string | null; name: string; startDate: Date; endDate: Date; schedule_items: ScheduleItem[]; };
@@ -61,6 +57,7 @@ const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
 
 export default function CalendarScreen() {
   const router = useRouter();
+  const { addNotification } = useNotification();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [displayDate, setDisplayDate] = useState(new Date());
@@ -97,6 +94,8 @@ export default function CalendarScreen() {
       }
     },
   })).current;
+  
+  
 
   const coveredTimeSlots = useMemo(() => {
     const covered = new Set<string>();
@@ -157,8 +156,26 @@ export default function CalendarScreen() {
   const handleOpenEditModal = (item: ScheduleItem) => { setItemToEdit(item); setIsEditModalVisible(true); };
   const handleCloseEditModal = () => { setIsEditModalVisible(false); setItemToEdit(null); };
 
+  const createPersistentNotification = async (title: string, body: string) => {
+    try {
+        const token = await AsyncStorage.getItem("firebase_id_token");
+        if (!token) return;
+
+        await fetch(BACKEND_NOTIFICATION_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ title, body })
+        });
+    } catch (error) {
+        console.error("Failed to create persistent notification:", error);
+    }
+  };
+
   const handleSaveScheduleItem = async (itemId: string | null, newDate: string, newTime: string) => {
-    if (!selectedItinerary || !itemId) return;
+    if (!selectedItinerary || !itemToEdit || !itemId) return;
   
     const originalItinerary = JSON.parse(JSON.stringify(selectedItinerary));
     
@@ -185,9 +202,19 @@ export default function CalendarScreen() {
   
       if (!response.ok) throw new Error((await response.json()).detail || "Failed to save changes.");
       
-      Alert.alert("Success", "Schedule item has been updated.");
-      // Optional: Refetch for ultimate data consistency
-      // await fetchItineraries(); 
+      const combinedDateTime = parse(`${newDate} ${newTime}`, 'yyyy-MM-dd HH:mm', new Date());
+      const formattedDate = format(combinedDateTime, "MMMM do");
+      const formattedTime = format(combinedDateTime, "h:mm a");
+
+      // Show temporary banner notification
+      const bannerMessage = `Updated to ${formattedDate} at ${formattedTime}`;
+      addNotification(bannerMessage, 'info');
+
+      // Create persistent notification for the notification screen
+      const notificationTitle = "Itinerary Item Updated";
+      const notificationBody = `You changed the date and time for '${itemToEdit.place_name}' to ${formattedDate} at ${formattedTime}.`;
+      await createPersistentNotification(notificationTitle, notificationBody);
+      
     } catch (error) {
       setSelectedItinerary(originalItinerary); // Rollback on error
       console.error("Error updating schedule item:", error);
@@ -214,7 +241,12 @@ export default function CalendarScreen() {
               return { ...prev, schedule_items: prev.schedule_items.filter(i => i.id !== itemToDelete.id) };
             });
             setExpandedItemId(null);
-            Alert.alert("Success", "Item removed successfully.");
+            
+            // --- MODIFIED: Show temporary and persistent notifications on successful deletion ---
+            const notificationMessage = `You deleted the plan "${itemToDelete.place_name}".`;
+            addNotification(notificationMessage, 'info'); 
+            await createPersistentNotification("Plan Item Deleted", notificationMessage);
+
           } else {
             throw new Error((await response.json()).detail || "Failed to delete item.");
           }
@@ -230,16 +262,62 @@ export default function CalendarScreen() {
 
   const handleDeleteItinerary = async () => {
     if (!selectedItinerary) return;
-    Alert.alert("Delete Itinerary", `Delete "${selectedItinerary.name}"? This cannot be undone.`, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: async () => {
-      try {
-        const token = await AsyncStorage.getItem("firebase_id_token");
-        if (!token) { setLoginRequired(true); return; }
-        const response = await fetch(`${BACKEND_ITINERARY_API_URL}/${selectedItinerary.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-        if (response.status === 204) { const updatedItineraries = itineraries.filter(it => it.id !== selectedItinerary!.id); setItineraries(updatedItineraries); setIsDetailsVisible(false); if (updatedItineraries.length > 0) { const newSelected = updatedItineraries[0]; setSelectedItinerary(newSelected); setSelectedDate(newSelected.startDate); setDisplayDate(newSelected.startDate); } else { setSelectedItinerary(null); }
-        } else if (response.status === 401) { setLoginRequired(true); await AsyncStorage.removeItem("firebase_id_token");
-        } else { Alert.alert("Error", (await response.json()).detail || "Failed to delete itinerary."); }
-      } catch (err) { console.error("Deletion error:", err); Alert.alert("Error", "An unexpected error occurred."); }
-    }, }, ]);
+
+    // The name of the itinerary is captured here to be used in the notification messages.
+    const itineraryName = selectedItinerary.name;
+
+    Alert.alert(
+      "Delete Itinerary",
+      `Delete "${itineraryName}"? This cannot be undone.`,
+      [{ text: "Cancel", style: "cancel" },
+      { 
+        text: "Delete", 
+        style: "destructive", 
+        onPress: async () => {
+          try {
+            const token = await AsyncStorage.getItem("firebase_id_token");
+            if (!token) { setLoginRequired(true); return; }
+
+            const response = await fetch(`${BACKEND_ITINERARY_API_URL}/${selectedItinerary.id}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (response.status === 204) {
+              const updatedItineraries = itineraries.filter(it => it.id !== selectedItinerary!.id);
+              setItineraries(updatedItineraries);
+              setIsDetailsVisible(false);
+              
+              if (updatedItineraries.length > 0) {
+                const newSelected = updatedItineraries[0];
+                setSelectedItinerary(newSelected);
+                setSelectedDate(newSelected.startDate);
+                setDisplayDate(newSelected.startDate);
+              } else {
+                setSelectedItinerary(null);
+              }
+            
+              // --- THIS IS WHERE THE NOTIFICATIONS ARE CREATED ---
+
+              // 1. This line creates the temporary, sliding banner notification.
+              addNotification(`You deleted the plan "${itineraryName}".`, 'info');
+              
+              // 2. This line sends the notification to your backend to be stored permanently.
+              await createPersistentNotification("Plan Deleted", `You deleted the travel plan: "${itineraryName}".`);
+
+            } else if (response.status === 401) {
+              setLoginRequired(true);
+              await AsyncStorage.removeItem("firebase_id_token");
+            } else {
+              Alert.alert("Error", (await response.json()).detail || "Failed to delete itinerary.");
+            }
+          } catch (err) {
+            console.error("Deletion error:", err);
+            Alert.alert("Error", "An unexpected error occurred.");
+          }
+        },
+      }],
+    );
   };
 
   const handlePreviousWeek = () => { setDisplayDate(current => { const newDate = new Date(current); newDate.setDate(current.getDate() - 7); return newDate; }); };
