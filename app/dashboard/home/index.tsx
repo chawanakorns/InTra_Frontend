@@ -216,7 +216,7 @@ export default function Dashboard() {
           <View style={styles.headerRight}>
             <TouchableOpacity
               // --- THIS IS THE CORRECTED LINE ---
-              onPress={() => router.push("../dashboard/notification/index")}
+              onPress={() => router.push("/dashboard/notifications")}
               style={styles.notificationButton}
             >
               <Ionicons name="notifications-outline" size={28} color="#6366F1" />

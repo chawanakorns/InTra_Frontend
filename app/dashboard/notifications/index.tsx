@@ -157,7 +157,13 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { fontSize: 32, fontWeight: 'bold', padding: 20, color: '#1F2937' },
+  header: { fontSize: 32,
+    fontWeight: 'bold',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 10,
+    color: '#1F2937',
+    textAlign: 'left' },
   list: { paddingHorizontal: 20 },
   notificationItem: { flexDirection: 'row', backgroundColor: '#FFFFFF', padding: 15, borderRadius: 12, marginBottom: 15, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
   unreadItem: { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' },
