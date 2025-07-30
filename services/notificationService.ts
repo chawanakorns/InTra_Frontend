@@ -2,12 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import { API_URL } from '../app/config'; // <-- THE FIX: Import the centralized URL
+import { Platform } from 'react-native';
+import { API_URL } from '../app/config';
 
+// It tells the app how to behave when a notification is received while the app is open.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
-    shouldPlaySound: false,
+    shouldPlaySound: true, // Let's turn sound on for testing
     shouldSetBadge: false,
     shouldShowBanner: true,
     shouldShowList: true,
@@ -23,7 +25,7 @@ export async function sendTokenToBackend(token: string) {
     }
 
     await axios.post(
-      `${API_URL}/auth/fcm-token`, // <-- THE FIX: Use API_URL
+      `${API_URL}/auth/fcm-token`,
       { fcm_token: token },
       { headers: { Authorization: `Bearer ${authToken}` } }
     );
@@ -37,6 +39,16 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   if (!Device.isDevice) {
     alert('Must use physical device for Push Notifications');
     return null;
+  }
+  
+  // On Android, we must create a channel before asking for permissions.
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250], // Vibrate pattern
+      lightColor: '#FF231F7C', // Red light
+    });
   }
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -57,7 +69,10 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       projectId: '274b91e6-8a77-42dd-af30-079499a02c07',
     })).data;
     
-    console.log('Expo Push Token:', token);
+    console.log('--- EXPO PUSH TOKEN ---');
+    console.log(token);
+    console.log('-----------------------');
+
     await sendTokenToBackend(token);
     return token;
   } catch(e) {
