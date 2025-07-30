@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "intrafrontend",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -16,9 +15,12 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
       "package": "com.seproject.intra",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "notification": {
+        "icon": "./assets/images/notification-icon.png",
+        "color": "#FFFFFF"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -36,7 +38,8 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
