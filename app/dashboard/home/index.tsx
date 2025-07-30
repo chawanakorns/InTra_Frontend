@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -9,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { Calendar, DateData } from "react-native-calendars";
@@ -74,11 +76,9 @@ export default function Dashboard() {
   const fetchItineraries = useCallback(async () => {
     setIsLoadingCalendar(true);
     try {
-      // --- THE FIX: Use the correct Firebase token key ---
       const token = await AsyncStorage.getItem("firebase_id_token");
-      
+
       if (!token) {
-        // If no token, user is not logged in. Don't fetch itineraries.
         setItineraries([]);
         return;
       }
@@ -88,7 +88,6 @@ export default function Dashboard() {
       });
 
       if (!itinerariesResponse.ok) {
-        // Handle cases like expired token by clearing itineraries
         setItineraries([]);
         return;
       }
@@ -97,7 +96,7 @@ export default function Dashboard() {
       setItineraries(fetchedItineraries);
     } catch (error) {
       console.error("Error fetching itineraries:", error);
-      setItineraries([]); // Clear itineraries on error
+      setItineraries([]);
     } finally {
       setIsLoadingCalendar(false);
     }
@@ -153,8 +152,6 @@ export default function Dashboard() {
         } else if (index === datesInRange.length - 1) {
           marking.endingDay = true;
         }
-        // NOTE: The original code had `disableTouchEvent`, which is often better handled
-        // by the calendar's period markingType itself. Keeping it simple.
         newMarkedDates[date] = marking;
       });
     });
@@ -186,6 +183,12 @@ export default function Dashboard() {
         <View style={styles.header}>
           <Text style={styles.title}>InTra</Text>
           <View style={styles.headerRight}>
+            <TouchableOpacity
+              onPress={() => router.push("../dashboard/notifications")}
+              style={styles.notificationIcon}
+            >
+              <Ionicons name="notifications-outline" size={28} color="#6366F1" />
+            </TouchableOpacity>
             <View style={styles.dateContainer}>
               <Text style={styles.day}>{new Date().getDate()}</Text>
               <View>
@@ -285,19 +288,51 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#fff" },
   container: { padding: 16, paddingBottom: 20 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
   title: { fontSize: 24, fontWeight: "bold" },
-  headerRight: { flexDirection: "row", alignItems: "center" },
-  dateContainer: { flexDirection: "row", alignItems: "center", marginRight: 12 },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  notificationIcon: {
+    marginRight: 16,
+  },
+  dateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   day: { fontSize: 32, fontWeight: "bold", marginRight: 8 },
   month: { fontSize: 16, fontWeight: "bold" },
   year: { fontSize: 14, color: "#666" },
-  calendar: { borderRadius: 10, elevation: 0, shadowOpacity: 0, borderWidth: 0, marginBottom: 10 },
-  calendarLoader: { height: 370, justifyContent: "center", alignItems: "center", marginBottom: 10 },
+  calendar: {
+    borderRadius: 10,
+    elevation: 0,
+    shadowOpacity: 0,
+    borderWidth: 0,
+    marginBottom: 10,
+  },
+  calendarLoader: {
+    height: 370,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+  },
   section: { marginTop: 10, marginBottom: 20 },
   sectionTitle: { fontSize: 24, fontWeight: "bold", marginBottom: 12 },
-  categoriesContainer: { flexDirection: "row", justifyContent: "space-between" },
+  categoriesContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   popularList: { paddingBottom: 10, paddingLeft: 4 },
   popularItem: { marginRight: 16 },
-  popularLoader: { height: 220, justifyContent: "center", alignItems: "center" },
+  popularLoader: {
+    height: 220,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });
