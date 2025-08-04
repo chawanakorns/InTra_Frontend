@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -8,7 +9,8 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Calendar, DateData } from "react-native-calendars";
 import { MarkedDates } from "react-native-calendars/src/types";
@@ -34,6 +36,12 @@ interface Place {
   isOpen?: boolean;
   types?: string[];
   placeId: string;
+}
+
+// Interface for fetching only the data we need for the badge
+interface NotificationStatus {
+  id: number;
+  is_read: boolean;
 }
 
 const getDatesInRange = (startDateStr: string, endDateStr: string): string[] => {
@@ -65,34 +73,30 @@ export default function Dashboard() {
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [popularDestinations, setPopularDestinations] = useState<Place[]>([]);
   const [isLoadingPopular, setIsLoadingPopular] = useState(true);
+  
+  // State for holding the count of unread notifications
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchItineraries = useCallback(async () => {
     setIsLoadingCalendar(true);
     try {
-      // --- THE FIX: Use the correct Firebase token key ---
       const token = await AsyncStorage.getItem("firebase_id_token");
-      
       if (!token) {
-        // If no token, user is not logged in. Don't fetch itineraries.
         setItineraries([]);
         return;
       }
-
       const itinerariesResponse = await fetch(`${API_URL}/api/itineraries/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!itinerariesResponse.ok) {
-        // Handle cases like expired token by clearing itineraries
         setItineraries([]);
         return;
       }
-
       const fetchedItineraries: Itinerary[] = await itinerariesResponse.json();
       setItineraries(fetchedItineraries);
     } catch (error) {
       console.error("Error fetching itineraries:", error);
-      setItineraries([]); // Clear itineraries on error
+      setItineraries([]);
     } finally {
       setIsLoadingCalendar(false);
     }
@@ -116,11 +120,37 @@ export default function Dashboard() {
     }
   }, []);
 
+  // Function to fetch notifications and count the unread ones
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem("firebase_id_token");
+      if (!token) {
+        setUnreadCount(0);
+        return;
+      }
+      const response = await fetch(`${API_URL}/api/notifications/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const notifications: NotificationStatus[] = await response.json();
+        const count = notifications.filter(n => !n.is_read).length;
+        setUnreadCount(count);
+      } else {
+        setUnreadCount(0);
+      }
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+      setUnreadCount(0);
+    }
+  }, []);
+
+  // useFocusEffect will run all fetch functions every time the screen is focused
   useFocusEffect(
     useCallback(() => {
       fetchItineraries();
       fetchPopularDestinations();
-    }, [fetchItineraries, fetchPopularDestinations])
+      fetchUnreadCount();
+    }, [fetchItineraries, fetchPopularDestinations, fetchUnreadCount])
   );
 
   const markedDates = useMemo(() => {
@@ -148,8 +178,6 @@ export default function Dashboard() {
         } else if (index === datesInRange.length - 1) {
           marking.endingDay = true;
         }
-        // NOTE: The original code had `disableTouchEvent`, which is often better handled
-        // by the calendar's period markingType itself. Keeping it simple.
         newMarkedDates[date] = marking;
       });
     });
@@ -181,6 +209,19 @@ export default function Dashboard() {
         <View style={styles.header}>
           <Text style={styles.title}>InTra</Text>
           <View style={styles.headerRight}>
+            <TouchableOpacity
+              // --- THIS IS THE CORRECTED LINE ---
+              onPress={() => router.push("/dashboard/notifications")}
+              style={styles.notificationButton}
+            >
+              <Ionicons name="notifications-outline" size={28} color="#6366F1" />
+              {/* Badge for unread notifications */}
+              {unreadCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
             <View style={styles.dateContainer}>
               <Text style={styles.day}>{new Date().getDate()}</Text>
               <View>
@@ -280,19 +321,70 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#fff" },
   container: { padding: 16, paddingBottom: 20 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
   title: { fontSize: 24, fontWeight: "bold" },
-  headerRight: { flexDirection: "row", alignItems: "center" },
-  dateContainer: { flexDirection: "row", alignItems: "center", marginRight: 12 },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  notificationButton: {
+    marginRight: 16,
+    padding: 4, // Added for easier pressing
+  },
+  notificationBadge: {
+    position: 'absolute',
+    right: -2,
+    top: -2,
+    backgroundColor: 'red',
+    borderRadius: 9,
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fff',
+  },
+  notificationBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  dateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   day: { fontSize: 32, fontWeight: "bold", marginRight: 8 },
   month: { fontSize: 16, fontWeight: "bold" },
   year: { fontSize: 14, color: "#666" },
-  calendar: { borderRadius: 10, elevation: 0, shadowOpacity: 0, borderWidth: 0, marginBottom: 10 },
-  calendarLoader: { height: 370, justifyContent: "center", alignItems: "center", marginBottom: 10 },
+  calendar: {
+    borderRadius: 10,
+    elevation: 0,
+    shadowOpacity: 0,
+    borderWidth: 0,
+    marginBottom: 10,
+  },
+  calendarLoader: {
+    height: 370,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+  },
   section: { marginTop: 10, marginBottom: 20 },
   sectionTitle: { fontSize: 24, fontWeight: "bold", marginBottom: 12 },
-  categoriesContainer: { flexDirection: "row", justifyContent: "space-between" },
+  categoriesContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   popularList: { paddingBottom: 10, paddingLeft: 4 },
   popularItem: { marginRight: 16 },
-  popularLoader: { height: 220, justifyContent: "center", alignItems: "center" },
+  popularLoader: {
+    height: 220,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });
