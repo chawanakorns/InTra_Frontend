@@ -1,6 +1,6 @@
 // file: context/NotificationContext.tsx
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, ReactNode, useCallback, useContext, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 
 interface Notification {

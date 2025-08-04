@@ -4,6 +4,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from "react-native";
+import { NotificationProvider } from '../context/NotificationContext';
 import { UserProfileProvider, useUserProfile } from "../context/UserProfileContext";
 import { registerForPushNotificationsAsync } from '../services/notificationService';
 
@@ -41,13 +42,15 @@ export default function RootLayout() {
   }
 
   return (
-    <UserProfileProvider>
-      <NotificationHandler />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="auth" />
-        <Stack.Screen name="dashboard" />
-      </Stack>
-    </UserProfileProvider>
+    <NotificationProvider>
+      <UserProfileProvider>
+        <NotificationHandler />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="dashboard" />
+        </Stack>
+      </UserProfileProvider>
+    </NotificationProvider>
   );
 }
