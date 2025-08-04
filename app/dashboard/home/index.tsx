@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import * as Location from "expo-location"; // <-- Import Expo Location
 import { useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -38,7 +39,6 @@ interface Place {
   placeId: string;
 }
 
-// Interface for fetching only the data we need for the badge
 interface NotificationStatus {
   id: number;
   is_read: boolean;
@@ -68,13 +68,11 @@ export default function Dashboard() {
   const todayDateString = new Date().toISOString().split("T")[0];
 
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(true);
-  const [currentCalendarMonth, setCurrentCalendarMonth] =
-    useState(todayDateString);
+  const [currentCalendarMonth, setCurrentCalendarMonth] = useState(todayDateString);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [popularDestinations, setPopularDestinations] = useState<Place[]>([]);
   const [isLoadingPopular, setIsLoadingPopular] = useState(true);
-  
-  // State for holding the count of unread notifications
+  const [popularError, setPopularError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchItineraries = useCallback(async () => {
@@ -102,25 +100,45 @@ export default function Dashboard() {
     }
   }, []);
 
+  // --- START OF THE FIX ---
   const fetchPopularDestinations = useCallback(async () => {
     setIsLoadingPopular(true);
+    setPopularError(null);
     try {
+      // 1. Request permission to access the device's location
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setPopularError("Permission to access location was denied.");
+        setPopularDestinations([]);
+        return;
+      }
+
+      // 2. Get the current coordinates
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude, longitude } = location.coords;
+
+      // 3. Construct the API URL with the coordinates
       const popularResponse = await fetch(
-        `${API_URL}/api/recommendations/popular`
+        `${API_URL}/api/recommendations/popular?latitude=${latitude}&longitude=${longitude}`
       );
-      if (!popularResponse.ok)
-        throw new Error("Failed to fetch popular destinations");
+      
+      if (!popularResponse.ok) {
+        const errorData = await popularResponse.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to fetch popular destinations");
+      }
+      
       const fetchedPopular: Place[] = await popularResponse.json();
       setPopularDestinations(fetchedPopular);
     } catch (error) {
       console.error("Error fetching popular destinations:", error);
+      setPopularError(error instanceof Error ? error.message : "Could not load popular destinations.");
       setPopularDestinations([]);
     } finally {
       setIsLoadingPopular(false);
     }
   }, []);
+  // --- END OF THE FIX ---
 
-  // Function to fetch notifications and count the unread ones
   const fetchUnreadCount = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem("firebase_id_token");
@@ -144,7 +162,6 @@ export default function Dashboard() {
     }
   }, []);
 
-  // useFocusEffect will run all fetch functions every time the screen is focused
   useFocusEffect(
     useCallback(() => {
       fetchItineraries();
@@ -199,6 +216,52 @@ export default function Dashboard() {
       },
     });
   };
+  
+  const renderPopularDestinations = () => {
+    if (isLoadingPopular) {
+      return (
+        <View style={styles.popularLoader}>
+          <ActivityIndicator size="large" color="#6366F1" />
+        </View>
+      );
+    }
+    if (popularError) {
+      return (
+        <View style={styles.popularErrorContainer}>
+          <Text style={styles.popularErrorText}>{popularError}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchPopularDestinations}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    if (popularDestinations.length === 0) {
+        return (
+            <View style={styles.popularLoader}>
+                <Text>No popular destinations found nearby.</Text>
+            </View>
+        )
+    }
+    return (
+      <FlatList
+        data={popularDestinations}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.popularList}
+        renderItem={({ item }) => (
+          <View style={styles.popularItem}>
+            <PopularDestinationCard
+              name={item.name}
+              image={item.image ?? null}
+              rating={item.rating}
+              onPress={() => handlePlacePress(item)}
+            />
+          </View>
+        )}
+        keyExtractor={(item) => item.id}
+      />
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -210,12 +273,10 @@ export default function Dashboard() {
           <Text style={styles.title}>InTra</Text>
           <View style={styles.headerRight}>
             <TouchableOpacity
-              // --- THIS IS THE CORRECTED LINE ---
               onPress={() => router.push("/dashboard/notifications")}
               style={styles.notificationButton}
             >
               <Ionicons name="notifications-outline" size={28} color="#6366F1" />
-              {/* Badge for unread notifications */}
               {unreadCount > 0 && (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
@@ -289,29 +350,7 @@ export default function Dashboard() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Popular Destinations</Text>
-          {isLoadingPopular ? (
-            <View style={styles.popularLoader}>
-              <ActivityIndicator size="large" color="#6366F1" />
-            </View>
-          ) : (
-            <FlatList
-              data={popularDestinations}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.popularList}
-              renderItem={({ item }) => (
-                <View style={styles.popularItem}>
-                  <PopularDestinationCard
-                    name={item.name}
-                    image={item.image ?? null}
-                    rating={item.rating}
-                    onPress={() => handlePlacePress(item)}
-                  />
-                </View>
-              )}
-              keyExtractor={(item) => item.id}
-            />
-          )}
+          {renderPopularDestinations()}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -334,7 +373,7 @@ const styles = StyleSheet.create({
   },
   notificationButton: {
     marginRight: 16,
-    padding: 4, // Added for easier pressing
+    padding: 4,
   },
   notificationBadge: {
     position: 'absolute',
@@ -386,5 +425,29 @@ const styles = StyleSheet.create({
     height: 220,
     justifyContent: "center",
     alignItems: "center",
+  },
+  popularErrorContainer: {
+    height: 220,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    padding: 16,
+  },
+  popularErrorText: {
+    color: '#B45309',
+    textAlign: 'center',
+    marginBottom: 16,
+    fontSize: 14,
+  },
+  retryButton: {
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });
