@@ -1,9 +1,17 @@
+// app/auth/_layout.tsx
+
 import { Stack } from 'expo-router';
 import React from 'react';
 
 export default function AuthLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack 
+      screenOptions={{ 
+        headerShown: false,
+        // This applies the horizontal slide animation to all screens in this stack
+        animation: 'slide_from_right', 
+      }}
+    >
       <Stack.Screen name="sign-in/index" />
       <Stack.Screen name="sign-up/index" />
       <Stack.Screen name="forgot-password" />
