@@ -16,10 +16,10 @@ import {
 import ProgressIndicator from "../../../components/ProgressIndicator"; // Adjust the import path as needed
 
 const data = [
-  { id: "1", label: "Local", image: require("../../../assets/images/adventurous.jpg") },
-  { id: "2", label: "International", image: require("../../../assets/images/relaxed.jpg") },
-  { id: "3", label: "Street Food", image: require("../../../assets/images/cultural.jpg") },
-  { id: "4", label: "Vegetarian", image: require("../../../assets/images/foodie.jpg") },
+  { id: "1", label: "Local", image: require("../../../assets/images/Local.jpg") },
+  { id: "2", label: "International", image: require("../../../assets/images/International.avif") },
+  { id: "3", label: "Street Food", image: require("../../../assets/images/StreetFood.jpg") },
+  { id: "4", label: "Vegetarian", image: require("../../../assets/images/Vegetarian.jpg") },
 ];
 
 export default function KindOfCuisine() {

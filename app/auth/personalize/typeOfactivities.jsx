@@ -15,10 +15,10 @@ import {
 import ProgressIndicator from "../../../components/ProgressIndicator";
 
 const data = [
-  { id: "1", label: "Sightseeing", image: require("../../../assets/images/adventurous.jpg") },
-  { id: "2", label: "Nature", image: require("../../../assets/images/relaxed.jpg") },
-  { id: "3", label: "Shopping", image: require("../../../assets/images/cultural.jpg") },
-  { id: "4", label: "Museum", image: require("../../../assets/images/foodie.jpg") },
+  { id: "1", label: "Sightseeing", image: require("../../../assets/images/Sightseeing.jpg") },
+  { id: "2", label: "Nature", image: require("../../../assets/images/Nature.jpg") },
+  { id: "3", label: "Shopping", image: require("../../../assets/images/Shopping.jpg") },
+  { id: "4", label: "Museum", image: require("../../../assets/images/Museum.jpg") },
 ];
 
 export default function TypeOfActivities() {

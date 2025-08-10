@@ -11,6 +11,12 @@ export default function Index() {
         source={require("../assets/images/Index-images.jpg")}
         style={styles.image}
       />
+      <View style={styles.overlay}>
+        <Image
+          source={require('../assets/images/airplane-around-earth.png')} //
+          style={styles.icon}
+        />
+      </View>
       <View style={styles.container}>
         <View style={styles.contentWrapper}>
           <Text style={styles.welcomeText}>Welcome to</Text>
@@ -43,9 +49,20 @@ const styles = StyleSheet.create({
     height: screenHeight * 0.55,
     filter: "brightness(50%) blur(3px)",
   },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: screenHeight * 0.55,
+  },
+  icon: {
+    width: 200, // Icon width increased
+    height: 200, // Icon height increased
+    tintColor: Colors.WHITE,
+  },
   container: {
     flex: 1,
-    backgroundColor: Colors.BLUE,
+    backgroundColor: Colors.WHITE,
     marginTop: -20,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -61,7 +78,7 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontSize: 20,
     fontFamily: "outfit",
-    color: Colors.WHITE,
+    color: Colors.BLUE,
     textAlign: "center",
     marginTop: -5,
     marginBottom: 10,
@@ -71,7 +88,7 @@ const styles = StyleSheet.create({
   titleText: {
     fontSize: 48,
     fontFamily: "cinzelDeco-bold",
-    color: Colors.WHITE,
+    color: Colors.BLUE,
     textAlign: "center",
     marginVertical: 20,
     includeFontPadding: false,
@@ -82,7 +99,7 @@ const styles = StyleSheet.create({
   subtitleText: {
     fontSize: 18,
     fontFamily: "outfit-bold",
-    color: Colors.WHITE,
+    color: Colors.BLUE,
     textAlign: "center",
     includeFontPadding: false,
     textAlignVertical: "center",
@@ -91,7 +108,7 @@ const styles = StyleSheet.create({
   descriptionText: {
     fontSize: 17,
     fontFamily: "outfit-medium",
-    color: Colors.GRAY,
+    color: Colors.PRIMARY,
     textAlign: "center",
     includeFontPadding: false,
     textAlignVertical: "center",
@@ -101,7 +118,7 @@ const styles = StyleSheet.create({
   },
   button: {
     padding: 15,
-    backgroundColor: Colors.PRIMARY,
+    backgroundColor: Colors.BLUE,
     borderRadius: 99,
     width: "100%",
     alignSelf: 'center',

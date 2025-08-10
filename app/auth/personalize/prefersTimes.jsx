@@ -19,8 +19,8 @@ import ProgressIndicator from "../../../components/ProgressIndicator"; // Adjust
 import { API_URL } from '../../config';
 
 const data = [
-  { id: "1", label: "Daytime", image: require("../../../assets/images/adventurous.jpg") },
-  { id: "2", label: "Nighttime", image: require("../../../assets/images/adventurous.jpg") },
+  { id: "1", label: "Daytime", image: require("../../../assets/images/DayTime.avif") },
+  { id: "2", label: "Nighttime", image: require("../../../assets/images/NightTime.jpg") },
 ];
 
 export default function PrefersTimes() {

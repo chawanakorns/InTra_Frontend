@@ -16,10 +16,10 @@ import {
 import ProgressIndicator from "../../../components/ProgressIndicator"; // Adjust the import path as needed
 
 const data = [
-  { id: "1", label: "Riverside Dining", image: require("../../../assets/images/adventurous.jpg") },
-  { id: "2", label: "Night Market Vibes", image: require("../../../assets/images/relaxed.jpg") },
-  { id: "3", label: "Quiet Cafes", image: require("../../../assets/images/cultural.jpg") },
-  { id: "4", label: "Scenic Views", image: require("../../../assets/images/foodie.jpg") },
+  { id: "1", label: "Riverside Dining", image: require("../../../assets/images/RiversideRestaurants.jpg") },
+  { id: "2", label: "Night Market Vibes", image: require("../../../assets/images/NightMarket.jpg") },
+  { id: "3", label: "Quiet Cafes", image: require("../../../assets/images/QiuetCafe.png") },
+  { id: "4", label: "Scenic Views", image: require("../../../assets/images/ScenicViewDinning.jpg") },
 ];
 
 export default function TypeOfDining() {
