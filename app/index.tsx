@@ -63,19 +63,21 @@ const styles = StyleSheet.create({
     fontFamily: "outfit",
     color: Colors.WHITE,
     textAlign: "center",
-    marginTop: 10,
+    marginTop: -5,
     marginBottom: 10,
     includeFontPadding: false,
     textAlignVertical: "center",
   },
   titleText: {
     fontSize: 48,
-    fontFamily: "cinzelDeco",
+    fontFamily: "cinzelDeco-bold",
     color: Colors.WHITE,
     textAlign: "center",
     marginVertical: 20,
     includeFontPadding: false,
     textAlignVertical: "center",
+    marginTop: 10
+    
   },
   subtitleText: {
     fontSize: 18,
@@ -103,7 +105,7 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     width: "100%",
     alignSelf: 'center',
-    marginTop: 10,
+    marginTop: -20,
   },
   buttonText: {
     fontSize: 20,

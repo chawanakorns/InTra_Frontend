@@ -6,11 +6,15 @@ import { useNavigation, useRouter } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, StyleSheet, Text,
+  ActivityIndicator, Alert, Dimensions, Image, // <-- THE FIX: Import Image and Dimensions
+  StyleSheet, Text,
   TextInput, TouchableOpacity, View,
 } from "react-native";
 import { auth } from "../../../config/firebaseConfig";
-import { API_URL } from '../../config'; // <-- THE FIX: Import the centralized URL
+import { API_URL } from '../../config';
+
+// THE FIX: Get screen height
+const screenHeight = Dimensions.get('window').height;
 
 export default function SignIn() {
   const navigation = useNavigation();
@@ -60,7 +64,7 @@ export default function SignIn() {
       await AsyncStorage.setItem("firebase_id_token", token);
 
       const syncResponse = await axios.post(
-        `${API_URL}/auth/sync`, // <-- THE FIX: Use API_URL
+        `${API_URL}/auth/sync`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -99,10 +103,12 @@ export default function SignIn() {
       <TouchableOpacity onPress={() => router.back()}>
         <Ionicons name="arrow-back" size={24} color="white" />
       </TouchableOpacity>
+      <Image
+        source={require("../../../assets/images/Mobilelogin.png")} // Make sure this path is correct
+        style={style.image} // <-- THE FIX: Changed 'styles' to 'style'
+      />
       <Text style={style.title}>Let's Sign You In</Text>
-      <Text style={style.subtitle}>Welcome Back</Text>
-      <Text style={[style.subtitle, { marginTop: 5 }]}>You've been missed...</Text>
-      <View style={{ marginTop: 50 }}>
+      <View style={{ marginTop: 20 }}>
         <Text style={style.labelText}>Email</Text>
         <TextInput
           style={[style.input, !isEmailValid && style.inputError]}
@@ -139,12 +145,19 @@ export default function SignIn() {
 }
 const style = StyleSheet.create({
   container: { padding: 25, paddingTop: 50, backgroundColor: Colors.BLUE, height: "100%" },
-  title: { fontFamily: "outfit-bold", color: Colors.WHITE, fontSize: 30, marginTop: 30 },
+  image: {
+    width: "100%", // Changed to 100% for better layout
+    height: screenHeight * 0.25, // Adjusted height for better balance
+    resizeMode: 'contain', // Added resizeMode
+    alignSelf: 'center', // Center the image
+    marginBottom: 20, // Add some margin
+  },
+  title: { fontFamily: "outfit-bold", color: Colors.WHITE, fontSize: 30, marginTop: 1 },
   subtitle: { fontFamily: "outfit", fontSize: 24, color: Colors.GRAY, marginTop: 20 },
   input: { padding: 15, borderWidth: 1, borderRadius: 15, borderColor: Colors.GRAY, backgroundColor: Colors.WHITE, fontSize: 16, fontFamily: "outfit" },
   inputError: { borderColor: "#FF0000", borderWidth: 2 },
   errorText: { color: "#FF0000", fontSize: 12, fontFamily: "outfit", marginTop: 5 },
-  labelText: { fontFamily: "outfit", fontSize: 16, color: Colors.WHITE, marginBottom: 10 },
+  labelText: { fontFamily: "outfit", fontSize: 16, color: Colors.WHITE, marginBottom: 5 },
   forgotPasswordText: { fontFamily: "outfit", fontSize: 14, color: Colors.WHITE },
   button: { padding: 15, borderRadius: 15, flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 20 },
   primaryButton: { backgroundColor: Colors.PRIMARY, borderWidth: 1 },
