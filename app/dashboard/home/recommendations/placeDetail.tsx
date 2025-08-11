@@ -7,7 +7,9 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ImageBackground,
+  Modal, // <-- THE FIX 1: Import Modal
   Platform,
   RefreshControl,
   ScrollView,
@@ -16,6 +18,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+// <-- THE FIX 2: Import the image viewer library -->
+import ImageViewer from "react-native-image-zoom-viewer";
 import { API_URL } from "../../../config";
 
 const COLORS = {
@@ -50,12 +54,12 @@ interface Place {
 
 interface PlaceDetails extends Place {
   description: string;
+  images?: string[];
 }
 
-// <-- THE FIX 1: Add the timezone-safe date formatter function here.
 const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0'); // getMonth() is 0-indexed
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const day = date.getDate().toString().padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
@@ -81,6 +85,10 @@ export default function PlaceDetail() {
   const [bookmarkId, setBookmarkId] = useState<number | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(true);
 
+  // <-- THE FIX 3: Add state for the image viewer modal -->
+  const [isImageViewerVisible, setImageViewerVisible] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
   const fetchPlaceDetails = useCallback(async () => {
     setLoadingDetails(true);
     try {
@@ -96,6 +104,19 @@ export default function PlaceDetail() {
       setRefreshing(false);
     }
   }, [placeId]);
+
+  // <-- THE FIX 4: Functions to handle opening and closing the image viewer -->
+  const openImageViewer = (index: number) => {
+    // The gallery shows images starting from the second one (index 1 of the main array)
+    // so we add 1 to the tapped index to get the correct position in the full `place.images` array.
+    setCurrentImageIndex(index + 1);
+    setImageViewerVisible(true);
+  };
+
+  const closeImageViewer = () => {
+    setImageViewerVisible(false);
+  };
+
 
   const checkUserAndBookmarkStatus = useCallback(async () => {
     setCheckingStatus(true);
@@ -219,7 +240,6 @@ export default function PlaceDetail() {
         place_address: place.address || null,
         place_rating: place.rating || null,
         place_image: place.image || null,
-        // <-- THE FIX 2: Use the new function to format the date correctly.
         scheduled_date: formatDateToYYYYMMDD(date),
         scheduled_time: time,
         duration_minutes: 60,
@@ -278,14 +298,58 @@ export default function PlaceDetail() {
             {place.rating && (<View style={styles.detailBox}><Ionicons name="star" size={20} color={COLORS.primary} /><Text style={styles.detailText}>{place.rating} / 5</Text></View>)}
             {place.isOpen !== undefined && (<View style={styles.detailBox}><Ionicons name="time-outline" size={20} color={COLORS.primary} /><Text style={styles.detailText}>{place.isOpen ? 'Open Now' : 'Closed'}</Text></View>)}
           </View>
+          {place.images && place.images.length > 1 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>More Images</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                {/* <-- THE FIX 5: Make each image pressable --> */}
+                {place.images.slice(1).map((url, index) => (
+                  <TouchableOpacity key={index} onPress={() => openImageViewer(index)}>
+                    <Image
+                      source={{ uri: url }}
+                      style={styles.galleryImage}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+          
           {place.address && (<View style={styles.addressSection}><Ionicons name="location-outline" size={22} color={COLORS.primary} style={{marginRight: 12}}/><Text style={styles.addressText}>{place.address}</Text></View>)}
+          
           <View style={styles.section}><Text style={styles.sectionTitle}>Description</Text><Text style={styles.descriptionText}>{place.description}</Text></View>
+          
+          
         </View>
       </ScrollView>
       {isLoggedIn && (<TouchableOpacity style={styles.fab} onPress={() => setShowItineraryModal(true)} disabled={loadingModal}><Ionicons name="add" size={24} color={COLORS.white} /><Text style={styles.fabText}>Add to Itinerary</Text></TouchableOpacity>)}
       {showItineraryModal && (<View style={styles.modalOverlay}><View style={styles.modalContainer}><Text style={styles.modalTitle}>Add to Itinerary</Text><View style={styles.formGroup}><Text style={styles.formLabel}>Select Itinerary</Text>{loadingModal ? (<View style={styles.loadingContainer}><ActivityIndicator size="small" color={COLORS.primary} /></View>) : error ? (<View style={styles.errorContainer}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryButton} onPress={fetchItineraries}><Text style={styles.retryButtonText}>Try Again</Text></TouchableOpacity></View>) : itineraries.length > 0 ? (<ScrollView style={styles.dropdownContainer}>{itineraries.map((itinerary) => (<TouchableOpacity key={itinerary.id} style={[ styles.itineraryOption, selectedItinerary?.id === itinerary.id && styles.selectedItinerary ]} onPress={() => setSelectedItinerary(itinerary)}><Text style={styles.itineraryName}>{itinerary.name}</Text></TouchableOpacity>))}</ScrollView>) : (<Text style={styles.noItinerariesText}>No itineraries found. Create one first.</Text>)}</View>{selectedItinerary && <>
       <View style={styles.formGroup}><Text style={styles.formLabel}>Date</Text><TouchableOpacity style={styles.dateInput} onPress={() => setShowDatePicker(true)}><Text>{formatDateToYYYYMMDD(date)}</Text></TouchableOpacity>{showDatePicker && (<DateTimePicker value={date} mode="date" display="default" onChange={(event: any, selectedDate?: Date) => { setShowDatePicker(Platform.OS === 'ios'); if (selectedDate) setDate(selectedDate); }} minimumDate={new Date(selectedItinerary.start_date)} maximumDate={new Date(selectedItinerary.end_date)} />)}</View>
       <View style={styles.formGroup}><Text style={styles.formLabel}>Time</Text><TouchableOpacity style={styles.dateInput} onPress={() => setShowTimePicker(true)}><Text>{time}</Text></TouchableOpacity>{showTimePicker && (<DateTimePicker value={new Date()} mode="time" display="default" onChange={(event: any, selectedDate?: Date) => { setShowTimePicker(Platform.OS === 'ios'); if (selectedDate) { const hours = selectedDate.getHours().toString().padStart(2, '0'); const minutes = selectedDate.getMinutes().toString().padStart(2, '0'); setTime(`${hours}:${minutes}`); } }} />)}</View></>}<View style={styles.modalButtons}><TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowItineraryModal(false)}><Text style={styles.cancelButtonText}>Cancel</Text></TouchableOpacity><TouchableOpacity style={[styles.modalButton, styles.confirmButton, (!selectedItinerary || loadingModal) && styles.disabledButton]} onPress={handleAddToItinerary} disabled={!selectedItinerary || loadingModal}>{loadingModal ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.confirmButtonText}>Add</Text>}</TouchableOpacity></View></View></View>)}
+      
+      {/* <-- THE FIX 6: Add the Modal for the full-screen image viewer --> */}
+      {place?.images && (
+        <Modal
+          visible={isImageViewerVisible}
+          transparent={true}
+          onRequestClose={closeImageViewer}
+        >
+          <ImageViewer
+            imageUrls={place.images.map((url) => ({ url }))}
+            index={currentImageIndex}
+            onCancel={closeImageViewer}
+            enableSwipeDown
+            renderHeader={() => (
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={closeImageViewer}
+              >
+                <MaterialIcons name="close" size={30} color={COLORS.white} />
+              </TouchableOpacity>
+            )}
+          />
+        </Modal>
+      )}
     </View>
   );
 }
@@ -309,6 +373,25 @@ const styles = StyleSheet.create({
   section: { marginBottom: 24 },
   sectionTitle: { fontSize: 20, fontWeight: "bold", color: COLORS.dark, marginBottom: 12 },
   descriptionText: { fontSize: 16, lineHeight: 26, color: COLORS.text },
+  galleryImage: {
+    width: 160,
+    height: 120,
+    borderRadius: 12,
+    backgroundColor: COLORS.lightGray,
+  },
+  // <-- THE FIX 7: Add style for the close button in the image viewer -->
+  closeButton: {
+    position: 'absolute',
+    top: Platform.OS === 'android' ? 40 : 50,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   fab: { position: "absolute", bottom: 30, right: 20, backgroundColor: COLORS.primary, borderRadius: 30, height: 56, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "center", elevation: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4 },
   fabText: { color: COLORS.white, fontSize: 16, fontWeight: "bold", marginLeft: 8 },
   modalOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0, 0, 0, 0.6)", justifyContent: "center", alignItems: "center" },
