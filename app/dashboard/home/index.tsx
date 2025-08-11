@@ -74,6 +74,7 @@ export default function Dashboard() {
   const [isLoadingPopular, setIsLoadingPopular] = useState(true);
   const [popularError, setPopularError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isGuest, setIsGuest] = useState(false);
 
   const fetchItineraries = useCallback(async () => {
     setIsLoadingCalendar(true);
@@ -100,12 +101,10 @@ export default function Dashboard() {
     }
   }, []);
 
-  // --- START OF THE FIX ---
   const fetchPopularDestinations = useCallback(async () => {
     setIsLoadingPopular(true);
     setPopularError(null);
     try {
-      // 1. Request permission to access the device's location
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         setPopularError("Permission to access location was denied.");
@@ -113,11 +112,9 @@ export default function Dashboard() {
         return;
       }
 
-      // 2. Get the current coordinates
       const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const { latitude, longitude } = location.coords;
 
-      // 3. Construct the API URL with the coordinates
       const popularResponse = await fetch(
         `${API_URL}/api/recommendations/popular?latitude=${latitude}&longitude=${longitude}`
       );
@@ -137,7 +134,6 @@ export default function Dashboard() {
       setIsLoadingPopular(false);
     }
   }, []);
-  // --- END OF THE FIX ---
 
   const fetchUnreadCount = useCallback(async () => {
     try {
@@ -162,12 +158,18 @@ export default function Dashboard() {
     }
   }, []);
 
+  const checkAuthStatus = useCallback(async () => {
+    const token = await AsyncStorage.getItem("firebase_id_token");
+    setIsGuest(!token);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
+      checkAuthStatus();
       fetchItineraries();
       fetchPopularDestinations();
       fetchUnreadCount();
-    }, [fetchItineraries, fetchPopularDestinations, fetchUnreadCount])
+    }, [checkAuthStatus, fetchItineraries, fetchPopularDestinations, fetchUnreadCount])
   );
 
   const markedDates = useMemo(() => {
@@ -272,17 +274,19 @@ export default function Dashboard() {
         <View style={styles.header}>
           <Text style={styles.title}>InTra</Text>
           <View style={styles.headerRight}>
-            <TouchableOpacity
-              onPress={() => router.push("/dashboard/notifications")}
-              style={styles.notificationButton}
-            >
-              <Ionicons name="notifications-outline" size={28} color="#6366F1" />
-              {unreadCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            {!isGuest && (
+              <TouchableOpacity
+                onPress={() => router.push("/dashboard/notifications")}
+                style={styles.notificationButton}
+              >
+                <Ionicons name="notifications-outline" size={28} color="#6366F1" />
+                {unreadCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
             <View style={styles.dateContainer}>
               <Text style={styles.day}>{new Date().getDate()}</Text>
               <View>
