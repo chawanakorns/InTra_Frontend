@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   descriptionText: {
     fontSize: 17,
     fontFamily: "outfit-medium",
-    color: Colors.PRIMARY,
+    color: Colors.BLACKGRAY,
     textAlign: "center",
     includeFontPadding: false,
     textAlignVertical: "center",

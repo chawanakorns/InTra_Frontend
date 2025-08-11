@@ -19,6 +19,7 @@ import { auth } from '../../../config/firebaseConfig';
 import { useUserProfile } from '../../../context/UserProfileContext';
 import { API_URL } from '../../config';
 
+// A view to show when the user is not logged in
 const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
   <View style={styles.centeredContainer}>
     <MaterialIcons name="person-off" size={60} color="#9CA3AF" />
@@ -30,12 +31,14 @@ const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
   </View>
 );
 
+// Helper function to create a full image URL
 const createFullImageUrl = (path?: string) => {
   if (!path) return null;
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   return `${API_URL}${path}`;
 };
 
+// Component for displaying a single stat (e.g., "Trips")
 const StatItem = ({ value, label }: { value: string | number, label: string }) => (
     <View style={styles.statItem}>
         <Text style={styles.statNumber}>{value}</Text>
@@ -43,6 +46,7 @@ const StatItem = ({ value, label }: { value: string | number, label: string }) =
     </View>
 );
 
+// Component for a single menu button (e.g., "Edit Profile")
 const MenuButton = ({ icon, label, onPress }: { icon: any, label: string, onPress: () => void }) => (
     <TouchableOpacity style={styles.menuButton} onPress={onPress}>
         <View style={styles.iconBg}>
@@ -59,6 +63,7 @@ export default function ProfileScreen() {
   const [itineraryCount, setItineraryCount] = useState(0);
   const [bookmarkCount, setBookmarkCount] = useState(0);
 
+  // Fetch user profile and stats when the screen comes into focus
   useFocusEffect(
     useCallback(() => {
       const fetchData = async () => {
@@ -86,6 +91,7 @@ export default function ProfileScreen() {
     }, [fetchUserProfile])
   );
 
+  // Handle user logout
   const handleLogout = () => {
     Alert.alert(
       "Confirm Logout", "Are you sure you want to log out?",
@@ -119,35 +125,42 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.safeContainer}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.headerContainer}>
-          <ImageBackground
-            source={backgroundImageUri ? { uri: backgroundImageUri } : require('../../../assets/images/profile-bg.jpg')}
-            style={styles.headerBackground}
-          />
-        </View>
-        <View style={styles.profileDetailsContainer}>
+        {/* Header sits at the back */}
+        <ImageBackground
+          source={backgroundImageUri ? { uri: backgroundImageUri } : require('../../../assets/images/profile-bg.jpg')}
+          style={styles.headerBackground}
+        />
+        
+        {/* This is the white, overlapping content area */}
+        <View style={styles.contentArea}>
+          {/* Avatar sits on top of the content area */}
           <Image
             source={profileImageUri ? { uri: profileImageUri } : require('../../../assets/images/defaultprofile.png')}
             style={styles.avatar}
           />
+          {/* Profile details flow below the avatar */}
           <Text style={styles.name}>{profile.fullName}</Text>
           <Text style={styles.emailText}>{profile.email}</Text>
           <Text style={styles.aboutText}>{profile.aboutMe || 'A passionate traveler exploring the world.'}</Text>
-        </View>
-        <View style={styles.statsContainer}>
+
+          {/* Stats, Menu, and Logout buttons are inside the content area */}
+          <View style={styles.statsContainer}>
             <StatItem value={itineraryCount} label="Trips" />
             <StatItem value={bookmarkCount} label="Bookmarks" />
-        </View>
-        <View style={styles.menuContainer}>
+          </View>
+          
+          <View style={styles.menuContainer}>
             <MenuButton icon="edit" label="Edit Profile" onPress={() => router.push('/dashboard/profile/editprofile/editprofile')} />
             <MenuButton icon="luggage" label="My Trips" onPress={() => router.push('/dashboard/itinerary/calendar')} />
             <MenuButton icon="bookmarks" label="Bookmarks" onPress={() => router.push('/dashboard/bookmark/bookmarks')} />
             <MenuButton icon="settings" label="Settings" onPress={() => router.push('/dashboard/profile/setting/setting')} />
-        </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          </View>
+          
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <MaterialIcons name="logout" size={22} color="#EF4444" />
             <Text style={styles.logoutButtonText}>Log Out</Text>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -156,10 +169,31 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
     safeContainer: { flex: 1, backgroundColor: '#f9fafb' },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb' },
-    headerContainer: { height: 200 },
-    headerBackground: { width: '100%', height: 200 },
-    profileDetailsContainer: { alignItems: 'center', marginTop: -75, paddingHorizontal: 20 },
-    avatar: { width: 150, height: 150, borderRadius: 75, borderWidth: 5, borderColor: '#fff', backgroundColor: '#e5e7eb' },
+    headerBackground: { 
+        width: '100%', 
+        height: 240,
+        // *** THIS IS THE CHANGED VALUE ***
+        // Making this less negative moves the white area down.
+        marginBottom: -80 
+    },
+    contentArea: {
+        backgroundColor: '#f9fafb',
+        borderTopLeftRadius: 40,
+        borderTopRightRadius: 40,
+        paddingTop: 75,
+        paddingBottom: 40,
+        alignItems: 'center',
+    },
+    avatar: { 
+        width: 150, 
+        height: 150, 
+        borderRadius: 75, 
+        borderWidth: 5, 
+        borderColor: '#f9fafb',
+        backgroundColor: '#e5e7eb',
+        position: 'absolute',
+        top: -75,
+    },
     name: { fontSize: 26, fontWeight: 'bold', color: '#1f2937', marginTop: 15 },
     emailText: { fontSize: 16, color: '#6b7280', marginTop: 4 },
     aboutText: { fontSize: 14, color: '#4b5563', textAlign: 'center', marginTop: 12, paddingHorizontal: 20, lineHeight: 20 },
@@ -171,9 +205,9 @@ const styles = StyleSheet.create({
     menuButton: { alignItems: 'center', width: '25%', marginBottom: 25 },
     iconBg: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#eef2ff', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
     menuLabel: { fontSize: 12, color: '#4b5563', fontWeight: '500', textAlign: 'center' },
-    logoutButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fee2e2', borderRadius: 12, padding: 15, width: '90%', alignSelf: 'center', marginTop: 10, marginBottom: 40 },
+    logoutButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fee2e2', borderRadius: 12, padding: 15, width: '90%', alignSelf: 'center', marginTop: 10 },
     logoutButtonText: { color: '#EF4444', fontSize: 16, fontWeight: 'bold', marginLeft: 8 },
-    centeredContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, backgroundColor: '#f9fafb' },
+    centeredContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, backgroundColor: '#f9fafb', },
     messageTitle: { fontSize: 22, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginBottom: 12 },
     messageText: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 24, lineHeight: 22 },
     loginButton: { backgroundColor: '#6366F1', paddingVertical: 14, paddingHorizontal: 40, borderRadius: 30 },
