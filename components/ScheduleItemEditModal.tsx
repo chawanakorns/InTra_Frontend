@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
-import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type ScheduleItem = {
   id: string;
@@ -8,13 +8,14 @@ type ScheduleItem = {
   place_name: string;
   scheduled_date: string;
   scheduled_time: string;
+  duration_minutes: number;
   [key: string]: any; 
 };
 
 type Itinerary = {
   id: string;
-  startDate: Date;
-  endDate: Date;
+  startDate: Date | string;
+  endDate: Date | string;
   [key: string]: any;
 };
 
@@ -23,10 +24,9 @@ interface Props {
   item: ScheduleItem | null;
   itinerary: Itinerary | null;
   onClose: () => void;
-  onSave: (itemId: string | null, newDate: string, newTime: string) => void;
+  onSave: (itemId: string | null, newDate: string, newTime: string, newDuration: number) => void;
 }
 
-// --- THE FIX: Add the same timezone-safe date formatter here ---
 const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -37,6 +37,7 @@ const formatDateToYYYYMMDD = (date: Date): string => {
 export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerary, onClose, onSave }) => {
   const [date, setDate] = useState(new Date());
   const [time, setTime] = useState(new Date());
+  const [duration, setDuration] = useState('60');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
@@ -48,6 +49,7 @@ export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerar
         
         setDate(initialDateTime);
         setTime(initialDateTime);
+        setDuration(item.duration_minutes.toString());
     }
   }, [item]);
 
@@ -67,10 +69,18 @@ export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerar
 
   const handleSave = () => {
     const itemId = item.id || null; 
-    // --- THE FIX: Use our new timezone-safe formatter ---
     const scheduled_date = formatDateToYYYYMMDD(date);
     const scheduled_time = time.toTimeString().slice(0, 5);
-    onSave(itemId, scheduled_date, scheduled_time);
+    const newDuration = parseInt(duration, 10) || 60;
+    onSave(itemId, scheduled_date, scheduled_time, newDuration);
+  };
+
+  const getSafeDate = (dateSource: Date | string) => {
+    if (dateSource instanceof Date) {
+        return dateSource;
+    }
+    const [year, month, day] = dateSource.split('-').map(Number);
+    return new Date(year, month - 1, day);
   };
 
   return (
@@ -82,7 +92,7 @@ export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerar
     >
       <View style={styles.centeredView}>
         <View style={styles.modalView}>
-          <Text style={styles.modalTitle}>{item.id ? "Edit Schedule Item" : "Add to Itinerary"}</Text>
+          <Text style={styles.modalTitle}>Edit Schedule Item</Text>
           <Text style={styles.itemName}>{item.place_name}</Text>
 
           <View style={styles.pickerContainer}>
@@ -98,6 +108,17 @@ export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerar
                 <Text style={styles.pickerText}>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</Text>
             </TouchableOpacity>
           </View>
+          
+          <View style={styles.pickerContainer}>
+            <Text style={styles.label}>Duration (min):</Text>
+            <TextInput
+              style={styles.durationInput}
+              value={duration}
+              onChangeText={setDuration}
+              placeholder="e.g., 60"
+              keyboardType="number-pad"
+            />
+          </View>
 
           {showDatePicker && (
             <DateTimePicker
@@ -105,8 +126,8 @@ export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerar
               mode="date"
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
               onChange={onDateChange}
-              minimumDate={new Date(itinerary.startDate)}
-              maximumDate={new Date(itinerary.endDate)}
+              minimumDate={getSafeDate(itinerary.startDate)}
+              maximumDate={getSafeDate(itinerary.endDate)}
             />
           )}
 
@@ -133,7 +154,7 @@ export const ScheduleItemEditModal: React.FC<Props> = ({ visible, item, itinerar
     </Modal>
   );
 };
-// Styles remain the same
+
 const styles = StyleSheet.create({
     centeredView: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: 'rgba(0,0,0,0.5)' },
     modalView: { width: '90%', backgroundColor: "white", borderRadius: 20, padding: 25, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
@@ -143,6 +164,17 @@ const styles = StyleSheet.create({
     label: { fontSize: 16, marginRight: 10, color: '#374151', fontWeight: '500'},
     pickerButton: { flex: 1, padding: 12, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, backgroundColor: '#F9FAFB' },
     pickerText: { fontSize: 16, color: '#1F2937' },
+    durationInput: {
+      flex: 1,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: '#D1D5DB',
+      borderRadius: 8,
+      backgroundColor: '#F9FAFB',
+      fontSize: 16,
+      color: '#1F2937',
+      textAlign: 'left',
+    },
     buttonRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, width: '100%' },
     button: { borderRadius: 10, paddingVertical: 12, elevation: 2, flex: 1, marginHorizontal: 5 },
     buttonClose: { backgroundColor: "#E5E7EB" },

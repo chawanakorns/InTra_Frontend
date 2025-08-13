@@ -1,11 +1,9 @@
-// file: components/ItineraryModal.tsx
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Location from "expo-location";
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
+  ActivityIndicator, Alert,
   Animated,
   KeyboardAvoidingView,
   Modal,
@@ -13,13 +11,9 @@ import {
   Platform,
   StyleSheet,
   Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+  Text, TextInput, TouchableOpacity,
+  View
 } from 'react-native';
-// --- NEW: Import the notification hook ---
-import { useNotification } from '../context/NotificationContext';
 
 interface SimpleItinerary {
   startDate: Date;
@@ -36,12 +30,11 @@ interface ItineraryModalProps {
   itineraries: SimpleItinerary[];
 }
 
-const BUDGET_OPTIONS = ['Low', 'Medium', 'High', 'Custom'];
+const BUDGET_OPTIONS = ["Low", "Medium", "High", "Custom"];
 
-// --- THE FIX: A timezone-safe date formatter ---
 const formatDateToYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0'); // getMonth() is 0-indexed
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const day = date.getDate().toString().padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
@@ -55,9 +48,6 @@ export default function ItineraryModal({
   backendApiUrl,
   itineraries,
 }: ItineraryModalProps) {
-  // --- NEW: Get the notification function ---
-  const { addNotification } = useNotification();
-  
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date(new Date().setDate(new Date().getDate() + 1)));
@@ -87,7 +77,7 @@ export default function ItineraryModal({
   }, [visible]);
 
   useEffect(() => {
-    if (!visible || itineraries.length === 0) {
+    if (!visible || !itineraries || itineraries.length === 0) {
       setOverlapWarning(null);
       return;
     }
@@ -95,30 +85,19 @@ export default function ItineraryModal({
     currentStart.setHours(0, 0, 0, 0);
     const currentEnd = new Date(endDate);
     currentEnd.setHours(23, 59, 59, 999);
-    const overlappingItinerary = itineraries.find((it) => {
+    const overlappingItinerary = itineraries.find(it => {
       const existingStart = new Date(it.startDate);
       existingStart.setHours(0, 0, 0, 0);
       const existingEnd = new Date(it.endDate);
       existingEnd.setHours(23, 59, 59, 999);
       return currentStart <= existingEnd && currentEnd >= existingStart;
     });
-    setOverlapWarning(overlappingItinerary ? 'Warning: This date range overlaps with an existing itinerary.' : null);
-  }, [startDate, endDate, itineraries, visible]);
-
-  const savePersistentNotification = async (title: string, body: string, token: string) => {
-    try {
-      await fetch(`${backendApiUrl.replace('/itineraries', '/notifications')}/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ title, body }),
-      });
-    } catch (error) {
-      console.error('Failed to save persistent notification:', error);
+    if (overlappingItinerary) {
+      setOverlapWarning('Warning: This date range overlaps with an existing itinerary.');
+    } else {
+      setOverlapWarning(null);
     }
-  };
+  }, [startDate, endDate, itineraries, visible]);
 
   const handleSave = async () => {
     if (!name) {
@@ -126,6 +105,28 @@ export default function ItineraryModal({
       return;
     }
     setIsCreating(true);
+
+    let deviceLocation: { latitude: number; longitude: number } | null = null;
+
+    if (autoGenerate) {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert("Permission Denied", "Location access is required for AI itinerary generation.");
+          setIsCreating(false);
+          return;
+        }
+        const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        deviceLocation = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        };
+      } catch (error) {
+        Alert.alert("Location Error", "Could not fetch your location. Please ensure location services are enabled and try again.");
+        setIsCreating(false);
+        return;
+      }
+    }
 
     const token = await AsyncStorage.getItem('firebase_id_token');
     if (!token) {
@@ -142,14 +143,17 @@ export default function ItineraryModal({
       budgetPayload = budgetType;
     }
 
-    const payload = {
+    const payload: any = {
       name,
       budget: budgetPayload,
-      type: autoGenerate ? "Auto-generated" : "Customized",
-      // --- THE FIX: Use our new timezone-safe formatter ---
       start_date: formatDateToYYYYMMDD(startDate),
       end_date: formatDateToYYYYMMDD(endDate),
     };
+
+    if (autoGenerate && deviceLocation) {
+        payload.latitude = deviceLocation.latitude;
+        payload.longitude = deviceLocation.longitude;
+    }
 
     const endpoint = autoGenerate ? `${backendApiUrl}/generate` : `${backendApiUrl}/`;
 
@@ -158,7 +162,7 @@ export default function ItineraryModal({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -168,28 +172,15 @@ export default function ItineraryModal({
         throw new Error(responseData.detail || 'Failed to create itinerary');
       }
       
-      // --- NEW: Trigger Notifications on Success ---
-      addNotification('Itinerary created successfully!', 'success');
-      await savePersistentNotification(
-        `New Itinerary: ${name}`,
-        `Your trip from ${payload.start_date} to ${payload.end_date} is ready.`,
-        token
-      );
-      
-      // Call the parent callback to update UI
       onCreateItinerary(responseData);
 
     } catch (error: any) {
-      addNotification('Failed to create itinerary.', 'error');
       Alert.alert('Creation Failed', error.message);
     } finally {
       setIsCreating(false);
     }
   };
 
-  // The rest of the component (renderBudgetButtons, renderCustomBudgetInput, JSX, styles) remains the same
-  // ... (pasting the rest for completeness)
-  
   const renderBudgetButtons = () => (
     <View>
       <Text style={styles.label}>Budget (Optional)</Text>
@@ -213,38 +204,32 @@ export default function ItineraryModal({
     if (budgetType !== 'Custom') return null;
     return (
       <View style={styles.customBudgetContainer}>
-        <TextInput
-          style={styles.customBudgetInput}
-          placeholder="e.g., 500"
-          keyboardType="numeric"
-          value={customBudget}
-          onChangeText={setCustomBudget}
-        />
-        <TextInput
-          style={styles.currencyInput}
-          value={currency}
-          onChangeText={setCurrency}
-          autoCapitalize="characters"
-          maxLength={3}
-        />
+        <TextInput style={styles.customBudgetInput} placeholder="e.g., 500" keyboardType="numeric" value={customBudget} onChangeText={setCustomBudget} />
+        <TextInput style={styles.currencyInput} value={currency} onChangeText={setCurrency} autoCapitalize="characters" maxLength={3} />
       </View>
     );
   };
 
   return (
-    <Modal animationType="none" transparent={true} visible={visible} onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-        <Animated.View style={[styles.modalContent, { transform: [{ translateY: panY }] }]} {...panResponder.panHandlers}>
+    <Modal
+      animationType="none"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalOverlay}
+      >
+        <Animated.View
+          style={[styles.modalContent, { transform: [{ translateY: panY }] }]}
+          {...panResponder.panHandlers}
+        >
           <View style={styles.dragHandle} />
           <Text style={styles.modalTitle}>New Itinerary</Text>
 
           <Text style={styles.label}>Itinerary Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., Paris Adventure"
-            value={name}
-            onChangeText={setName}
-          />
+          <TextInput style={styles.input} placeholder="e.g., Tokyo Trip" value={name} onChangeText={setName} />
 
           {renderBudgetButtons()}
           {renderCustomBudgetInput()}
@@ -303,8 +288,8 @@ export default function ItineraryModal({
           <View style={styles.modalSwitchContainer}>
             <Text style={styles.modalSwitchLabel}>Auto-generate with AI ✨</Text>
             <Switch
-              trackColor={{ false: '#E5E7EB', true: '#A5B4FC' }}
-              thumbColor={autoGenerate ? '#6366F1' : '#f4f3f4'}
+              trackColor={{ false: "#E5E7EB", true: "#A5B4FC" }}
+              thumbColor={autoGenerate ? "#6366F1" : "#f4f3f4"}
               onValueChange={setAutoGenerate}
               value={autoGenerate}
             />
@@ -315,11 +300,7 @@ export default function ItineraryModal({
             onPress={handleSave}
             disabled={isCreating}
           >
-            {isCreating ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.saveButtonText}>Create Itinerary</Text>
-            )}
+            {isCreating ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>Create Itinerary</Text>}
           </TouchableOpacity>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -327,105 +308,29 @@ export default function ItineraryModal({
   );
 }
 
-// Styles remain the same
 const styles = StyleSheet.create({
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContent: {
-    backgroundColor: 'white',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    borderTopRightRadius: 20,
-    borderTopLeftRadius: 20,
-    paddingBottom: 40,
-  },
-  dragHandle: {
-    width: 40,
-    height: 5,
-    backgroundColor: '#D1D5DB',
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginVertical: 10,
-  },
+  modalContent: { backgroundColor: 'white', paddingHorizontal: 20, paddingTop: 10, borderTopRightRadius: 20, borderTopLeftRadius: 20, paddingBottom: 40 },
+  dragHandle: { width: 40, height: 5, backgroundColor: '#D1D5DB', borderRadius: 3, alignSelf: 'center', marginVertical: 10 },
   modalTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
   label: { fontSize: 16, fontWeight: '500', color: '#374151', marginBottom: 8 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    padding: 12,
-    borderRadius: 8,
-    fontSize: 16,
-    marginBottom: 15,
-  },
+  input: { borderWidth: 1, borderColor: '#D1D5DB', padding: 12, borderRadius: 8, fontSize: 16, marginBottom: 15 },
   budgetButtonsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  budgetButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderWidth: 1.5,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
+  budgetButton: { flex: 1, paddingVertical: 12, borderWidth: 1.5, borderColor: '#D1D5DB', borderRadius: 8, alignItems: 'center', marginHorizontal: 4 },
   budgetButtonSelected: { backgroundColor: '#EDE9FE', borderColor: '#6366F1' },
   budgetButtonText: { fontSize: 14, fontWeight: '600', color: '#374151' },
   budgetButtonTextSelected: { color: '#6366F1' },
   customBudgetContainer: { flexDirection: 'row', marginBottom: 15 },
-  customBudgetInput: {
-    flex: 3,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    padding: 12,
-    borderRadius: 8,
-    fontSize: 16,
-    marginRight: 10,
-  },
-  currencyInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    padding: 12,
-    borderRadius: 8,
-    fontSize: 16,
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-  datePickerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderColor: '#F3F4F6',
-  },
+  customBudgetInput: { flex: 3, borderWidth: 1, borderColor: '#D1D5DB', padding: 12, borderRadius: 8, fontSize: 16, marginRight: 10 },
+  currencyInput: { flex: 1, borderWidth: 1, borderColor: '#D1D5DB', padding: 12, borderRadius: 8, fontSize: 16, textAlign: 'center', fontWeight: 'bold' },
+  datePickerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderColor: '#F3F4F6' },
   dateLabel: { fontSize: 16, fontWeight: '500', color: '#374151' },
   dateText: { fontSize: 16, color: '#6366F1', fontWeight: 'bold' },
-  warningContainer: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FBBF24',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 10,
-    marginBottom: 5,
-  },
+  warningContainer: { backgroundColor: '#FFFBEB', borderColor: '#FBBF24', borderWidth: 1, borderRadius: 8, padding: 10, marginTop: 10, marginBottom: 5 },
   warningText: { color: '#B45309', fontSize: 14, fontWeight: '500', textAlign: 'center' },
-  modalSwitchContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderTopWidth: 1,
-    borderColor: '#F3F4F6',
-    marginTop: 10,
-    marginBottom: 20,
-  },
+  modalSwitchContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderTopWidth: 1, borderColor: '#F3F4F6', marginTop: 10, marginBottom: 20 },
   modalSwitchLabel: { fontSize: 16, color: '#374151', fontWeight: '500' },
-  saveButton: {
-    backgroundColor: '#6366F1',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
+  saveButton: { backgroundColor: '#6366F1', padding: 15, borderRadius: 8, alignItems: 'center' },
   disabledButton: { backgroundColor: '#A5B4FC' },
   saveButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
 });

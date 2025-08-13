@@ -1,4 +1,3 @@
-// file: app/dashboard/itinerary/calendar.tsx
 import { MaterialIcons } from "@expo/vector-icons";
 import polyline from "@mapbox/polyline";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -41,6 +40,11 @@ const formatAndCapitalize = (s: string | undefined): string => {
   return s.replace(/_/g, " ").split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
 };
 
+const parseDateStringSafe = (dateStr: string): Date => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
 const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
   <View style={styles.centeredMessageContainer}>
     <MaterialIcons name="event-note" size={60} color="#9CA3AF" />
@@ -76,6 +80,10 @@ export default function CalendarScreen() {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<ScheduleItem | null>(null);
   const panY = useRef(new Animated.Value(0)).current;
+  // Add this state for location loading
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  // Optionally, add deviceLocation if you use it in ItineraryModal
+  const [deviceLocation, setDeviceLocation] = useState<Location.LocationObject | null>(null);
 
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -89,8 +97,11 @@ export default function CalendarScreen() {
       }
     },
   })).current;
-  
-  
+
+  const handleOpenModal = () => {
+    panY.setValue(0);
+    setModalVisible(true);
+  };
 
   const coveredTimeSlots = useMemo(() => {
     const covered = new Set<string>();
@@ -133,7 +144,12 @@ export default function CalendarScreen() {
       if (response.status === 401) { setLoginRequired(true); await AsyncStorage.removeItem("firebase_id_token"); setItineraries([]); return; }
       if (!response.ok) { throw new Error(await response.text() || `Server error: ${response.status}`); }
       const data = await response.json();
-      const fetchedItineraries: Itinerary[] = data.map((it: any) => ({ id: it.id.toString(), type: it.type, budget: it.budget, name: it.name, startDate: new Date(it.start_date), endDate: new Date(it.end_date), schedule_items: (it.schedule_items || []).map((item: any, index: number) => ({ ...item, id: item.id?.toString() ?? `${it.id}-${index}`, })), }));
+      const fetchedItineraries: Itinerary[] = data.map((it: any) => ({ 
+          id: it.id.toString(), type: it.type, budget: it.budget, name: it.name, 
+          startDate: parseDateStringSafe(it.start_date), 
+          endDate: parseDateStringSafe(it.end_date), 
+          schedule_items: (it.schedule_items || []).map((item: any, index: number) => ({ ...item, id: item.id?.toString() ?? `${it.id}-${index}` })), 
+        }));
       setItineraries(fetchedItineraries);
       setSelectedItinerary(current => updatedSelected(current, fetchedItineraries));
     } catch (err) { console.error("Error fetching itineraries:", err); setError(err instanceof Error ? err.message : "Failed to load itineraries");
@@ -147,7 +163,6 @@ export default function CalendarScreen() {
 
   useFocusEffect(useCallback(() => { fetchItineraries(); setExpandedItemId(null); setIsDescriptionExpanded(null); setRouteCoordinates([]); setIsDetailsVisible(false); }, [fetchItineraries]));
   
-  const isTimeConflict = (newItem: { scheduled_date: string; scheduled_time: string; duration_minutes: number }, itemIdToIgnore: string): boolean => { if (!selectedItinerary) return false; const newStartTime = parseInt(newItem.scheduled_time.split(':')[0]) * 60 + parseInt(newItem.scheduled_time.split(':')[1]); const newEndTime = newStartTime + newItem.duration_minutes; return !!selectedItinerary.schedule_items.find(item => { if (item.id === itemIdToIgnore || item.scheduled_date !== newItem.scheduled_date) return false; const existingStartTime = parseInt(item.scheduled_time.split(':')[0]) * 60 + parseInt(item.scheduled_time.split(':')[1]); const existingEndTime = existingStartTime + item.duration_minutes; return newStartTime < existingEndTime && newEndTime > existingStartTime; }); };
   const handleOpenEditModal = (item: ScheduleItem) => { setItemToEdit(item); setIsEditModalVisible(true); };
   const handleCloseEditModal = () => { setIsEditModalVisible(false); setItemToEdit(null); };
 
@@ -155,30 +170,23 @@ export default function CalendarScreen() {
     try {
         const token = await AsyncStorage.getItem("firebase_id_token");
         if (!token) return;
-
         await fetch(BACKEND_NOTIFICATION_API_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ title, body })
         });
-    } catch (error) {
-        console.error("Failed to create persistent notification:", error);
-    }
+    } catch (error) { console.error("Failed to create persistent notification:", error); }
   };
 
-  const handleSaveScheduleItem = async (itemId: string | null, newDate: string, newTime: string) => {
+  const handleSaveScheduleItem = async (itemId: string | null, newDate: string, newTime: string, newDuration: number) => {
     if (!selectedItinerary || !itemToEdit || !itemId) return;
   
     const originalItinerary = JSON.parse(JSON.stringify(selectedItinerary));
     
-    // Optimistic UI Update
     setSelectedItinerary(prev => {
       if (!prev) return null;
       const updatedItems = prev.schedule_items.map(item =>
-        item.id === itemId ? { ...item, scheduled_date: newDate, scheduled_time: newTime } : item
+        item.id === itemId ? { ...item, scheduled_date: newDate, scheduled_time: newTime, duration_minutes: newDuration } : item
       );
       return { ...prev, schedule_items: updatedItems };
     });
@@ -188,7 +196,7 @@ export default function CalendarScreen() {
       const token = await AsyncStorage.getItem("firebase_id_token");
       if (!token) throw new Error("Authentication token not found.");
   
-      const payload = { scheduled_date: newDate, scheduled_time: newTime };
+      const payload = { scheduled_date: newDate, scheduled_time: newTime, duration_minutes: newDuration };
       const response = await fetch(`${BACKEND_ITINERARY_API_URL}/items/${itemId}`, {
         method: "PUT",
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -198,20 +206,14 @@ export default function CalendarScreen() {
       if (!response.ok) throw new Error((await response.json()).detail || "Failed to save changes.");
       
       const combinedDateTime = parse(`${newDate} ${newTime}`, 'yyyy-MM-dd HH:mm', new Date());
-      const formattedDate = format(combinedDateTime, "MMMM do");
-      const formattedTime = format(combinedDateTime, "h:mm a");
-
-      // Show temporary banner notification
-      const bannerMessage = `Updated to ${formattedDate} at ${formattedTime}`;
+      const bannerMessage = `Updated to ${format(combinedDateTime, "MMMM do 'at' h:mm a")}`;
       addNotification(bannerMessage, 'info');
 
-      // Create persistent notification for the notification screen
-      const notificationTitle = "Itinerary Item Updated";
-      const notificationBody = `You changed the date and time for '${itemToEdit.place_name}' to ${formattedDate} at ${formattedTime}.`;
-      await createPersistentNotification(notificationTitle, notificationBody);
+      const notificationBody = `You changed '${itemToEdit.place_name}' to ${format(combinedDateTime, "MMMM do 'at' h:mm a")}.`;
+      await createPersistentNotification("Itinerary Item Updated", notificationBody);
       
     } catch (error) {
-      setSelectedItinerary(originalItinerary); // Rollback on error
+      setSelectedItinerary(originalItinerary);
       console.error("Error updating schedule item:", error);
       Alert.alert("Update Failed", error instanceof Error ? error.message : "An unknown error occurred.");
     }
@@ -237,7 +239,6 @@ export default function CalendarScreen() {
             });
             setExpandedItemId(null);
             
-            // --- MODIFIED: Show temporary and persistent notifications on successful deletion ---
             const notificationMessage = `You deleted the plan "${itemToDelete.place_name}".`;
             addNotification(notificationMessage, 'info'); 
             await createPersistentNotification("Plan Item Deleted", notificationMessage);
@@ -253,36 +254,38 @@ export default function CalendarScreen() {
     }]);
   };
   
-  const handleCreateItinerary = (newItineraryFromResponse: any) => { setModalVisible(false); const newItineraryForState: Itinerary = { id: newItineraryFromResponse.id.toString(), name: newItineraryFromResponse.name, type: newItineraryFromResponse.type, budget: newItineraryFromResponse.budget, startDate: new Date(newItineraryFromResponse.start_date), endDate: new Date(newItineraryFromResponse.end_date), schedule_items: (newItineraryFromResponse.schedule_items || []).map((item: any, index: number) => ({ ...item, id: item.id?.toString() ?? `${newItineraryFromResponse.id}-${index}` })), }; setItineraries(prev => [newItineraryForState, ...prev]); setSelectedItinerary(newItineraryForState); setSelectedDate(newItineraryForState.startDate); setDisplayDate(newItineraryForState.startDate); };
+  const handleCreateItinerary = (newItineraryFromResponse: any) => { 
+    setModalVisible(false); 
+    const newItineraryForState: Itinerary = { 
+      id: newItineraryFromResponse.id.toString(), 
+      name: newItineraryFromResponse.name, 
+      type: newItineraryFromResponse.type, 
+      budget: newItineraryFromResponse.budget, 
+      startDate: parseDateStringSafe(newItineraryFromResponse.start_date), 
+      endDate: parseDateStringSafe(newItineraryFromResponse.end_date), 
+      schedule_items: (newItineraryFromResponse.schedule_items || []).map((item: any, index: number) => ({ ...item, id: item.id?.toString() ?? `${newItineraryFromResponse.id}-${index}` })), 
+    }; 
+    setItineraries(prev => [newItineraryForState, ...prev]); 
+    setSelectedItinerary(newItineraryForState); 
+    setSelectedDate(newItineraryForState.startDate); 
+    setDisplayDate(newItineraryForState.startDate); 
+  };
 
   const handleDeleteItinerary = async () => {
     if (!selectedItinerary) return;
-
-    // The name of the itinerary is captured here to be used in the notification messages.
     const itineraryName = selectedItinerary.name;
-
-    Alert.alert(
-      "Delete Itinerary",
-      `Delete "${itineraryName}"? This cannot be undone.`,
-      [{ text: "Cancel", style: "cancel" },
-      { 
+    Alert.alert("Delete Itinerary", `Delete "${itineraryName}"? This cannot be undone.`, [{ text: "Cancel", style: "cancel" }, { 
         text: "Delete", 
         style: "destructive", 
         onPress: async () => {
           try {
             const token = await AsyncStorage.getItem("firebase_id_token");
             if (!token) { setLoginRequired(true); return; }
-
-            const response = await fetch(`${BACKEND_ITINERARY_API_URL}/${selectedItinerary.id}`, {
-              method: "DELETE",
-              headers: { Authorization: `Bearer ${token}` }
-            });
-
+            const response = await fetch(`${BACKEND_ITINERARY_API_URL}/${selectedItinerary.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
             if (response.status === 204) {
               const updatedItineraries = itineraries.filter(it => it.id !== selectedItinerary!.id);
               setItineraries(updatedItineraries);
               setIsDetailsVisible(false);
-              
               if (updatedItineraries.length > 0) {
                 const newSelected = updatedItineraries[0];
                 setSelectedItinerary(newSelected);
@@ -291,15 +294,8 @@ export default function CalendarScreen() {
               } else {
                 setSelectedItinerary(null);
               }
-            
-              // --- THIS IS WHERE THE NOTIFICATIONS ARE CREATED ---
-
-              // 1. This line creates the temporary, sliding banner notification.
               addNotification(`You deleted the plan "${itineraryName}".`, 'info');
-              
-              // 2. This line sends the notification to your backend to be stored permanently.
               await createPersistentNotification("Plan Deleted", `You deleted the travel plan: "${itineraryName}".`);
-
             } else if (response.status === 401) {
               setLoginRequired(true);
               await AsyncStorage.removeItem("firebase_id_token");
@@ -446,13 +442,27 @@ export default function CalendarScreen() {
           {renderContent()}
         </ScrollView>
         {!loginRequired && !isLoading && (
-          <TouchableOpacity style={styles.addButton} onPress={() => { panY.setValue(0); setModalVisible(true); }}>
-            <Text style={styles.addButtonText}>+</Text>
+          <TouchableOpacity style={styles.addButton} onPress={handleOpenModal} disabled={isLoadingLocation}>
+            {isLoadingLocation ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.addButtonText}>+</Text>}
           </TouchableOpacity>
         )}
       </SafeAreaView>
-      <ItineraryModal visible={modalVisible} onClose={() => setModalVisible(false)} onCreateItinerary={handleCreateItinerary} panY={panY} panResponder={panResponder} backendApiUrl={BACKEND_ITINERARY_API_URL} itineraries={itineraries} />
-      <ScheduleItemEditModal visible={isEditModalVisible} onClose={handleCloseEditModal} item={itemToEdit} itinerary={selectedItinerary} onSave={handleSaveScheduleItem} />
+      <ItineraryModal 
+        visible={modalVisible} 
+        onClose={() => setModalVisible(false)} 
+        onCreateItinerary={handleCreateItinerary} 
+        panY={panY} 
+        panResponder={panResponder} 
+        backendApiUrl={BACKEND_ITINERARY_API_URL} 
+        itineraries={itineraries}
+      />
+      <ScheduleItemEditModal 
+        visible={isEditModalVisible} 
+        onClose={handleCloseEditModal} 
+        item={itemToEdit} 
+        itinerary={selectedItinerary} 
+        onSave={handleSaveScheduleItem} 
+      />
     </View>
   );
 }
