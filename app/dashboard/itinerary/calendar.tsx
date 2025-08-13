@@ -470,7 +470,7 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   screenContainer: { flex: 1, position: "relative" },
   safeArea: { flex: 1, backgroundColor: "#FFFFFF" },
-  container: { paddingHorizontal: 20, paddingTop: 70, paddingBottom: 70, minHeight: "100%" },
+  container: { paddingHorizontal: 20, paddingTop: 30, paddingBottom: 30, minHeight: "100%" },
   loadingText: { marginTop: 16, color: "#6B7280", fontSize: 16 },
   errorText: { color: "#EF4444", fontSize: 16, textAlign: "center", marginBottom: 20 },
   retryButton: { backgroundColor: "#6366F1", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
