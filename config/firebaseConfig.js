@@ -5,13 +5,13 @@ import { getReactNativePersistence, initializeAuth } from "firebase/auth";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCOZkAv4ziJhx48aeSHoa0H9OWaD2-kppg",
-  authDomain: "senior-project-af27a.firebaseapp.com",
-  projectId: "senior-project-af27a",
-  storageBucket: "senior-project-af27a.firebasestorage.app",
-  messagingSenderId: "87459278279",
-  appId: "1:87459278279:web:e8906338e764344d747de2",
-  measurementId: "G-S3VSC8W4TQ"
+  apiKey: "AIzaSyCde5LTUXjmGqN1gPY81EFcn_aTiyW2Djs",
+  authDomain: "intra-2057d.firebaseapp.com",
+  projectId: "intra-2057d",
+  storageBucket: "intra-2057d.appspot.com",
+  messagingSenderId: "564971518526",
+  appId: "1:564971518526:web:2aabe06027b9f63c6eef6f",
+  measurementId: "G-208E0TXML2"
 };
 
 // Singleton pattern to initialize Firebase app (This part is correct)
@@ -33,3 +33,4 @@ const auth = initializeAuth(app, {
 
 // Export the correctly configured auth object
 export { auth };
+

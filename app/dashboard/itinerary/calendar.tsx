@@ -80,10 +80,7 @@ export default function CalendarScreen() {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<ScheduleItem | null>(null);
   const panY = useRef(new Animated.Value(0)).current;
-  // Add this state for location loading
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
-  // Optionally, add deviceLocation if you use it in ItineraryModal
-  const [deviceLocation, setDeviceLocation] = useState<Location.LocationObject | null>(null);
 
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -319,7 +316,56 @@ export default function CalendarScreen() {
   const getScheduleItemsForTimeSlot = (timeSlot: string): ScheduleItem[] => { if (!selectedItinerary) return []; const parts = timeSlot.match(/(\d+):(\d+)\s(AM|PM)/); if (!parts) return []; let hour12 = parseInt(parts[1], 10); const ampm = parts[3]; let hour24 = hour12; if (ampm === 'PM' && hour12 < 12) { hour24 += 12; } if (ampm === 'AM' && hour12 === 12) { hour24 = 0; } return selectedItinerary.schedule_items.filter((item) => { const itemDate = parse(item.scheduled_date, "yyyy-MM-dd", new Date()); if (!isSameDay(itemDate, selectedDate)) { return false; } const itemHour24 = parseInt(item.scheduled_time.split(":")[0], 10); return itemHour24 === hour24; }); };
   const handleItemPress = async (item: ScheduleItem) => { if (expandedItemId === item.id) { setExpandedItemId(null); setRouteCoordinates([]); return; } setRouteCoordinates([]); setIsDescriptionExpanded(null); setExpandedItemId(item.id); if (!placeDetailsCache[item.place_id]) { setIsFetchingDetails(true); try { const token = await AsyncStorage.getItem("firebase_id_token"); const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/place/${item.place_id}/details`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); if (!response.ok) throw new Error("Failed to fetch place details"); const details: PlaceDetails = await response.json(); setPlaceDetailsCache(prev => ({ ...prev, [item.place_id]: details })); } catch (error) { console.error("Error fetching place details:", error); Alert.alert("Error", "Could not load place details."); setExpandedItemId(null); } finally { setIsFetchingDetails(false); } } };
   const toggleDescriptionExpansion = (itemId: string) => setIsDescriptionExpanded(isDescriptionExpanded === itemId ? null : itemId);
-  const handleShowDirections = async (item: ScheduleItem) => { if (routeCoordinates.length > 0) { setRouteCoordinates([]); return; } setIsFetchingRoute(true); try { let { status } = await Location.requestForegroundPermissionsAsync(); if (status !== "granted") { Alert.alert("Permission Denied", "Location is needed for directions."); return; } const location = await Location.getCurrentPositionAsync({}); const origin = `${location.coords.latitude},${location.coords.longitude}`; const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/directions?origin=${origin}&destination_place_id=${item.place_id}`); if (!response.ok) { throw new Error((await response.json()).detail || "Failed to fetch directions."); } const data = await response.json(); const coords = polyline.decode(data.encoded_polyline).map(p => ({ latitude: p[0], longitude: p[1] })); setRouteCoordinates(coords); mapRef.current?.fitToCoordinates(coords, { edgePadding: { top: 50, right: 50, bottom: 50, left: 50 }, animated: true, }); } catch (error) { console.error(error); Alert.alert("Error", "Could not get directions."); } finally { setIsFetchingRoute(false); } };
+  
+  const handleShowDirections = async (item: ScheduleItem) => {
+    if (routeCoordinates.length > 0) {
+      setRouteCoordinates([]);
+      return;
+    }
+    setIsFetchingRoute(true);
+    console.log("Directions: Requesting location permission...");
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Denied", "Location access is required to show directions.");
+        return;
+      }
+      console.log("Directions: Permission granted. Getting current position...");
+      const location = await Location.getCurrentPositionAsync({});
+      const origin = `${location.coords.latitude},${location.coords.longitude}`;
+      console.log(`Directions: Origin is ${origin}, Destination Place ID is ${item.place_id}`);
+
+      console.log("Directions: Calling backend endpoint...");
+      const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/directions?origin=${origin}&destination_place_id=${item.place_id}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Directions: Backend error:", errorData);
+        throw new Error(errorData.detail || "Failed to fetch directions from server.");
+      }
+      const data = await response.json();
+      console.log("Directions: Received encoded polyline from backend.");
+
+      const coords = polyline.decode(data.encoded_polyline).map(point => ({
+        latitude: point[0],
+        longitude: point[1],
+      }));
+      console.log(`Directions: Decoded polyline into ${coords.length} coordinates.`);
+      setRouteCoordinates(coords);
+
+      mapRef.current?.fitToCoordinates(coords, {
+        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+        animated: true,
+      });
+
+    } catch (error) {
+      console.error("Directions: Full error caught in handleShowDirections:", error);
+      Alert.alert("Error", error instanceof Error ? error.message : "Could not get directions.");
+    } finally {
+      setIsFetchingRoute(false);
+      console.log("Directions: Process finished.");
+    }
+  };
 
   const renderContent = () => {
     if (isLoading) { return <View style={styles.centeredMessageContainer}><ActivityIndicator size="large" color="#6366F1" /><Text style={styles.loadingText}>Loading your itineraries...</Text></View>; }

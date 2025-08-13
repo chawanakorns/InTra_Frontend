@@ -49,6 +49,9 @@
       "router": {},
       "eas": {
         "projectId": "274b91e6-8a77-42dd-af30-079499a02c07"
+      },
+      "googleMaps": {
+      "androidApiKey": "AIzaSyDew79TqjIULXwqCq0QwwLmRvj4WtRVuY8"
       }
     }
   }
