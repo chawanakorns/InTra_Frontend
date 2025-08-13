@@ -456,9 +456,6 @@ export default function CalendarScreen() {
                                         <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={() => handleOpenEditModal(item)}><MaterialIcons name="edit-calendar" size={20} color="#FFFFFF" /><Text style={styles.actionButtonText}>Edit</Text></TouchableOpacity>
                                         <TouchableOpacity style={[styles.actionButton, styles.deleteItemButton]} onPress={() => handleDeleteScheduleItem(item)}><MaterialIcons name="delete-forever" size={20} color="#FFFFFF" /><Text style={styles.actionButtonText}>Delete</Text></TouchableOpacity>
                                       </View>
-                                      <TouchableOpacity style={styles.mapButton} onPress={() => handleShowDirections(item)} disabled={isFetchingRoute}>
-                                        {isFetchingRoute ? <ActivityIndicator color="#FFFFFF" /> : <><MaterialIcons name="directions" size={20} color="#FFFFFF" /><Text style={styles.mapButtonText}>{routeCoordinates.length > 0 ? "Hide Directions" : "Show Directions"}</Text></>}
-                                      </TouchableOpacity>
                                       {routeCoordinates.length > 0 && <MapView ref={mapRef} style={styles.mapView} showsUserLocation initialRegion={{ latitude: routeCoordinates[0].latitude, longitude: routeCoordinates[0].longitude, latitudeDelta: 0.0922, longitudeDelta: 0.0421 }}><Marker coordinate={routeCoordinates[routeCoordinates.length - 1]} title="Destination" /><Polyline coordinates={routeCoordinates} strokeColor="#6366F1" strokeWidth={4} /></MapView>}
                                     </>
                                   )}
