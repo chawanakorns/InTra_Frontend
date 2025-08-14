@@ -1,4 +1,8 @@
 # --- Secrets ---
+
+#
+config/firebaseConfig.js
+
 # VERY IMPORTANT: Ignore Firebase config files and local environment variables
 google-services.json
 .env*.local
