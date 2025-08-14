@@ -21,19 +21,19 @@
       "autoIncrement": true,
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
-      },
-      "secrets": {
-        "files": [
-          {
-            "path": "./google-services.json",
-            "secret": "GOOGLE_SERVICES_JSON"
-          },
-          {
-            "path": "./config/firebaseConfig.js",
-            "secret": "FIREBASE_CONFIG_JS"
-          }
-        ]
       }
+    },
+    "secrets": {
+      "files": [
+        {
+          "path": "./google-services.json",
+          "secret": "GOOGLE_SERVICES_JSON"
+        },
+        {
+          "path": "./config/firebaseConfig.js",
+          "secret": "FIREBASE_CONFIG_JS"
+        }
+      ]
     }
   },
   "submit": {
