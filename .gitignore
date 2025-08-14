@@ -1,48 +1,49 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# android build
-android
-
-# android build
-ios
-
-# config
-config/firebaseConfig.js
-
-# dependencies
-node_modules/
-
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
-
-# Native
-.kotlin/
-*.orig.*
-*.jks
+# --- Secrets ---
+# VERY IMPORTANT: Ignore Firebase config files and local environment variables
+google-services.json
+.env*.local
+*.pem
 *.p8
 *.p12
 *.key
-*.mobileprovision
 
-# Metro
+# --- Build & Dependency Folders ---
+# Native build folders
+android/
+ios/
+
+# Dependencies
+node_modules/
+
+# Web build output
+dist/
+web-build/
+
+# Expo specific
+.expo/
+expo-env.d.ts
+
+# --- Temporary & Cache Files ---
+# Metro bundler
 .metro-health-check*
 
-# debug
+# TypeScript
+*.tsbuildinfo
+
+# Debug logs
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 
 # macOS
 .DS_Store
-*.pem
 
-# local env files
-.env*.local
+# --- Native Build Artifacts (Good to have) ---
+.kotlin/
+*.orig.*
+*.jks
+*.mobileprovision
 
-# typescript
-*.tsbuildinfo
-
+# --- Misc ---
+# Remove example files if they exist
 app-example
