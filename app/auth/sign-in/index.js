@@ -10,9 +10,9 @@ import {
   Alert,
   Dimensions,
   Image,
-  KeyboardAvoidingView, 
-  Platform, 
-  ScrollView, 
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -129,7 +129,7 @@ export default function SignIn() {
             source={require("../../../assets/images/Mobilelogin.png")}
             style={style.image}
           />
-          <Text style={style.title}>Let's Sign You In</Text>
+          <Text style={style.title}>Let&apos;s Sign You In</Text>
           <View style={{ marginTop: 20 }}>
             <Text style={style.labelText}>Email</Text>
             <TextInput
@@ -191,7 +191,7 @@ export default function SignIn() {
             </Text>
           </TouchableOpacity>
           <View style={style.footer}>
-            <Text style={style.footerText}>Don't have an account? </Text>
+            <Text style={style.footerText}>Don&apos;t have an account? </Text>
             <TouchableOpacity onPress={() => router.replace("auth/sign-up")}>
               <Text style={style.footerLink}>Register</Text>
             </TouchableOpacity>
