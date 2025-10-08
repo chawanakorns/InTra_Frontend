@@ -13,7 +13,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -41,18 +40,30 @@ const getErrorMessage = (data: any, defaultMessage: string): string => {
 
 const IconTextInput = ({ iconName, value, placeholder, onChangeText, multiline = false, editable = true, fontScale }: any) => (
     <View style={[styles.inputContainer, !editable && styles.disabledInput]}>
-        <MaterialIcons name={iconName} size={responsiveFontSize(22, fontScale)} color="#6b7280" style={styles.inputIcon} />
+        <MaterialIcons name={iconName} size={responsiveFontSize(20, fontScale)} color="#9CA3AF" style={styles.inputIcon} />
         <TextInput
             style={[styles.textInput, { fontSize: responsiveFontSize(16, fontScale) }]}
             value={value}
             placeholder={placeholder}
             onChangeText={onChangeText}
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor="#9CA3AF"
             multiline={multiline}
             editable={editable}
-            returnKeyType={multiline ? "default" : "next"}
-            blurOnSubmit={!multiline}
         />
+    </View>
+);
+
+const SkeletonLoader = () => (
+    <View style={styles.skeletonContainer}>
+        <View style={styles.skeletonHeader} />
+        <View style={styles.skeletonProfileImage} />
+        <View style={styles.skeletonForm}>
+            <View style={styles.skeletonTitle} />
+            <View style={styles.skeletonInput} />
+            <View style={[styles.skeletonInput, { height: 50 }]} />
+            <View style={styles.skeletonInput} />
+            <View style={styles.skeletonInput} />
+        </View>
     </View>
 );
 
@@ -60,7 +71,8 @@ export default function EditProfileScreen() {
   const router = useRouter();
   const { profile, fetchUserProfile } = useUserProfile();
   const { width, height, fontScale } = useWindowDimensions();
-
+  
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [fullName, setFullName] = useState('');
   const [aboutMe, setAboutMe] = useState('');
   const [dob, setDob] = useState<Date | null>(null);
@@ -80,6 +92,9 @@ export default function EditProfileScreen() {
       setEmail(profile.email || '');
       setImageUri(createFullImageUrl(profile.imageUri ?? undefined));
       setBackgroundUri(createFullImageUrl(profile.backgroundUri ?? undefined));
+      setIsLoadingProfile(false);
+    } else {
+      setIsLoadingProfile(true);
     }
   }, [profile]);
 
@@ -141,11 +156,7 @@ export default function EditProfileScreen() {
       if (!token) throw new Error("No access token found");
       
       const formattedDob = dob ? dob.toISOString().split('T')[0] : null;
-      const payload = {
-          fullName,
-          aboutMe,
-          dob: formattedDob,
-      };
+      const payload = { fullName, aboutMe, dob: formattedDob };
 
       const response = await fetch(`${API_URL}/auth/me`, {
         method: "PUT",
@@ -182,14 +193,12 @@ export default function EditProfileScreen() {
                           Alert.alert("Error", "Profile data not loaded. Please try again.");
                           return;
                       }
-
                       try {
                           await AsyncStorage.setItem('tourist_type', JSON.stringify(profile.tourist_type || []));
                           await AsyncStorage.setItem('preferred_activities', JSON.stringify(profile.preferred_activities || []));
                           await AsyncStorage.setItem('preferred_cuisines', JSON.stringify(profile.preferred_cuisines || []));
                           await AsyncStorage.setItem('preferred_dining', JSON.stringify(profile.preferred_dining || []));
                           await AsyncStorage.setItem('preferred_times', JSON.stringify(profile.preferred_times || []));
-
                           router.push({
                               pathname: '/auth/personalize/kindOfusers',
                               params: { editMode: 'true' }
@@ -204,97 +213,109 @@ export default function EditProfileScreen() {
       );
   };
 
-  const headerHeight = height * 0.25;
-  const profileImageSize = width * 0.35;
-  const paddingHorizontal = width * 0.05;
+  const headerHeight = height * 0.22;
+  const profileImageSize = width * 0.3;
+
+  if (isLoadingProfile) {
+    return <SkeletonLoader />;
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
       >
-        <ScrollView 
-          contentContainerStyle={styles.scrollContainer} 
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View>
-                <ImageBackground 
-                    source={backgroundUri ? { uri: backgroundUri } : require('../../../../assets/images/profile-bg.jpg')} 
-                    style={[styles.backgroundImage, { height: headerHeight }]}
-                >
-                    <TouchableOpacity style={styles.editButtonBackground} onPress={() => pickImage(false)} disabled={isUploading}>
-                        {isUploading ? <ActivityIndicator size="small" color="#fff" /> : <MaterialIcons name="edit" size={responsiveFontSize(20, fontScale)} color="#fff" />}
+            <View style={styles.container}>
+                <View style={{width: '100%'}}>
+                    <ImageBackground 
+                        source={backgroundUri ? { uri: backgroundUri } : require('../../../../assets/images/profile-bg.jpg')} 
+                        style={[styles.backgroundImage, { height: headerHeight }]}
+                    >
+                        {/* --- NEW Back Button --- */}
+                        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                            <MaterialIcons name="arrow-back" size={responsiveFontSize(24, fontScale)} color="#333" />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.editButtonBackground} onPress={() => pickImage(false)} disabled={isUploading}>
+                            {isUploading ? <ActivityIndicator size="small" color="#333" /> : <MaterialIcons name="photo-camera" size={responsiveFontSize(20, fontScale)} color="#333" />}
+                        </TouchableOpacity>
+                    </ImageBackground>
+                    
+                    <View style={styles.profileContainer}>
+                        <View style={[styles.profileImageContainer, { width: profileImageSize, height: profileImageSize, marginTop: -(profileImageSize / 2) }]}>
+                            <Image 
+                                source={imageUri ? { uri: imageUri } : require('../../../../assets/images/defaultprofile.png')} 
+                                style={styles.profileImage} 
+                            />
+                            <TouchableOpacity style={styles.editButtonProfile} onPress={() => pickImage(true)} disabled={isUploading}>
+                                {isUploading ? <ActivityIndicator size="small" color="#fff" /> : <MaterialIcons name="edit" size={responsiveFontSize(18, fontScale)} color="#fff" />}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+
+                <View style={styles.formContainer}>
+                    <Text style={[styles.title, { fontSize: responsiveFontSize(24, fontScale) }]}>Edit Your Profile</Text>
+                    
+                    <IconTextInput iconName="person-outline" value={fullName} placeholder="Full Name" onChangeText={setFullName} editable={!isSaving} fontScale={fontScale} />
+                    <IconTextInput iconName="article" value={aboutMe} placeholder="About Me" onChangeText={setAboutMe} multiline editable={!isSaving} fontScale={fontScale} />
+                    
+                    <TouchableOpacity onPress={() => !isSaving && setShowDatePicker(true)}>
+                        <View pointerEvents="none">
+                            <IconTextInput iconName="calendar-today" value={dob ? dob.toLocaleDateString('en-CA') : ''} placeholder="Date of Birth (YYYY-MM-DD)" editable={false} fontScale={fontScale} />
+                        </View>
                     </TouchableOpacity>
-                </ImageBackground>
-                
-                <View style={styles.contentArea}>
-                    <View style={[styles.profileImageContainer, { width: profileImageSize, height: profileImageSize, marginTop: -(profileImageSize / 2) }]}>
-                        <Image 
-                            source={imageUri ? { uri: imageUri } : require('../../../../assets/images/defaultprofile.png')} 
-                            style={styles.profileImage} 
-                        />
-                        <TouchableOpacity style={styles.editButtonProfile} onPress={() => pickImage(true)} disabled={isUploading}>
-                            {isUploading ? <ActivityIndicator size="small" color="#fff" /> : <MaterialIcons name="edit" size={responsiveFontSize(20, fontScale)} color="#fff" />}
-                        </TouchableOpacity>
-                    </View>
 
-                    <View style={[styles.formContainer, { width: width - (paddingHorizontal * 2) }]}>
-                        <Text style={[styles.title, { fontSize: responsiveFontSize(24, fontScale) }]}>Edit Your Profile</Text>
-                        
-                        <IconTextInput iconName="person-outline" value={fullName} placeholder="Full Name" onChangeText={setFullName} editable={!isSaving} fontScale={fontScale} />
-                        <IconTextInput iconName="description" value={aboutMe} placeholder="About Me" onChangeText={setAboutMe} multiline editable={!isSaving} fontScale={fontScale} />
-                        
-                        <TouchableOpacity onPress={() => !isSaving && setShowDatePicker(true)}>
-                            <View pointerEvents="none">
-                                <IconTextInput iconName="calendar-today" value={dob ? dob.toLocaleDateString('en-CA') : ''} placeholder="Date of Birth (YYYY-MM-DD)" editable={false} fontScale={fontScale} />
-                            </View>
-                        </TouchableOpacity>
+                    <IconTextInput iconName="mail-outline" value={email} placeholder="Email" editable={false} fontScale={fontScale} />
+                    
+                    {showDatePicker && (
+                        <DateTimePicker value={dob || new Date()} mode="date" display="default" onChange={onChangeDate} maximumDate={new Date()} />
+                    )}
+                </View>
 
-                        <IconTextInput iconName="mail-outline" value={email} placeholder="Email" editable={false} fontScale={fontScale} />
-                        
-                        {showDatePicker && (
-                            <DateTimePicker value={dob || new Date()} mode="date" display="default" onChange={onChangeDate} maximumDate={new Date()} />
-                        )}
-                        
-                        <TouchableOpacity style={styles.preferencesButton} onPress={handleEditPreferences}>
-                            <>
-                              <MaterialIcons name="tune" size={responsiveFontSize(22, fontScale)} color="#fff" />
-                              <Text style={[styles.preferencesButtonText, { fontSize: responsiveFontSize(16, fontScale) }]}>Update Travel Preferences</Text>
-                            </>
-                        </TouchableOpacity>
+                <View style={styles.buttonGroup}>
+                    <TouchableOpacity style={styles.preferencesButton} onPress={handleEditPreferences}>
+                          <MaterialIcons name="tune" size={responsiveFontSize(20, fontScale)} color="#fff" />
+                          <Text style={[styles.buttonText, { fontSize: responsiveFontSize(16, fontScale) }]}>Preferences</Text>
+                    </TouchableOpacity>
 
-                        <TouchableOpacity style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} onPress={handleSave} disabled={isSaving}>
-                            {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={[styles.saveButtonText, { fontSize: responsiveFontSize(16, fontScale) }]}>Save Profile Changes</Text>}
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} onPress={handleSave} disabled={isSaving}>
+                        {isSaving ? <ActivityIndicator color="#fff" /> : 
+                        <>
+                          <MaterialIcons name="save" size={responsiveFontSize(20, fontScale)} color="#fff" />
+                          <Text style={[styles.buttonText, { fontSize: responsiveFontSize(16, fontScale) }]}>Save</Text>
+                        </>
+                        }
+                    </TouchableOpacity>
                 </View>
             </View>
           </TouchableWithoutFeedback>
-        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#f9fafb' },
-    scrollContainer: { paddingBottom: 60, flexGrow: 1 },
+    safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+    container: { flex: 1, backgroundColor: '#FFFFFF', alignItems: 'center' },
     backgroundImage: { width: '100%' },
-    editButtonBackground: { position: 'absolute', top: 16, right: 16, backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 20 },
-    contentArea: {
+    backButton: { position: 'absolute', top: 50, left: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.8)', justifyContent: 'center', alignItems: 'center' },
+    editButtonBackground: { position: 'absolute', top: 50, right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.8)', justifyContent: 'center', alignItems: 'center' },
+    profileContainer: {
+      width: '100%',
       alignItems: 'center',
-      backgroundColor: '#f9fafb', // Ensures background color consistency
     },
     profileImageContainer: { 
-      // Negative margin pulls this view up
-      borderRadius: 999, // Ensures the container is a circle
+      borderRadius: 999,
       borderWidth: 4,
-      borderColor: '#fff',
-      backgroundColor: '#e5e7eb',
+      borderColor: '#FFFFFF',
+      backgroundColor: '#E5E7EB',
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 5,
     },
     profileImage: {
       width: '100%',
@@ -303,23 +324,41 @@ const styles = StyleSheet.create({
     },
     editButtonProfile: { 
         position: 'absolute', 
-        bottom: '3%', 
-        right: '3%', 
-        backgroundColor: '#2563EB',
-        padding: 8,
-        borderRadius: 20,
+        bottom: '2%', 
+        right: '2%', 
+        backgroundColor: '#6366F1',
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center', 
+        alignItems: 'center',
         borderWidth: 2,
-        borderColor: '#fff',
+        borderColor: '#FFFFFF',
     },
-    formContainer: { marginTop: 20, width: '100%' },
-    title: { fontWeight: 'bold', textAlign: 'center', marginBottom: 24, color: '#1f2937' },
-    inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, marginBottom: 16, paddingHorizontal: 15, borderWidth: 1, borderColor: '#e5e7eb' },
+    formContainer: { flex: 1, marginTop: 25, width: '90%' },
+    title: { fontWeight: 'bold', textAlign: 'center', marginBottom: 24, color: '#1F2937' },
+    inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderRadius: 12, marginBottom: 16, paddingHorizontal: 15, borderWidth: 1, borderColor: '#E5E7EB' },
     inputIcon: { marginRight: 10 },
     textInput: { flex: 1, paddingVertical: 15, color: '#111827' },
-    disabledInput: { backgroundColor: "#f3f4f6" },
-    preferencesButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: "#2563EB", padding: 18, borderRadius: 12, marginTop: 10 },
-    preferencesButtonText: { color: "#fff", fontWeight: "bold", marginLeft: 10 },
-    saveButton: { backgroundColor: "#6366F1", padding: 18, borderRadius: 12, alignItems: "center", marginTop: 20 },
-    saveButtonText: { color: "#fff", fontWeight: "bold" },
-    saveButtonDisabled: { backgroundColor: "#A5B4FC" }
+    disabledInput: { backgroundColor: "#F3F4F6" },
+    buttonGroup: {
+        flexDirection: 'row',
+        width: '90%',
+        paddingBottom: 20,
+    },
+    preferencesButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: "#2563EB", paddingVertical: 18, borderRadius: 12, flex: 1, marginRight: 10 },
+    saveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: "#6366F1", paddingVertical: 18, borderRadius: 12, flex: 1 },
+    buttonText: { color: "#fff", fontWeight: "bold", marginLeft: 8 },
+    saveButtonDisabled: { backgroundColor: "#A5B4FC" },
+    // Skeleton Styles
+    skeletonContainer: { flex: 1, backgroundColor: '#FFFFFF', alignItems: 'center' },
+    skeletonHeader: { width: '100%', height: '22%', backgroundColor: '#E5E7EB' },
+    skeletonProfileImage: { 
+        width: 120, height: 120, borderRadius: 60, 
+        marginTop: -60, 
+        backgroundColor: '#D1D5DB', borderWidth: 4, borderColor: '#FFFFFF'
+    },
+    skeletonForm: { width: '90%', flex: 1, marginTop: 25 },
+    skeletonTitle: { width: '60%', height: 30, borderRadius: 8, backgroundColor: '#E5E7EB', alignSelf: 'center', marginBottom: 30 },
+    skeletonInput: { width: '100%', height: 50, borderRadius: 12, backgroundColor: '#F3F4F6', marginBottom: 16 },
 });
