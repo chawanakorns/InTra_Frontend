@@ -1,8 +1,5 @@
-// file: app/dashboard/notification/index.tsx
-
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// --- MODIFIED: Import 'format' instead of 'formatDistanceToNow' ---
 import { format } from 'date-fns';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -139,7 +136,6 @@ export default function NotificationsScreen() {
       <View style={styles.textContainer}>
         <Text style={styles.title}>{item.title}</Text>
         {item.body && <Text style={styles.body}>{item.body}</Text>}
-        {/* --- MODIFIED: Format the date to show Day, Month, Year, and Time --- */}
         <Text style={styles.date}>
           {format(new Date(item.created_at), 'MMM d, yyyy, h:mm a')}
         </Text>
@@ -173,11 +169,16 @@ export default function NotificationsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerContainer}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <MaterialIcons name="arrow-back" size={28} color="#1F2937" />
+        </TouchableOpacity>
         <Text style={styles.header}>Notifications</Text>
-        {notifications.length > 0 && (
+        {notifications.length > 0 ? (
           <TouchableOpacity onPress={handleClearAll} style={styles.clearButton}>
             <MaterialIcons name="clear-all" size={28} color="#6B7280" />
           </TouchableOpacity>
+        ) : (
+            <View style={{ width: 40 }} /> // Spacer to keep title centered
         )}
       </View>
       {notifications.length === 0 ? (
@@ -200,24 +201,31 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#F9FAFB', marginTop: 40},
   headerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'android' ? 20 : 10,
     paddingBottom: 10,
   },
+  backButton: {
+    padding: 6,
+    marginRight: 10,
+  },
   header: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#1F2937',
+    textAlign: 'center',
+    flex: 1,
   },
   clearButton: {
     padding: 6,
+    marginLeft: 10,
   },
-  list: { paddingHorizontal: 20 },
+  list: { paddingHorizontal: 20, paddingTop: 10 },
   notificationItem: { flexDirection: 'row', backgroundColor: '#FFFFFF', padding: 15, borderRadius: 12, marginBottom: 15, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
   unreadItem: { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' },
   iconContainer: { marginRight: 15, alignItems: 'center' },
