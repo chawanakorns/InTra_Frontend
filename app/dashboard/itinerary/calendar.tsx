@@ -2,7 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import polyline from "@mapbox/polyline";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import { format, isSameDay, parse } from "date-fns";
+import { format, isSameDay, isToday, parse } from "date-fns";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -11,12 +11,15 @@ import {
   Alert,
   Animated,
   Image,
+  LayoutAnimation,
   PanResponder,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  UIManager,
   View
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
@@ -26,25 +29,34 @@ import { ScheduleItemEditModal } from "../../../components/ScheduleItemEditModal
 import { useNotification } from "../../../context/NotificationContext";
 import { API_URL } from "../../config";
 
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// --- Constants ---
 const BACKEND_ITINERARY_API_URL = `${API_URL}/api/itineraries`;
 const BACKEND_AUTH_API_URL = `${API_URL}/auth`;
 const BACKEND_RECOMMENDATIONS_API_URL = `${API_URL}/api`;
 const BACKEND_NOTIFICATION_API_URL = `${API_URL}/api/notifications`;
+const HOUR_ROW_HEIGHT = 80;
+const TIME_LABEL_WIDTH = 80;
 
+// --- Type Definitions ---
 type ScheduleItem = { id: string; place_id: string; place_name: string; place_type?: string; place_address?: string; place_rating?: number; place_image?: string; scheduled_date: string; scheduled_time: string; duration_minutes: number; };
 type Itinerary = { id: string; type: string; budget: string | null; name: string; startDate: Date; endDate: Date; schedule_items: ScheduleItem[]; };
 type PlaceDetails = { id: string; name: string; description: string; isOpen?: boolean; address?: string; rating?: number; };
 
+// --- Helper Functions ---
 const formatAndCapitalize = (s: string | undefined): string => {
   if (!s) return "";
   return s.replace(/_/g, " ").split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
 };
-
 const parseDateStringSafe = (dateStr: string): Date => {
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
 };
 
+// --- Components ---
 const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
   <View style={styles.centeredMessageContainer}>
     <MaterialIcons name="event-note" size={60} color="#9CA3AF" />
@@ -53,6 +65,24 @@ const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
     <TouchableOpacity style={styles.loginButton} onPress={onLoginPress}><Text style={styles.loginButtonText}>Log In or Sign Up</Text></TouchableOpacity>
   </View>
 );
+
+const SkeletonLoader = () => (
+    <View style={{ paddingHorizontal: 20, paddingTop: 60 }}>
+        <View style={{ width: '70%', height: 30, backgroundColor: '#EFEFEF', borderRadius: 8, marginBottom: 10 }} />
+        <View style={{ width: '50%', height: 20, backgroundColor: '#EFEFEF', borderRadius: 8, marginBottom: 20 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30, paddingVertical: 10 }}>
+            {Array.from({ length: 7 }).map((_, i) => <View key={i} style={{ width: 40, height: 60, backgroundColor: '#EFEFEF', borderRadius: 20 }} />)}
+        </View>
+        <View style={{ width: '30%', height: 24, backgroundColor: '#EFEFEF', borderRadius: 8, marginBottom: 20 }} />
+    </View>
+);
+
+// --- NEW: Reordered hours for timeline display ---
+const dayHours = Array.from({ length: 18 }, (_, i) => i + 6); // 6 AM to 11 PM (23)
+const nightHours = Array.from({ length: 6 }, (_, i) => i);   // 12 AM to 5 AM (0-5)
+const orderedHours = [...dayHours, ...nightHours];
+const hourToRowIndexMap = new Map(orderedHours.map((hour, index) => [hour, index]));
+
 
 export default function CalendarScreen() {
   const router = useRouter();
@@ -64,13 +94,13 @@ export default function CalendarScreen() {
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loginRequired, setLoginRequired] = useState(false);
   const [userName, setUserName] = useState("Guest");
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [expandedDetailsHeight, setExpandedDetailsHeight] = useState(0); 
   const [placeDetailsCache, setPlaceDetailsCache] = useState<Record<string, PlaceDetails>>({});
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState<string | null>(null);
@@ -80,47 +110,26 @@ export default function CalendarScreen() {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<ScheduleItem | null>(null);
   const panY = useRef(new Animated.Value(0)).current;
-  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (_evt, gestureState) => gestureState.dy > 0,
+    onMoveShouldSetPanResponder: (_evt, gestureState) => Math.abs(gestureState.dy) > 5,
     onPanResponderMove: Animated.event([null, { dy: panY }], { useNativeDriver: false }),
     onPanResponderRelease: (_, gestureState) => {
       if (gestureState.dy > 100 || gestureState.vy > 0.5) {
         Animated.timing(panY, { toValue: 500, duration: 200, useNativeDriver: true }).start(() => { setModalVisible(false); panY.setValue(0); });
       } else {
-        Animated.spring(panY, { toValue: 0, useNativeDriver: true }).start();
+        Animated.spring(panY, { toValue: 0, stiffness: 100, damping: 20, useNativeDriver: true }).start();
       }
     },
   })).current;
 
-  const handleOpenModal = () => {
-    panY.setValue(0);
-    setModalVisible(true);
-  };
-
-  const coveredTimeSlots = useMemo(() => {
-    const covered = new Set<string>();
-    if (!selectedItinerary) return covered;
-    const itemsForDay = selectedItinerary.schedule_items.filter((item) => isSameDay(parse(item.scheduled_date, "yyyy-MM-dd", new Date()), selectedDate));
-    itemsForDay.forEach((item) => {
-      const [sH] = item.scheduled_time.split(":").map(Number);
-      const startTimeInMinutes = sH * 60 + parseInt(item.scheduled_time.split(":")[1], 10);
-      const endTimeInMinutes = startTimeInMinutes + item.duration_minutes;
-      for (let hour = sH + 1; hour * 60 < endTimeInMinutes; hour++) {
-        const ampm = hour >= 12 ? "PM" : "AM";
-        let displayHour = hour % 12 || 12;
-        covered.add(`${displayHour.toString().padStart(2, "0")}:00 ${ampm}`);
-      }
-    });
-    return covered;
-  }, [selectedItinerary, selectedDate]);
+  const handleOpenModal = () => { panY.setValue(0); setModalVisible(true); };
 
   useEffect(() => { const timer = setInterval(() => setCurrentTime(new Date()), 60000); return () => clearInterval(timer); }, []);
   useEffect(() => { const startOfWeek = new Date(displayDate); startOfWeek.setDate(displayDate.getDate() - displayDate.getDay()); setWeekDates(Array.from({ length: 7 }, (_, i) => new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i))); }, [displayDate]);
   useEffect(() => { if (selectedItinerary) { const selectedDay = new Date(selectedDate); selectedDay.setHours(0, 0, 0, 0); const itineraryStartDay = new Date(selectedItinerary.startDate); itineraryStartDay.setHours(0, 0, 0, 0); const itineraryEndDay = new Date(selectedItinerary.endDate); itineraryEndDay.setHours(0, 0, 0, 0); if (selectedDay < itineraryStartDay || selectedDay > itineraryEndDay) { setSelectedDate(new Date(selectedItinerary.startDate)); setDisplayDate(new Date(selectedItinerary.startDate)); } } }, [selectedItinerary, selectedDate]);
-
+  
   const fetchUserName = useCallback(async (token: string | null) => {
     if (!token) { setUserName("Guest"); return; }
     try {
@@ -159,7 +168,7 @@ export default function CalendarScreen() {
   };
 
   useFocusEffect(useCallback(() => { fetchItineraries(); setExpandedItemId(null); setIsDescriptionExpanded(null); setRouteCoordinates([]); setIsDetailsVisible(false); }, [fetchItineraries]));
-  
+
   const handleOpenEditModal = (item: ScheduleItem) => { setItemToEdit(item); setIsEditModalVisible(true); };
   const handleCloseEditModal = () => { setIsEditModalVisible(false); setItemToEdit(null); };
 
@@ -174,12 +183,10 @@ export default function CalendarScreen() {
         });
     } catch (error) { console.error("Failed to create persistent notification:", error); }
   };
-
+  
   const handleSaveScheduleItem = async (itemId: string | null, newDate: string, newTime: string, newDuration: number) => {
     if (!selectedItinerary || !itemToEdit || !itemId) return;
-  
     const originalItinerary = JSON.parse(JSON.stringify(selectedItinerary));
-    
     setSelectedItinerary(prev => {
       if (!prev) return null;
       const updatedItems = prev.schedule_items.map(item =>
@@ -188,65 +195,45 @@ export default function CalendarScreen() {
       return { ...prev, schedule_items: updatedItems };
     });
     handleCloseEditModal();
-  
     try {
       const token = await AsyncStorage.getItem("firebase_id_token");
       if (!token) throw new Error("Authentication token not found.");
-  
       const payload = { scheduled_date: newDate, scheduled_time: newTime, duration_minutes: newDuration };
       const response = await fetch(`${BACKEND_ITINERARY_API_URL}/items/${itemId}`, {
         method: "PUT",
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-  
       if (!response.ok) throw new Error((await response.json()).detail || "Failed to save changes.");
-      
       const combinedDateTime = parse(`${newDate} ${newTime}`, 'yyyy-MM-dd HH:mm', new Date());
-      const bannerMessage = `Updated to ${format(combinedDateTime, "MMMM do 'at' h:mm a")}`;
-      addNotification(bannerMessage, 'info');
-
-      const notificationBody = `You changed '${itemToEdit.place_name}' to ${format(combinedDateTime, "MMMM do 'at' h:mm a")}.`;
-      await createPersistentNotification("Itinerary Item Updated", notificationBody);
-      
+      addNotification(`Updated to ${format(combinedDateTime, "MMM do 'at' h:mm a")}`, 'info');
+      await createPersistentNotification("Itinerary Item Updated", `You changed '${itemToEdit.place_name}' to ${format(combinedDateTime, "MMM do 'at' h:mm a")}.`);
     } catch (error) {
       setSelectedItinerary(originalItinerary);
-      console.error("Error updating schedule item:", error);
       Alert.alert("Update Failed", error instanceof Error ? error.message : "An unknown error occurred.");
     }
   };
-  
+
   const handleDeleteScheduleItem = async (itemToDelete: ScheduleItem) => {
     if (!selectedItinerary) return;
-    Alert.alert("Delete Item", `Delete "${itemToDelete.place_name}"?`,
+    Alert.alert(`Delete "${itemToDelete.place_name}"?`, "This action cannot be undone.",
       [{ text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: async () => {
         try {
           const token = await AsyncStorage.getItem("firebase_id_token");
           if (!token) { setLoginRequired(true); return; }
-
-          const response = await fetch(`${BACKEND_ITINERARY_API_URL}/items/${itemToDelete.id}`, {
-            method: "DELETE", headers: { Authorization: `Bearer ${token}` }
-          });
-
+          const response = await fetch(`${BACKEND_ITINERARY_API_URL}/items/${itemToDelete.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
           if (response.status === 204) {
             setSelectedItinerary(prev => {
               if (!prev) return null;
               return { ...prev, schedule_items: prev.schedule_items.filter(i => i.id !== itemToDelete.id) };
             });
             setExpandedItemId(null);
-            
-            const notificationMessage = `You deleted the plan "${itemToDelete.place_name}".`;
+            const notificationMessage = `Deleted "${itemToDelete.place_name}" from your itinerary.`;
             addNotification(notificationMessage, 'info'); 
             await createPersistentNotification("Plan Item Deleted", notificationMessage);
-
-          } else {
-            throw new Error((await response.json()).detail || "Failed to delete item.");
-          }
-        } catch (error) {
-          console.error("Error deleting schedule item:", error);
-          Alert.alert("Error", error instanceof Error ? error.message : "An unknown error occurred.");
-        }
+          } else { throw new Error((await response.json()).detail || "Failed to delete item."); }
+        } catch (error) { Alert.alert("Error", error instanceof Error ? error.message : "An unknown error occurred."); }
       },
     }]);
   };
@@ -254,12 +241,8 @@ export default function CalendarScreen() {
   const handleCreateItinerary = (newItineraryFromResponse: any) => { 
     setModalVisible(false); 
     const newItineraryForState: Itinerary = { 
-      id: newItineraryFromResponse.id.toString(), 
-      name: newItineraryFromResponse.name, 
-      type: newItineraryFromResponse.type, 
-      budget: newItineraryFromResponse.budget, 
-      startDate: parseDateStringSafe(newItineraryFromResponse.start_date), 
-      endDate: parseDateStringSafe(newItineraryFromResponse.end_date), 
+      id: newItineraryFromResponse.id.toString(), name: newItineraryFromResponse.name, type: newItineraryFromResponse.type, budget: newItineraryFromResponse.budget, 
+      startDate: parseDateStringSafe(newItineraryFromResponse.start_date), endDate: parseDateStringSafe(newItineraryFromResponse.end_date), 
       schedule_items: (newItineraryFromResponse.schedule_items || []).map((item: any, index: number) => ({ ...item, id: item.id?.toString() ?? `${newItineraryFromResponse.id}-${index}` })), 
     }; 
     setItineraries(prev => [newItineraryForState, ...prev]); 
@@ -271,10 +254,8 @@ export default function CalendarScreen() {
   const handleDeleteItinerary = async () => {
     if (!selectedItinerary) return;
     const itineraryName = selectedItinerary.name;
-    Alert.alert("Delete Itinerary", `Delete "${itineraryName}"? This cannot be undone.`, [{ text: "Cancel", style: "cancel" }, { 
-        text: "Delete", 
-        style: "destructive", 
-        onPress: async () => {
+    Alert.alert(`Delete "${itineraryName}"?`, "This will permanently delete the itinerary and all its scheduled items.", [{ text: "Cancel", style: "cancel" }, { 
+        text: "Delete", style: "destructive", onPress: async () => {
           try {
             const token = await AsyncStorage.getItem("firebase_id_token");
             if (!token) { setLoginRequired(true); return; }
@@ -283,201 +264,229 @@ export default function CalendarScreen() {
               const updatedItineraries = itineraries.filter(it => it.id !== selectedItinerary!.id);
               setItineraries(updatedItineraries);
               setIsDetailsVisible(false);
-              if (updatedItineraries.length > 0) {
-                const newSelected = updatedItineraries[0];
-                setSelectedItinerary(newSelected);
-                setSelectedDate(newSelected.startDate);
-                setDisplayDate(newSelected.startDate);
-              } else {
-                setSelectedItinerary(null);
-              }
-              addNotification(`You deleted the plan "${itineraryName}".`, 'info');
+              setSelectedItinerary(updatedItineraries[0] || null);
+              if (updatedItineraries.length > 0) { setSelectedDate(updatedItineraries[0].startDate); setDisplayDate(updatedItineraries[0].startDate); }
+              addNotification(`Deleted "${itineraryName}".`, 'info');
               await createPersistentNotification("Plan Deleted", `You deleted the travel plan: "${itineraryName}".`);
-            } else if (response.status === 401) {
-              setLoginRequired(true);
-              await AsyncStorage.removeItem("firebase_id_token");
-            } else {
-              Alert.alert("Error", (await response.json()).detail || "Failed to delete itinerary.");
-            }
-          } catch (err) {
-            console.error("Deletion error:", err);
-            Alert.alert("Error", "An unexpected error occurred.");
-          }
+            } else { Alert.alert("Error", (await response.json()).detail || "Failed to delete itinerary."); }
+          } catch (err) { Alert.alert("Error", "An unexpected error occurred during deletion."); }
         },
       }],
     );
   };
-
-  const handlePreviousWeek = () => { setDisplayDate(current => { const newDate = new Date(current); newDate.setDate(current.getDate() - 7); return newDate; }); };
-  const handleNextWeek = () => { setDisplayDate(current => { const newDate = new Date(current); newDate.setDate(current.getDate() + 7); return newDate; }); };
-  const formatDateHeader = (date: Date) => date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  const getTimeOfDay = (date: Date) => { const h = date.getHours(); if (h < 12) return "Good Morning"; if (h < 17) return "Good Afternoon"; return "Good Evening"; };
-  const timeSlots = Array.from({ length: 24 }, (_, i) => { const h = i; return `${(h % 12 || 12).toString().padStart(2, "0")}:00 ${h >= 12 ? "PM" : "AM"}`; });
-  const getScheduleItemsForTimeSlot = (timeSlot: string): ScheduleItem[] => { if (!selectedItinerary) return []; const parts = timeSlot.match(/(\d+):(\d+)\s(AM|PM)/); if (!parts) return []; let hour12 = parseInt(parts[1], 10); const ampm = parts[3]; let hour24 = hour12; if (ampm === 'PM' && hour12 < 12) { hour24 += 12; } if (ampm === 'AM' && hour12 === 12) { hour24 = 0; } return selectedItinerary.schedule_items.filter((item) => { const itemDate = parse(item.scheduled_date, "yyyy-MM-dd", new Date()); if (!isSameDay(itemDate, selectedDate)) { return false; } const itemHour24 = parseInt(item.scheduled_time.split(":")[0], 10); return itemHour24 === hour24; }); };
-  const handleItemPress = async (item: ScheduleItem) => { if (expandedItemId === item.id) { setExpandedItemId(null); setRouteCoordinates([]); return; } setRouteCoordinates([]); setIsDescriptionExpanded(null); setExpandedItemId(item.id); if (!placeDetailsCache[item.place_id]) { setIsFetchingDetails(true); try { const token = await AsyncStorage.getItem("firebase_id_token"); const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/place/${item.place_id}/details`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); if (!response.ok) throw new Error("Failed to fetch place details"); const details: PlaceDetails = await response.json(); setPlaceDetailsCache(prev => ({ ...prev, [item.place_id]: details })); } catch (error) { console.error("Error fetching place details:", error); Alert.alert("Error", "Could not load place details."); setExpandedItemId(null); } finally { setIsFetchingDetails(false); } } };
-  const toggleDescriptionExpansion = (itemId: string) => setIsDescriptionExpanded(isDescriptionExpanded === itemId ? null : itemId);
+  
+  const handleItemPress = async (item: ScheduleItem) => { 
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (expandedItemId === item.id) { 
+        setExpandedItemId(null);
+        setExpandedDetailsHeight(0);
+    } else {
+        setExpandedItemId(item.id); 
+        setRouteCoordinates([]); 
+        setIsDescriptionExpanded(null); 
+        if (!placeDetailsCache[item.place_id]) { 
+            setIsFetchingDetails(true); 
+            try { 
+                const token = await AsyncStorage.getItem("firebase_id_token"); 
+                const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/place/${item.place_id}/details`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); 
+                if (!response.ok) throw new Error("Failed to fetch place details"); 
+                const details: PlaceDetails = await response.json(); setPlaceDetailsCache(prev => ({ ...prev, [item.place_id]: details })); 
+            } catch (error) { Alert.alert("Error", "Could not load place details."); setExpandedItemId(null); 
+            } finally { setIsFetchingDetails(false); } 
+        } 
+    } 
+  };
   
   const handleShowDirections = async (item: ScheduleItem) => {
-    if (routeCoordinates.length > 0) {
-      setRouteCoordinates([]);
-      return;
-    }
+    if (routeCoordinates.length > 0) { setRouteCoordinates([]); return; }
     setIsFetchingRoute(true);
-    console.log("Directions: Requesting location permission...");
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission Denied", "Location access is required to show directions.");
-        return;
-      }
-      console.log("Directions: Permission granted. Getting current position...");
+      if (status !== "granted") { Alert.alert("Permission Denied", "Location access is required to show directions."); return; }
       const location = await Location.getCurrentPositionAsync({});
       const origin = `${location.coords.latitude},${location.coords.longitude}`;
-      console.log(`Directions: Origin is ${origin}, Destination Place ID is ${item.place_id}`);
-
-      console.log("Directions: Calling backend endpoint...");
       const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/directions?origin=${origin}&destination_place_id=${item.place_id}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Directions: Backend error:", errorData);
-        throw new Error(errorData.detail || "Failed to fetch directions from server.");
-      }
+      if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.detail || "Failed to fetch directions."); }
       const data = await response.json();
-      console.log("Directions: Received encoded polyline from backend.");
-
-      const coords = polyline.decode(data.encoded_polyline).map(point => ({
-        latitude: point[0],
-        longitude: point[1],
-      }));
-      console.log(`Directions: Decoded polyline into ${coords.length} coordinates.`);
+      const coords = polyline.decode(data.encoded_polyline).map(point => ({ latitude: point[0], longitude: point[1] }));
       setRouteCoordinates(coords);
-
-      mapRef.current?.fitToCoordinates(coords, {
-        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-        animated: true,
-      });
-
-    } catch (error) {
-      console.error("Directions: Full error caught in handleShowDirections:", error);
-      Alert.alert("Error", error instanceof Error ? error.message : "Could not get directions.");
-    } finally {
-      setIsFetchingRoute(false);
-      console.log("Directions: Process finished.");
-    }
+      mapRef.current?.fitToCoordinates(coords, { edgePadding: { top: 50, right: 50, bottom: 50, left: 50 }, animated: true });
+    } catch (error) { Alert.alert("Error", error instanceof Error ? error.message : "Could not get directions.");
+    } finally { setIsFetchingRoute(false); }
   };
+  
+  const getTimeOfDay = (date: Date) => { const h = date.getHours(); if (h < 12) return "Good Morning"; if (h < 17) return "Good Afternoon"; return "Good Evening"; };
+  
+  const itemsForSelectedDay = useMemo(() => {
+    if (!selectedItinerary) return [];
+    return selectedItinerary.schedule_items
+      .filter(item => isSameDay(parse(item.scheduled_date, "yyyy-MM-dd", new Date()), selectedDate))
+      .sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time));
+  }, [selectedItinerary, selectedDate]);
 
   const renderContent = () => {
-    if (isLoading) { return <View style={styles.centeredMessageContainer}><ActivityIndicator size="large" color="#6366F1" /><Text style={styles.loadingText}>Loading your itineraries...</Text></View>; }
-    if (loginRequired) { return <LoginRequiredView onLoginPress={() => router.replace("/auth/sign-in")} />; }
-    if (error) { return <View style={styles.centeredMessageContainer}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryButton} onPress={fetchItineraries}><Text style={styles.retryButtonText}>Retry</Text></TouchableOpacity></View>; }
+    if (isLoading) return <SkeletonLoader />;
+    if (loginRequired) return <LoginRequiredView onLoginPress={() => router.replace("/auth/sign-in")} />;
+    if (error) return <View style={styles.centeredMessageContainer}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryButton} onPress={fetchItineraries}><Text style={styles.retryButtonText}>Retry</Text></TouchableOpacity></View>;
+    
+    const expandedItem = itemsForSelectedDay.find(i => i.id === expandedItemId);
+    const timelineHeight = (orderedHours.length * HOUR_ROW_HEIGHT) + expandedDetailsHeight;
+
     return (
       <>
         <View style={styles.header}>
-          <Text style={styles.greeting}>{getTimeOfDay(currentTime)}, {userName}</Text>
-          <View style={styles.headerRow}>
-            <Text style={styles.date}>{formatDateHeader(selectedDate)}</Text>
-            {itineraries.length > 0 && (
-              <View style={styles.itineraryPicker}>
-                <Dropdown style={styles.dropdown} data={itineraries.map(it => ({ label: it.name, value: it.id }))} value={selectedItinerary?.id} onChange={item => { const it = itineraries.find(i => i.id === item.value); if (it) { setSelectedItinerary(it); setSelectedDate(new Date(it.startDate)); setDisplayDate(new Date(it.startDate)); setIsDetailsVisible(false); } }} labelField="label" valueField="value" placeholder="Select Itinerary" placeholderStyle={styles.placeholderStyle} selectedTextStyle={styles.selectedTextStyle} iconStyle={styles.iconStyle} onFocus={() => setIsDropdownOpen(true)} onBlur={() => setIsDropdownOpen(false)} renderRightIcon={() => <Text style={[styles.dropdownArrow, isDropdownOpen && styles.dropdownArrowOpen]}>▼</Text>} />
-                <TouchableOpacity onPress={() => setIsDetailsVisible(!isDetailsVisible)} style={styles.detailsButton}><MaterialIcons name={isDetailsVisible ? "keyboard-arrow-up" : "keyboard-arrow-down"} size={28} color="#6366F1" /></TouchableOpacity>
-                <TouchableOpacity onPress={handleDeleteItinerary} style={styles.deleteButton}><MaterialIcons name="delete-outline" size={26} color="#B91C1C" /></TouchableOpacity>
-              </View>
-            )}
-          </View>
-          {isDetailsVisible && selectedItinerary && (
-            <View style={styles.detailsContainer}>
-              <View style={styles.detailRow}><Text style={styles.detailLabel}>Trip Type:</Text><Text style={styles.detailValue}>{selectedItinerary.type}</Text></View>
-              <View style={styles.detailRow}><Text style={styles.detailLabel}>Budget:</Text><Text style={styles.detailValue}>{formatAndCapitalize(selectedItinerary.budget ?? undefined) || "Not Specified"}</Text></View>
-              <View style={styles.detailRow}><Text style={styles.detailLabel}>Dates:</Text><Text style={styles.detailValue}>{`${formatDateHeader(selectedItinerary.startDate)} - ${formatDateHeader(selectedItinerary.endDate)}`}</Text></View>
-            </View>
-          )}
+            <Text style={styles.greeting}>{`${getTimeOfDay(currentTime)}, ${userName}`}</Text>
+            <Text style={styles.date}>{format(selectedDate, "EEEE, MMMM do")}</Text>
         </View>
+
+        {itineraries.length > 0 && (
+            <View style={styles.itineraryPickerContainer}>
+              <Dropdown 
+                style={styles.dropdown} 
+                containerStyle={styles.dropdownContainer}
+                data={itineraries.map(it => ({ label: it.name, value: it.id }))} 
+                value={selectedItinerary?.id} 
+                onChange={item => { const it = itineraries.find(i => i.id === item.value); if (it) { setSelectedItinerary(it); setSelectedDate(new Date(it.startDate)); setDisplayDate(new Date(it.startDate)); setIsDetailsVisible(false); } }} 
+                labelField="label" valueField="value" 
+                placeholder="Select Itinerary" 
+                placeholderStyle={styles.placeholderStyle} 
+                selectedTextStyle={styles.selectedTextStyle} 
+                renderLeftIcon={() => <MaterialIcons name="calendar-today" style={styles.dropdownIcon} size={20} />}
+              />
+              <TouchableOpacity onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setIsDetailsVisible(!isDetailsVisible); }} style={styles.detailsButton}>
+                  <MaterialIcons name="info-outline" size={24} color="#555" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleDeleteItinerary} style={styles.deleteButton}>
+                  <MaterialIcons name="delete-outline" size={24} color="#D32F2F" />
+              </TouchableOpacity>
+            </View>
+        )}
+        
+        {isDetailsVisible && selectedItinerary && (
+          <View style={styles.detailsContainer}>
+            <View style={styles.detailRow}><Text style={styles.detailLabel}>Type:</Text><Text style={styles.detailValue}>{selectedItinerary.type}</Text></View>
+            <View style={styles.detailRow}><Text style={styles.detailLabel}>Budget:</Text><Text style={styles.detailValue}>{formatAndCapitalize(selectedItinerary.budget ?? undefined) || "Not Specified"}</Text></View>
+            <View style={styles.detailRow}><Text style={styles.detailLabel}>Dates:</Text><Text style={styles.detailValue}>{`${format(selectedItinerary.startDate, "MMM d")} - ${format(selectedItinerary.endDate, "MMM d, yyyy")}`}</Text></View>
+          </View>
+        )}
+
         <View style={styles.calendarContainer}>
-          <View style={styles.weekControlContainer}>
-            <TouchableOpacity onPress={handlePreviousWeek} style={styles.navButton}><Text style={styles.navButtonText}>{"<"}</Text></TouchableOpacity>
-            <View style={styles.datesRow}>
-              {weekDates.map(date => {
-                const isSelected = isSameDay(date, selectedDate);
-                const normDate = new Date(date).setHours(0,0,0,0);
-                const isWithin = selectedItinerary && normDate >= new Date(selectedItinerary.startDate).setHours(0,0,0,0) && normDate <= new Date(selectedItinerary.endDate).setHours(0,0,0,0);
+            <View style={styles.weekControlContainer}>
+                <TouchableOpacity onPress={() => setDisplayDate(d => new Date(d.setDate(d.getDate() - 7)))} style={styles.navButton}><MaterialIcons name="chevron-left" size={28} color="#555" /></TouchableOpacity>
+                <View style={styles.datesRow}>
+                    {weekDates.map(date => {
+                        const isSelected = isSameDay(date, selectedDate);
+                        const isCurrentDay = isToday(date);
+                        const normDate = new Date(date).setHours(0,0,0,0);
+                        const isWithinItinerary = selectedItinerary && normDate >= new Date(selectedItinerary.startDate).setHours(0,0,0,0) && normDate <= new Date(selectedItinerary.endDate).setHours(0,0,0,0);
+                        return (
+                            <TouchableOpacity key={date.toISOString()} style={styles.dateCell} onPress={() => setSelectedDate(date)}>
+                                <Text style={[styles.dayHeaderText, isSelected && { color: "#6366F1" }]}>{format(date, "EEE")}</Text>
+                                <View style={[styles.dateNumberContainer, isSelected ? styles.selectedDateCell : isCurrentDay ? styles.todayDateCell : null]}>
+                                    <Text style={[styles.dateNumber, isSelected ? styles.selectedDateNumber : isCurrentDay ? styles.todayDateNumber : {}]}>{date.getDate()}</Text>
+                                </View>
+                                {isWithinItinerary && <View style={styles.itineraryDot} />}
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+                <TouchableOpacity onPress={() => setDisplayDate(d => new Date(d.setDate(d.getDate() + 7)))} style={styles.navButton}><MaterialIcons name="chevron-right" size={28} color="#555" /></TouchableOpacity>
+            </View>
+        </View>
+
+        {selectedItinerary ? (
+          <View style={[styles.timelineContainer, { height: timelineHeight }]}>
+            {/* Background Grid */}
+            {orderedHours.map(hourIndex => {
+              const time = `${(hourIndex % 12 || 12)}:00 ${hourIndex >= 12 ? "PM" : "AM"}`;
+              return (
+                <View key={hourIndex} style={styles.timelineRow}>
+                  <Text style={styles.timelineTime}>{time}</Text>
+                  <View style={styles.timelineDivider} />
+                </View>
+              )
+            })}
+            
+            {/* Absolutely Positioned Schedule Items */}
+            <View style={styles.scheduleItemsContainer}>
+              {itemsForSelectedDay.map(item => {
+                const isExpanded = expandedItemId === item.id;
+                const details = placeDetailsCache[item.place_id];
+                const desc = details?.description || "";
+                const isDescExpanded = isDescriptionExpanded === item.id;
+                
+                const [hour, minute] = item.scheduled_time.split(':').map(Number);
+                const rowIndex = hourToRowIndexMap.get(hour) ?? 0;
+                const top = (rowIndex * HOUR_ROW_HEIGHT) + ((minute / 60) * HOUR_ROW_HEIGHT);
+                const height = (item.duration_minutes / 60) * HOUR_ROW_HEIGHT;
+
+                const startTime = parse(item.scheduled_time, "HH:mm", new Date());
+                const endTime = new Date(startTime.getTime() + item.duration_minutes * 60000);
+                
+                let pushDownOffset = 0;
+                if (expandedItem && item.id !== expandedItem.id) {
+                    const itemStartTime = parse(item.scheduled_time, "HH:mm", new Date());
+                    const expandedItemStartTime = parse(expandedItem.scheduled_time, "HH:mm", new Date());
+                    if (itemStartTime > expandedItemStartTime) {
+                        pushDownOffset = expandedDetailsHeight;
+                    }
+                }
+
                 return (
-                  <TouchableOpacity key={date.toISOString()} style={[styles.dateCell, isSelected && styles.selectedDateCell, isWithin && !isSelected && styles.itineraryDateCell]} onPress={() => setSelectedDate(date)}>
-                    <Text style={[styles.dayHeaderText, isSelected && styles.selectedDateNumber]}>{date.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()}</Text>
-                    <Text style={[styles.dateNumber, isSelected && styles.selectedDateNumber]}>{date.getDate()}</Text>
-                  </TouchableOpacity>
+                  <View 
+                    key={item.id} 
+                    style={[
+                        styles.scheduleItemWrapper, 
+                        { top, height: isExpanded ? undefined : height },
+                        { transform: [{ translateY: pushDownOffset }] },
+                        isExpanded && styles.expandedZIndex
+                    ]}
+                  >
+                    <TouchableOpacity onPress={() => handleItemPress(item)} activeOpacity={0.8} >
+                      <View style={[styles.scheduleItemCard, {minHeight: height - 4}]}>
+                        <Image source={item.place_image ? { uri: item.place_image } : require("../../../assets/images/icon.png")} style={styles.cardImage} />
+                        <View style={styles.cardContent}>
+                          <Text style={styles.scheduleItemText} numberOfLines={1}>{item.place_name}</Text>
+                          <Text style={styles.scheduleItemDetails}>{`${format(startTime, "h:mm a")} - ${format(endTime, "h:mm a")}`}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                    {isExpanded && (
+                       <View onLayout={(event) => setExpandedDetailsHeight(event.nativeEvent.layout.height)} style={styles.expandedDetailsContainer}>
+                       {isFetchingDetails && !details ? <ActivityIndicator style={{ marginVertical: 20 }} color="#6366F1" /> : (
+                         <>
+                           <Text style={styles.detailsDescription}>{desc.length > 120 && !isDescExpanded ? `${desc.substring(0, 120)}...` : desc}</Text>
+                           {desc.length > 120 && <TouchableOpacity onPress={() => setIsDescriptionExpanded(isDescriptionExpanded === item.id ? null : item.id)}><Text style={styles.showMoreText}>{isDescriptionExpanded === item.id ? "Show less" : "Show more"}</Text></TouchableOpacity>}
+                           <View style={styles.detailRow}><Text style={styles.detailLabel}>Status:</Text><Text style={[styles.detailValue, { color: details?.isOpen ? "#10B981" : "#EF4444" }]}>{details?.isOpen ? "Open Now" : "Currently Closed"}</Text></View>
+                           <View style={styles.actionButtonsRow}>
+                             <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={() => handleOpenEditModal(item)}><MaterialIcons name="edit" size={18} color="#FFFFFF" /><Text style={styles.actionButtonText}>Edit</Text></TouchableOpacity>
+                             <TouchableOpacity style={[styles.actionButton, styles.directionsButton]} onPress={() => handleShowDirections(item)}>
+                               {isFetchingRoute ? <ActivityIndicator size="small" color="#FFFFFF"/> : <><MaterialIcons name="directions" size={18} color="#FFFFFF" /><Text style={styles.actionButtonText}>{routeCoordinates.length > 0 ? "Hide" : "Route"}</Text></>}
+                             </TouchableOpacity>
+                           </View>
+                           {routeCoordinates.length > 0 && <MapView ref={mapRef} style={styles.mapView} showsUserLocation initialRegion={{ latitude: routeCoordinates[0].latitude, longitude: routeCoordinates[0].longitude, latitudeDelta: 0.0922, longitudeDelta: 0.0421 }}><Marker coordinate={routeCoordinates[routeCoordinates.length - 1]} title="Destination" /><Polyline coordinates={routeCoordinates} strokeColor="#6366F1" strokeWidth={5} /></MapView>}
+                           <TouchableOpacity style={styles.deleteItemButton} onPress={() => handleDeleteScheduleItem(item)}><MaterialIcons name="delete" size={16} color="#B91C1C" /><Text style={styles.deleteItemButtonText}>Delete Item</Text></TouchableOpacity>
+                         </>
+                       )}
+                     </View>
+                    )}
+                  </View>
                 );
               })}
             </View>
-            <TouchableOpacity onPress={handleNextWeek} style={styles.navButton}><Text style={styles.navButtonText}>{">"}</Text></TouchableOpacity>
-          </View>
-        </View>
-        {selectedItinerary ? (
-          <View style={styles.timelineContainer}>
-            <View style={styles.timelineHeader}><Text style={styles.timelineTitle}>Timeline</Text></View>
-            {timeSlots.map(time => {
-              const itemsInSlot = getScheduleItemsForTimeSlot(time);
-              itemsInSlot.sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time));
-              const offset = itemsInSlot.length > 0 ? (parseInt(itemsInSlot[0].scheduled_time.split(":")[1]) / 60) * 60 : 0;
-              return (
-                <View key={time} style={styles.timelineRow}>
-                  {!coveredTimeSlots.has(time) ? <Text style={styles.timelineTime}>{time}</Text> : <View style={{ width: 80, marginRight: 10 }} />}
-                  <View style={styles.timelineDivider}>
-                    <View style={{ paddingTop: offset }}>
-                      {itemsInSlot.length > 0 && <View style={styles.timelineDot} />}
-                      <View style={styles.cardsContainer}>
-                        {itemsInSlot.map(item => {
-                          const isExpanded = expandedItemId === item.id;
-                          const details = placeDetailsCache[item.place_id];
-                          const desc = details?.description || "";
-                          const isDescExpanded = isDescriptionExpanded === item.id;
-                          const cardHeight = Math.max(80, (item.duration_minutes / 60) * 60);
-                          const timeRange = `${new Date(`1970-01-01T${item.scheduled_time}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} - ${new Date(new Date(`1970-01-01T${item.scheduled_time}`).getTime() + item.duration_minutes * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
-                          return (
-                            <View key={item.id} style={{ marginBottom: 15 }}>
-                              <TouchableOpacity onPress={() => handleItemPress(item)}>
-                                <View style={[styles.scheduleItemCard, { minHeight: cardHeight }, isExpanded && styles.scheduleItemCardExpanded]}>
-                                  <Image source={item.place_image ? { uri: item.place_image } : require("../../../assets/images/icon.png")} style={styles.cardImage} />
-                                  <View style={styles.cardContent}>
-                                    <Text style={styles.scheduleItemText} numberOfLines={1}>{item.place_name}</Text>
-                                    <Text style={styles.scheduleItemDetails}>{formatAndCapitalize(item.place_type) || "Activity"}</Text>
-                                    <Text style={styles.scheduleItemTimeText}>{timeRange}</Text>
-                                  </View>
-                                </View>
-                              </TouchableOpacity>
-                              {isExpanded && (
-                                <View style={styles.expandedDetailsContainer}>
-                                  {isFetchingDetails && !details ? <ActivityIndicator style={{ marginVertical: 20 }} color="#6366F1" /> : (
-                                    <>
-                                      <Text style={styles.detailsDescription}>{desc.length > 120 && !isDescExpanded ? `${desc.substring(0, 120)}...` : desc}</Text>
-                                      {desc.length > 120 && <TouchableOpacity onPress={() => toggleDescriptionExpansion(item.id)}><Text style={styles.showMoreText}>{isDescExpanded ? "Show less" : "Show more"}</Text></TouchableOpacity>}
-                                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Status:</Text><Text style={[styles.detailValue, { color: details?.isOpen ? "#10B981" : "#EF4444" }]}>{details?.isOpen ? "Open Now" : "Closed"}</Text></View>
-                                      <View style={styles.actionButtonsRow}>
-                                        <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={() => handleOpenEditModal(item)}><MaterialIcons name="edit-calendar" size={20} color="#FFFFFF" /><Text style={styles.actionButtonText}>Edit</Text></TouchableOpacity>
-                                        <TouchableOpacity style={[styles.actionButton, styles.deleteItemButton]} onPress={() => handleDeleteScheduleItem(item)}><MaterialIcons name="delete-forever" size={20} color="#FFFFFF" /><Text style={styles.actionButtonText}>Delete</Text></TouchableOpacity>
-                                      </View>
-                                      {routeCoordinates.length > 0 && <MapView ref={mapRef} style={styles.mapView} showsUserLocation initialRegion={{ latitude: routeCoordinates[0].latitude, longitude: routeCoordinates[0].longitude, latitudeDelta: 0.0922, longitudeDelta: 0.0421 }}><Marker coordinate={routeCoordinates[routeCoordinates.length - 1]} title="Destination" /><Polyline coordinates={routeCoordinates} strokeColor="#6366F1" strokeWidth={4} /></MapView>}
-                                    </>
-                                  )}
-                                </View>
-                              )}
-                            </View>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
+
           </View>
         ) : (
-          <View style={styles.emptyState}><Text style={styles.emptyTitle}>No Itineraries Found</Text><Text style={styles.emptySubtitle}>Create your first itinerary to get started!</Text></View>
+          <View style={styles.emptyState}>
+            <MaterialIcons name="map" size={50} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>No Itinerary Selected</Text>
+            <Text style={styles.emptySubtitle}>Create or select an itinerary to see your plans.</Text>
+          </View>
         )}
       </>
     );
   };
-
+  
   return (
     <View style={styles.screenContainer}>
       <SafeAreaView style={styles.safeArea}>
@@ -485,8 +494,8 @@ export default function CalendarScreen() {
           {renderContent()}
         </ScrollView>
         {!loginRequired && !isLoading && (
-          <TouchableOpacity style={styles.addButton} onPress={handleOpenModal} disabled={isLoadingLocation}>
-            {isLoadingLocation ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.addButtonText}>+</Text>}
+          <TouchableOpacity style={styles.addButton} onPress={handleOpenModal}>
+            <MaterialIcons name="add" size={30} color="#FFFFFF" />
           </TouchableOpacity>
         )}
       </SafeAreaView>
@@ -511,75 +520,70 @@ export default function CalendarScreen() {
 }
 
 const styles = StyleSheet.create({
-  screenContainer: { flex: 1, position: "relative" },
-  safeArea: { flex: 1, backgroundColor: "#FFFFFF" },
-  container: { paddingHorizontal: 20, paddingTop: 30, paddingBottom: 30, minHeight: "100%" },
-  loadingText: { marginTop: 16, color: "#6B7280", fontSize: 16 },
-  errorText: { color: "#EF4444", fontSize: 16, textAlign: "center", marginBottom: 20 },
-  retryButton: { backgroundColor: "#6366F1", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
-  retryButtonText: { color: "#FFFFFF", fontWeight: "bold" },
-  header: { marginBottom: 30 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 },
-  greeting: { fontSize: 24, fontWeight: "bold", color: "#1F2937", marginBottom: 8 },
-  date: { fontSize: 18, fontWeight: "500", color: "#6B7280" },
-  itineraryPicker: { flexDirection: "row", alignItems: "center" },
-  dropdown: { height: 40, width: 150, backgroundColor: "#6366F1", borderRadius: 8, paddingHorizontal: 12 },
-  placeholderStyle: { fontSize: 16, color: "#FFFFFF" },
-  selectedTextStyle: { fontSize: 16, color: "#FFFFFF" },
-  iconStyle: { width: 20, height: 20 },
-  dropdownArrow: { color: "#FFFFFF", fontSize: 16, marginLeft: 5 },
-  dropdownArrowOpen: { transform: [{ rotate: "180deg" }] },
-  deleteButton: { marginLeft: 8, padding: 4 },
-  detailsButton: { marginLeft: 4, padding: 4 },
-  detailsContainer: { backgroundColor: "#F3F4F6", borderRadius: 8, padding: 12, marginTop: 12 },
-  detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
-  detailLabel: { fontSize: 14, color: "#4B5563", fontWeight: "500" },
-  detailValue: { fontSize: 14, color: "#1F2937", fontWeight: "600", flex: 1, textAlign: "right" },
-  calendarContainer: { marginBottom: 5 },
-  weekControlContainer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  navButton: { padding: 8 },
-  navButtonText: { fontSize: 22, fontWeight: "bold", color: "#6366F1" },
-  dayHeaderText: { fontSize: 12, fontWeight: "500", color: "#6B7280", textTransform: "uppercase", marginBottom: 6 },
-  datesRow: { flexDirection: "row", justifyContent: "space-between", flex: 1, marginHorizontal: 5 },
-  dateCell: { width: 38, height: 60, justifyContent: "center", alignItems: "center", borderRadius: 21 },
-  selectedDateCell: { backgroundColor: "#6366F1" },
-  dateNumber: { fontSize: 16, fontWeight: "500", color: "#1F2937" },
-  selectedDateNumber: { color: "#FFFFFF", fontWeight: "bold" },
-  timelineContainer: { marginTop: 20 },
-  timelineHeader: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", marginBottom: 10 },
-  timelineTitle: { fontSize: 20, fontWeight: "bold", color: "#1F2937" },
-  timelineRow: { flexDirection: "row", alignItems: "stretch", minHeight: 60 },
-  timelineTime: { fontSize: 14, color: "#9CA3AF", width: 80, marginRight: 10, paddingTop: 8, textAlign: "right" },
-  timelineDivider: { flex: 1, position: "relative", paddingLeft: 20, borderLeftWidth: 2, borderLeftColor: "#E5E7EB" },
-  timelineDot: { position: "absolute", top: 9, left: -6, width: 12, height: 12, borderRadius: 6, backgroundColor: "#6366F1", borderWidth: 2, borderColor: "#FFFFFF", zIndex: 1 },
-  emptyState: { alignItems: "center", flex: 1, justifyContent: "center", paddingBottom: 100, marginTop: 50 },
-  emptyTitle: { fontSize: 16, color: "#9CA3AF", marginBottom: 16, textAlign: "center" },
-  emptySubtitle: { fontSize: 24, color: "#1F2937", fontWeight: "bold", textAlign: "center", lineHeight: 30 },
-  addButton: { position: "absolute", bottom: 30, right: 30, width: 60, height: 60, borderRadius: 30, backgroundColor: "#6366F1", justifyContent: "center", alignItems: "center", elevation: 5, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 },
-  addButtonText: { fontSize: 30, color: "#FFFFFF", fontWeight: "bold", marginBottom: 2 },
-  itineraryDateCell: { backgroundColor: "rgba(99, 102, 241, 0.15)", borderRadius: 21 },
-  scheduleItemCard: { flexDirection: "row", backgroundColor: "#FFFFFF", borderRadius: 12, width: "100%", shadowColor: "#4A5568", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
-  scheduleItemCardExpanded: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderColor: "#6366F1", borderWidth: 1.5, borderBottomWidth: 0 },
-  cardsContainer: { flex: 1, paddingTop: 5, paddingBottom: 5 },
-  scheduleItemText: { fontSize: 16, fontWeight: "bold", color: "#1F2937", marginBottom: 4 },
-  scheduleItemDetails: { fontSize: 14, color: "#6B7280", marginBottom: 8 },
-  scheduleItemTimeText: { fontSize: 14, fontWeight: "bold", color: "#374151" },
-  cardImage: { width: 90, height: "100%", backgroundColor: "#E5E7EB", borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
-  cardContent: { padding: 12, flex: 1, justifyContent: "center" },
-  centeredMessageContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
+  screenContainer: { flex: 1, backgroundColor: "#FFFFFF" },
+  safeArea: { flex: 1 },
+  container: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 100 },
+  centeredMessageContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20, minHeight: 500 },
   messageTitle: { fontSize: 22, fontWeight: "bold", color: "#1F2937", textAlign: "center", marginBottom: 12 },
   messageText: { fontSize: 16, color: "#6B7280", textAlign: "center", marginBottom: 24, lineHeight: 22 },
-  loginButton: { backgroundColor: "#6366F1", paddingVertical: 12, paddingHorizontal: 32, borderRadius: 8 },
+  loginButton: { backgroundColor: "#6366F1", paddingVertical: 12, paddingHorizontal: 32, borderRadius: 100 },
   loginButtonText: { color: "#FFFFFF", fontWeight: "bold", fontSize: 16 },
-  expandedDetailsContainer: { padding: 15, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, marginTop: -2, paddingTop: 15, backgroundColor: "#F9FAFB", borderColor: "#6366F1", borderWidth: 1.5, borderTopWidth: 0 },
-  detailsDescription: { fontSize: 14, color: "#4B5563", lineHeight: 20, marginBottom: 12 },
-  showMoreText: { fontSize: 14, fontWeight: "bold", color: "#6366F1", marginBottom: 10 },
-  actionButtonsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 15, marginBottom: 5 },
-  actionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 8, flex: 1, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.22, shadowRadius: 2.22, elevation: 3 },
-  actionButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold', marginLeft: 8 },
+  errorText: { color: "#D32F2F", fontSize: 16, textAlign: "center", marginBottom: 20 },
+  retryButton: { backgroundColor: "#6366F1", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 100 },
+  retryButtonText: { color: "#FFFFFF", fontWeight: "bold" },
+  header: { marginBottom: 20, paddingHorizontal: 5 },
+  greeting: { fontSize: 32, fontWeight: "bold", color: "#111827" },
+  date: { fontSize: 16, color: "#6B7280", marginTop: 4 },
+  itineraryPickerContainer: { flexDirection: "row", alignItems: "center", marginBottom: 15, backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 5 },
+  dropdown: { flex: 1, height: 50 },
+  dropdownContainer: { borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' },
+  placeholderStyle: { fontSize: 16, color: "#6B7280", marginLeft: 10 },
+  selectedTextStyle: { fontSize: 16, color: "#1F2937", marginLeft: 10, fontWeight: '500' },
+  dropdownIcon: { color: "#6366F1", marginRight: 10 },
+  detailsButton: { padding: 8, marginHorizontal: 5 },
+  deleteButton: { padding: 8 },
+  detailsContainer: { backgroundColor: "#F9FAFB", borderRadius: 12, padding: 15, marginTop: -10, marginBottom: 20, borderWidth: 1, borderColor: '#E5E7EB' },
+  detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 5 },
+  detailLabel: { fontSize: 14, color: "#6B7280", fontWeight: "500" },
+  detailValue: { fontSize: 14, color: "#1F2937", fontWeight: "600" },
+  calendarContainer: { marginBottom: 25 },
+  weekControlContainer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  navButton: { padding: 8 },
+  datesRow: { flexDirection: "row", justifyContent: "space-around", flex: 1 },
+  dateCell: { justifyContent: 'flex-start', alignItems: 'center', height: 70, flex: 1 },
+  dayHeaderText: { fontSize: 13, fontWeight: "600", color: "#9CA3AF", textTransform: "uppercase", marginBottom: 8 },
+  dateNumberContainer: { width: 36, height: 36, justifyContent: "center", alignItems: "center", borderRadius: 18 },
+  selectedDateCell: { backgroundColor: "#6366F1", borderRadius: 18 },
+  todayDateCell: { borderWidth: 2, borderColor: '#6366F1', borderRadius: 18 },
+  dateNumber: { fontSize: 16, fontWeight: "600", color: "#1F2937" },
+  selectedDateNumber: { color: "#FFFFFF" },
+  todayDateNumber: { color: '#6366F1' },
+  itineraryDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#6366F1', marginTop: 6 },
+  timelineContainer: { marginTop: 10, position: 'relative' },
+  timelineRow: { flexDirection: "row", height: HOUR_ROW_HEIGHT, alignItems: 'flex-start' },
+  timelineTime: { fontSize: 14, color: "#9CA3AF", width: TIME_LABEL_WIDTH, textAlign: "right", paddingRight: 10, marginTop: -8 },
+  timelineDivider: { flex: 1, borderLeftWidth: 1, borderLeftColor: "#E5E7EB" },
+  scheduleItemsContainer: { position: 'absolute', top: 0, left: TIME_LABEL_WIDTH, right: 0, bottom: 0 },
+  scheduleItemWrapper: { position: 'absolute', right: 0, left: 10, paddingVertical: 2, zIndex: 10 },
+  expandedZIndex: { zIndex: 100 },
+  scheduleItemCard: { flexDirection: "row", backgroundColor: '#FFFFFF', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', shadowColor: "#4A5568", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 3, overflow: 'hidden' },
+  cardImage: { width: 60, backgroundColor: '#E5E7EB' },
+  cardContent: { paddingVertical: 8, paddingHorizontal: 12, flex: 1, justifyContent: "center" },
+  scheduleItemText: { fontSize: 15, fontWeight: "bold", color: "#1F2937", marginBottom: 2 },
+  scheduleItemDetails: { fontSize: 13, color: "#6B7280" },
+  expandedDetailsContainer: { backgroundColor: "#F9FAFB", borderBottomLeftRadius: 8, borderBottomRightRadius: 8, borderWidth: 1, borderTopWidth: 0, borderColor: '#E5E7EB', padding: 12, marginTop: -1, zIndex: 99 },
+  detailsDescription: { fontSize: 14, color: "#4B5563", lineHeight: 21, marginBottom: 12 },
+  showMoreText: { fontSize: 14, fontWeight: "bold", color: "#6366F1", marginBottom: 15, marginTop: -5 },
+  actionButtonsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, marginBottom: 15 },
+  actionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 8, flex: 1 },
+  actionButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold', marginLeft: 6 },
   editButton: { backgroundColor: '#4338CA', marginRight: 5 },
-  deleteItemButton: { backgroundColor: '#D946EF', marginLeft: 5 },
-  mapButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#4B5563", paddingVertical: 10, borderRadius: 8, marginTop: 15, minHeight: 40 },
-  mapButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold", marginLeft: 8 },
-  mapView: { height: 250, width: "100%", marginTop: 15, borderRadius: 8 },
+  directionsButton: { backgroundColor: '#10B981', marginLeft: 5 },
+  deleteItemButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 12, marginTop: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
+  deleteItemButtonText: { color: '#B91C1C', fontSize: 14, fontWeight: '600', marginLeft: 6 },
+  mapView: { height: 200, width: "100%", marginTop: 15, borderRadius: 12 },
+  emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: 80 },
+  emptyTitle: { fontSize: 18, color: "#6B7280", fontWeight: "600", marginBottom: 8 },
+  emptySubtitle: { fontSize: 14, color: "#9CA3AF", textAlign: "center" },
+  addButton: { position: "absolute", bottom: 30, right: 20, width: 64, height: 64, borderRadius: 32, backgroundColor: "#1F2937", justifyContent: "center", alignItems: "center", elevation: 8, shadowColor: "#1F2937", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4 },
 });
