@@ -121,10 +121,10 @@ export default function SignIn() {
       style={style.container}
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
         <View style={style.innerContainer}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
           <Image
             source={require("../../../assets/images/Mobilelogin.png")}
             style={style.image}
@@ -206,6 +206,7 @@ const style = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.BLUE,
+    paddingTop: 20,
   },
   innerContainer: {
     padding: 25,
