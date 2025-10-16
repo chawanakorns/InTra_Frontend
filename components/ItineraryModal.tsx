@@ -14,6 +14,7 @@ import {
   Text, TextInput, TouchableOpacity,
   View
 } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 interface SimpleItinerary {
   startDate: Date;
@@ -48,6 +49,8 @@ export default function ItineraryModal({
   backendApiUrl,
   itineraries,
 }: ItineraryModalProps) {
+  const { colors } = useTheme();
+
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date(new Date().setDate(new Date().getDate() + 1)));
@@ -183,15 +186,15 @@ export default function ItineraryModal({
 
   const renderBudgetButtons = () => (
     <View>
-      <Text style={styles.label}>Budget (Optional)</Text>
+      <Text style={[styles.label, { color: colors.text }]}>Budget (Optional)</Text>
       <View style={styles.budgetButtonsContainer}>
         {BUDGET_OPTIONS.map((option) => (
           <TouchableOpacity
             key={option}
-            style={[styles.budgetButton, budgetType === option && styles.budgetButtonSelected]}
+            style={[styles.budgetButton, { borderColor: colors.cardBorder }, budgetType === option && [styles.budgetButtonSelected, { backgroundColor: colors.primary, borderColor: colors.primary }]]}
             onPress={() => setBudgetType(budgetType === option ? null : option)}
           >
-            <Text style={[styles.budgetButtonText, budgetType === option && styles.budgetButtonTextSelected]}>
+            <Text style={[styles.budgetButtonText, { color: colors.icon }, budgetType === option && [styles.budgetButtonTextSelected, { color: colors.primary }]]}>
               {option}
             </Text>
           </TouchableOpacity>
@@ -204,8 +207,8 @@ export default function ItineraryModal({
     if (budgetType !== 'Custom') return null;
     return (
       <View style={styles.customBudgetContainer}>
-        <TextInput style={styles.customBudgetInput} placeholder="e.g., 500" keyboardType="numeric" value={customBudget} onChangeText={setCustomBudget} />
-        <TextInput style={styles.currencyInput} value={currency} onChangeText={setCurrency} autoCapitalize="characters" maxLength={3} />
+        <TextInput style={[styles.customBudgetInput, { backgroundColor: colors.secondary, borderColor: colors.cardBorder, color: colors.text }]} placeholder="e.g., 500" keyboardType="numeric" value={customBudget} onChangeText={setCustomBudget} placeholderTextColor={colors.icon} />
+        <TextInput style={[styles.currencyInput, { backgroundColor: colors.secondary, borderColor: colors.cardBorder, color: colors.text }]} value={currency} onChangeText={setCurrency} autoCapitalize="characters" maxLength={3} />
       </View>
     );
   };
@@ -222,22 +225,22 @@ export default function ItineraryModal({
         style={styles.modalOverlay}
       >
         <Animated.View
-          style={[styles.modalContent, { transform: [{ translateY: panY }] }]}
+          style={[styles.modalContent, { backgroundColor: colors.card }, { transform: [{ translateY: panY }] }]}
           {...panResponder.panHandlers}
         >
           <View style={styles.dragHandle} />
-          <Text style={styles.modalTitle}>New Itinerary</Text>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>New Itinerary</Text>
 
-          <Text style={styles.label}>Itinerary Name</Text>
-          <TextInput style={styles.input} placeholder="e.g., Tokyo Trip" value={name} onChangeText={setName} />
+          <Text style={[styles.label, { color: colors.text }]}>Itinerary Name</Text>
+          <TextInput style={[styles.input, { backgroundColor: colors.secondary, borderColor: colors.cardBorder, color: colors.text }]} placeholder="e.g., Tokyo Trip" value={name} onChangeText={setName} placeholderTextColor={colors.icon} />
 
           {renderBudgetButtons()}
           {renderCustomBudgetInput()}
 
-          <View style={styles.datePickerContainer}>
-            <Text style={styles.dateLabel}>Start Date</Text>
+          <View style={[styles.datePickerContainer, { borderBottomColor: colors.secondary }]}>
+            <Text style={[styles.dateLabel, { color: colors.text }]}>Start Date</Text>
             <TouchableOpacity onPress={() => setShowStartDatePicker(true)}>
-              <Text style={styles.dateText}>{formatDateToYYYYMMDD(startDate)}</Text>
+              <Text style={[styles.dateText, { color: colors.primary }]}>{formatDateToYYYYMMDD(startDate)}</Text>
             </TouchableOpacity>
           </View>
           {showStartDatePicker && (
@@ -260,10 +263,10 @@ export default function ItineraryModal({
             />
           )}
 
-          <View style={styles.datePickerContainer}>
-            <Text style={styles.dateLabel}>End Date</Text>
+          <View style={[styles.datePickerContainer, { borderBottomColor: colors.secondary }]}>
+            <Text style={[styles.dateLabel, { color: colors.text }]}>End Date</Text>
             <TouchableOpacity onPress={() => setShowEndDatePicker(true)}>
-              <Text style={styles.dateText}>{formatDateToYYYYMMDD(endDate)}</Text>
+              <Text style={[styles.dateText, { color: colors.primary }]}>{formatDateToYYYYMMDD(endDate)}</Text>
             </TouchableOpacity>
           </View>
           {showEndDatePicker && (
@@ -285,18 +288,18 @@ export default function ItineraryModal({
             </View>
           )}
 
-          <View style={styles.modalSwitchContainer}>
-            <Text style={styles.modalSwitchLabel}>Auto-generate with AI ✨</Text>
+          <View style={[styles.modalSwitchContainer, { borderTopColor: colors.secondary }]}>
+            <Text style={[styles.modalSwitchLabel, { color: colors.text }]}>Auto-generate with AI ✨</Text>
             <Switch
-              trackColor={{ false: "#E5E7EB", true: "#A5B4FC" }}
-              thumbColor={autoGenerate ? "#6366F1" : "#f4f3f4"}
+              trackColor={{ false: "#E5E7EB", true: colors.primary }}
+              thumbColor={autoGenerate ? colors.primary : "#f4f3f4"}
               onValueChange={setAutoGenerate}
               value={autoGenerate}
             />
           </View>
 
           <TouchableOpacity
-            style={[styles.saveButton, isCreating && styles.disabledButton]}
+            style={[styles.saveButton, { backgroundColor: colors.primary }, isCreating && styles.disabledButton]}
             onPress={handleSave}
             disabled={isCreating}
           >
@@ -310,27 +313,27 @@ export default function ItineraryModal({
 
 const styles = StyleSheet.create({
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContent: { backgroundColor: 'white', paddingHorizontal: 20, paddingTop: 10, borderTopRightRadius: 20, borderTopLeftRadius: 20, paddingBottom: 40 },
+  modalContent: { paddingHorizontal: 20, paddingTop: 10, borderTopRightRadius: 20, borderTopLeftRadius: 20, paddingBottom: 40 },
   dragHandle: { width: 40, height: 5, backgroundColor: '#D1D5DB', borderRadius: 3, alignSelf: 'center', marginVertical: 10 },
   modalTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-  label: { fontSize: 16, fontWeight: '500', color: '#374151', marginBottom: 8 },
-  input: { borderWidth: 1, borderColor: '#D1D5DB', padding: 12, borderRadius: 8, fontSize: 16, marginBottom: 15 },
+  label: { fontSize: 16, fontWeight: '500', marginBottom: 8 },
+  input: { borderWidth: 1, padding: 12, borderRadius: 8, fontSize: 16, marginBottom: 15 },
   budgetButtonsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  budgetButton: { flex: 1, paddingVertical: 12, borderWidth: 1.5, borderColor: '#D1D5DB', borderRadius: 8, alignItems: 'center', marginHorizontal: 4 },
-  budgetButtonSelected: { backgroundColor: '#EDE9FE', borderColor: '#6366F1' },
-  budgetButtonText: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  budgetButtonTextSelected: { color: '#6366F1' },
+  budgetButton: { flex: 1, paddingVertical: 12, borderWidth: 1.5, borderRadius: 8, alignItems: 'center', marginHorizontal: 4 },
+  budgetButtonSelected: {},
+  budgetButtonText: { fontSize: 14, fontWeight: '600' },
+  budgetButtonTextSelected: { fontWeight: 'bold' },
   customBudgetContainer: { flexDirection: 'row', marginBottom: 15 },
-  customBudgetInput: { flex: 3, borderWidth: 1, borderColor: '#D1D5DB', padding: 12, borderRadius: 8, fontSize: 16, marginRight: 10 },
-  currencyInput: { flex: 1, borderWidth: 1, borderColor: '#D1D5DB', padding: 12, borderRadius: 8, fontSize: 16, textAlign: 'center', fontWeight: 'bold' },
-  datePickerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderColor: '#F3F4F6' },
-  dateLabel: { fontSize: 16, fontWeight: '500', color: '#374151' },
-  dateText: { fontSize: 16, color: '#6366F1', fontWeight: 'bold' },
+  customBudgetInput: { flex: 3, borderWidth: 1, padding: 12, borderRadius: 8, fontSize: 16, marginRight: 10 },
+  currencyInput: { flex: 1, borderWidth: 1, padding: 12, borderRadius: 8, fontSize: 16, textAlign: 'center', fontWeight: 'bold' },
+  datePickerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1 },
+  dateLabel: { fontSize: 16, fontWeight: '500' },
+  dateText: { fontSize: 16, fontWeight: 'bold' },
   warningContainer: { backgroundColor: '#FFFBEB', borderColor: '#FBBF24', borderWidth: 1, borderRadius: 8, padding: 10, marginTop: 10, marginBottom: 5 },
   warningText: { color: '#B45309', fontSize: 14, fontWeight: '500', textAlign: 'center' },
-  modalSwitchContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderTopWidth: 1, borderColor: '#F3F4F6', marginTop: 10, marginBottom: 20 },
-  modalSwitchLabel: { fontSize: 16, color: '#374151', fontWeight: '500' },
-  saveButton: { backgroundColor: '#6366F1', padding: 15, borderRadius: 8, alignItems: 'center' },
-  disabledButton: { backgroundColor: '#A5B4FC' },
+  modalSwitchContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderTopWidth: 1, marginTop: 10, marginBottom: 20 },
+  modalSwitchLabel: { fontSize: 16, fontWeight: '500' },
+  saveButton: { padding: 15, borderRadius: 8, alignItems: 'center' },
+  disabledButton: { opacity: 0.5 },
   saveButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
 });

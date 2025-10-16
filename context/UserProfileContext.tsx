@@ -4,6 +4,9 @@ import { API_URL } from '../app/config'; // <-- THE FIX: Use the centralized Ngr
 
 // Interface for the user profile data used in the frontend
 interface UserProfile {
+    allowRealTimeTips(allowRealTimeTips: any): unknown;
+    allowOpportunityAlerts(allowOpportunityAlerts: any): unknown;
+    allowSmartAlerts(allowSmartAlerts: any): unknown;
     fullName: string;
     email: string;
     aboutMe?: string;

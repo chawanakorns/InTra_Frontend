@@ -18,9 +18,9 @@ import { MarkedDates } from "react-native-calendars/src/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryItem from "../../../components/CategoryItem";
 import PopularDestinationCard from "../../../components/PopularDestinationCard";
+import { useTheme } from "../../../context/ThemeContext";
 import { API_URL } from "../../config";
 
-// --- Type Definitions ---
 interface Itinerary {
   id: number;
   start_date: string;
@@ -36,7 +36,6 @@ interface NotificationStatus {
   id: number; is_read: boolean;
 }
 
-// --- Helper Functions ---
 const getDatesInRange = (startDateStr: string, endDateStr: string): string[] => {
   const dates = [];
   let currentDate = new Date(`${startDateStr}T00:00:00Z`);
@@ -50,6 +49,7 @@ const getDatesInRange = (startDateStr: string, endDateStr: string): string[] => 
 
 export default function Dashboard() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const todayDateString = new Date().toISOString().split("T")[0];
 
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState(todayDateString);
@@ -64,10 +64,9 @@ export default function Dashboard() {
     const token = await AsyncStorage.getItem("firebase_id_token");
     setIsGuest(!token);
     
-    // Fetch non-essential data in parallel but don't block UI
     fetchItineraries(token);
     fetchUnreadCount(token);
-    fetchPopularDestinations(); // This will manage its own loading state
+    fetchPopularDestinations();
   }, []);
 
   const fetchItineraries = async (token: string | null) => {
@@ -100,7 +99,6 @@ export default function Dashboard() {
       setPopularDestinations(data);
     } catch (error) {
       console.error("Error fetching popular destinations:", error);
-      setPopularError(error instanceof Error ? error.message : "Could not load popular destinations.");
       setPopularDestinations([]);
     } finally {
       setIsLoadingPopular(false);
@@ -133,16 +131,35 @@ export default function Dashboard() {
         const isStartingDay = index === 0;
         const isEndingDay = index === datesInRange.length - 1;
         
+        // --- START OF THE FIX ---
         newMarkedDates[date] = {
-          color: '#E0E7FF',
-          textColor: '#1E3A8A',
+          color: colors.primary,   // Use the main primary color for the background
+          textColor: 'white',      // Always use white text for high contrast on the primary color
           startingDay: isSingleDay || isStartingDay,
           endingDay: isSingleDay || isEndingDay,
         };
+        // --- END OF THE FIX ---
       });
     });
     return newMarkedDates;
-  }, [itineraries]);
+  }, [itineraries, colors]);
+
+  const calendarTheme = useMemo(() => ({
+    backgroundColor: colors.card,
+    calendarBackground: colors.card,
+    textSectionTitleColor: colors.icon,
+    todayTextColor: colors.primary,
+    dayTextColor: colors.text,
+    textDisabledColor: colors.icon,
+    arrowColor: colors.primary,
+    monthTextColor: colors.text,
+    textDayFontWeight: '500',
+    textMonthFontWeight: "bold",
+    textDayHeaderFontWeight: '600',
+    textDayFontSize: 16,
+    textMonthFontSize: 18,
+    textDayHeaderFontSize: 14,
+  }), [colors]);
 
   const handlePlacePress = (place: Place) => {
     router.push({
@@ -155,7 +172,7 @@ export default function Dashboard() {
     if (isLoadingPopular) {
         return (
             <View style={styles.popularLoader}>
-                <ActivityIndicator size="large" color="#6366F1" />
+                <ActivityIndicator size="large" color={colors.primary} />
             </View>
         )
     }
@@ -170,7 +187,7 @@ export default function Dashboard() {
       );
     }
     if (popularDestinations.length === 0) {
-        return <Text style={styles.emptyText}>No popular destinations found nearby.</Text>
+        return <Text style={[styles.emptyText, { color: colors.icon }]}>No popular destinations found nearby.</Text>
     }
     return (
       <FlatList
@@ -193,21 +210,21 @@ export default function Dashboard() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={["top"]}>
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerContainer}>
-            <Text style={styles.greeting}>InTra</Text>
+            <Text style={[styles.greeting, { color: colors.text }]}>InTra</Text>
             {!isGuest && (
               <TouchableOpacity
                 onPress={() => router.push("/dashboard/notifications")}
                 style={styles.notificationButton}
               >
-                <Ionicons name="notifications-outline" size={26} color="#374151" />
+                <Ionicons name="notifications-outline" size={26} color={colors.icon} />
                 {unreadCount > 0 && (
-                  <View style={styles.notificationBadge}>
+                  <View style={[styles.notificationBadge, { borderColor: colors.background }]}>
                     <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
                   </View>
                 )}
@@ -215,20 +232,21 @@ export default function Dashboard() {
             )}
         </View>
 
-        <View style={styles.calendarWrapper}>
+        <View style={[styles.calendarWrapper, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <Calendar
+            key={isDark ? 'dark-calendar' : 'light-calendar'}
             current={currentCalendarMonth}
             markedDates={markedDates}
             markingType={"period"}
             onMonthChange={(month) => setCurrentCalendarMonth(month.dateString)}
             theme={calendarTheme}
             style={styles.calendar}
-            hideExtraDays={false}
+            hideExtraDays={true}
           />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Categories</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Categories</Text>
           <View style={styles.categoriesContainer}>
             <CategoryItem
               title="Attractions"
@@ -245,7 +263,7 @@ export default function Dashboard() {
 
         <View style={styles.section}>
             <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Popular Near You</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Popular Near You</Text>
             </View>
           {renderPopularDestinations()}
         </View>
@@ -254,25 +272,8 @@ export default function Dashboard() {
   );
 }
 
-const calendarTheme = {
-    backgroundColor: "#FFFFFF",
-    calendarBackground: "#FFFFFF",
-    textSectionTitleColor: '#6B7280',
-    todayTextColor: '#6366F1',
-    dayTextColor: '#1F2937',
-    textDisabledColor: '#D1D5DB',
-    arrowColor: '#6366F1',
-    monthTextColor: '#111827',
-    textDayFontWeight: '500',
-    textMonthFontWeight: "bold",
-    textDayHeaderFontWeight: '600',
-    textDayFontSize: 16,
-    textMonthFontSize: 18,
-    textDayHeaderFontSize: 14,
-};
-
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#F9FAFB" },
+  safeArea: { flex: 1 },
   container: { paddingHorizontal: 20, paddingBottom: 20, paddingTop: 10 },
   headerContainer: {
     flexDirection: "row",
@@ -280,21 +281,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  greeting: { fontSize: 28, fontWeight: 'bold', color: '#1F2937' },
+  greeting: { fontSize: 28, fontWeight: 'bold' },
   notificationButton: { padding: 4 },
   notificationBadge: {
     position: 'absolute', right: 0, top: 0, backgroundColor: '#EF4444',
     borderRadius: 9, width: 18, height: 18, justifyContent: 'center',
-    alignItems: 'center', borderWidth: 1.5, borderColor: '#F9FAFB',
+    alignItems: 'center', borderWidth: 1.5,
   },
   notificationBadgeText: { color: 'white', fontSize: 10, fontWeight: 'bold' },
   calendarWrapper: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 8,
     marginBottom: 30,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     shadowColor: "#4A5568",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -309,7 +308,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  sectionTitle: { fontSize: 22, fontWeight: "bold", color: '#1F2937', marginBottom: 16 },
+  sectionTitle: { fontSize: 22, fontWeight: "bold", marginBottom: 16 },
   categoriesContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -328,14 +327,5 @@ const styles = StyleSheet.create({
   popularErrorText: { color: '#B45309', textAlign: 'center', marginBottom: 16, fontSize: 14, },
   retryButton: { backgroundColor: '#6366F1', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 100 },
   retryButtonText: { color: '#fff', fontWeight: 'bold' },
-  emptyText: { color: '#6B7280', padding: 20, textAlign: 'center' },
-  // Skeleton Styles are not used for the full page anymore but kept for potential future use
-  skeletonContainer: { flex: 1, padding: 20, backgroundColor: '#F9FAFB', paddingTop: 30 },
-  skeletonHeader: { marginBottom: 20 },
-  skeletonCalendar: { width: '100%', height: 370, backgroundColor: '#E5E7EB', borderRadius: 16, marginBottom: 30 },
-  skeletonSectionTitle: { width: '40%', height: 24, backgroundColor: '#E5E7EB', borderRadius: 8, marginBottom: 16 },
-  skeletonCategories: { flexDirection: 'row', justifyContent: 'space-between', gap: 16, marginBottom: 30 },
-  skeletonCategoryItem: { flex: 1, height: 80, backgroundColor: '#E5E7EB', borderRadius: 12 },
-  skeletonPopularList: { flexDirection: 'row', gap: 16 },
-  skeletonPopularItem: { width: 150, height: 200, backgroundColor: '#E5E7EB', borderRadius: 12 },
+  emptyText: { padding: 20, textAlign: 'center' },
 });

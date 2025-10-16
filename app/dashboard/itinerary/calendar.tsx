@@ -23,17 +23,17 @@ import {
   View
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
-import MapView, { Marker, Polyline } from "react-native-maps";
+import MapView, { MapStyleElement, Marker, Polyline } from "react-native-maps";
 import ItineraryModal from "../../../components/ItineraryModal";
 import { ScheduleItemEditModal } from "../../../components/ScheduleItemEditModal";
 import { useNotification } from "../../../context/NotificationContext";
+import { useTheme } from "../../../context/ThemeContext";
 import { API_URL } from "../../config";
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// --- Constants ---
 const BACKEND_ITINERARY_API_URL = `${API_URL}/api/itineraries`;
 const BACKEND_AUTH_API_URL = `${API_URL}/auth`;
 const BACKEND_RECOMMENDATIONS_API_URL = `${API_URL}/api`;
@@ -41,12 +41,10 @@ const BACKEND_NOTIFICATION_API_URL = `${API_URL}/api/notifications`;
 const HOUR_ROW_HEIGHT = 80;
 const TIME_LABEL_WIDTH = 80;
 
-// --- Type Definitions ---
 type ScheduleItem = { id: string; place_id: string; place_name: string; place_type?: string; place_address?: string; place_rating?: number; place_image?: string; scheduled_date: string; scheduled_time: string; duration_minutes: number; };
 type Itinerary = { id: string; type: string; budget: string | null; name: string; startDate: Date; endDate: Date; schedule_items: ScheduleItem[]; };
 type PlaceDetails = { id: string; name: string; description: string; isOpen?: boolean; address?: string; rating?: number; };
 
-// --- Helper Functions ---
 const formatAndCapitalize = (s: string | undefined): string => {
   if (!s) return "";
   return s.replace(/_/g, " ").split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
@@ -56,37 +54,42 @@ const parseDateStringSafe = (dateStr: string): Date => {
   return new Date(year, month - 1, day);
 };
 
-// --- Components ---
-const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
-  <View style={styles.centeredMessageContainer}>
-    <MaterialIcons name="event-note" size={60} color="#9CA3AF" />
-    <Text style={styles.messageTitle}>View Your Itineraries</Text>
-    <Text style={styles.messageText}>Log in to create, view, and manage your personalized travel plans.</Text>
-    <TouchableOpacity style={styles.loginButton} onPress={onLoginPress}><Text style={styles.loginButtonText}>Log In or Sign Up</Text></TouchableOpacity>
-  </View>
-);
-
-const SkeletonLoader = () => (
-    <View style={{ paddingHorizontal: 20, paddingTop: 60 }}>
-        <View style={{ width: '70%', height: 30, backgroundColor: '#EFEFEF', borderRadius: 8, marginBottom: 10 }} />
-        <View style={{ width: '50%', height: 20, backgroundColor: '#EFEFEF', borderRadius: 8, marginBottom: 20 }} />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30, paddingVertical: 10 }}>
-            {Array.from({ length: 7 }).map((_, i) => <View key={i} style={{ width: 40, height: 60, backgroundColor: '#EFEFEF', borderRadius: 20 }} />)}
-        </View>
-        <View style={{ width: '30%', height: 24, backgroundColor: '#EFEFEF', borderRadius: 8, marginBottom: 20 }} />
-    </View>
-);
-
-// --- NEW: Reordered hours for timeline display ---
-const dayHours = Array.from({ length: 18 }, (_, i) => i + 6); // 6 AM to 11 PM (23)
-const nightHours = Array.from({ length: 6 }, (_, i) => i);   // 12 AM to 5 AM (0-5)
+const dayHours = Array.from({ length: 18 }, (_, i) => i + 6);
+const nightHours = Array.from({ length: 6 }, (_, i) => i);
 const orderedHours = [...dayHours, ...nightHours];
 const hourToRowIndexMap = new Map(orderedHours.map((hour, index) => [hour, index]));
 
+const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.centeredMessageContainer, { backgroundColor: colors.background }]}>
+      <MaterialIcons name="event-note" size={60} color={colors.icon} />
+      <Text style={[styles.messageTitle, { color: colors.text }]}>View Your Itineraries</Text>
+      <Text style={[styles.messageText, { color: colors.icon }]}>Log in to create, view, and manage your personalized travel plans.</Text>
+      <TouchableOpacity style={[styles.loginButton, { backgroundColor: colors.primary }]} onPress={onLoginPress}><Text style={styles.loginButtonText}>Log In or Sign Up</Text></TouchableOpacity>
+    </View>
+  );
+};
+
+const SkeletonLoader = () => {
+  const { colors } = useTheme();
+  return (
+    <View style={{ paddingHorizontal: 20, paddingTop: 60 }}>
+        <View style={{ width: '70%', height: 30, backgroundColor: colors.secondary, borderRadius: 8, marginBottom: 10 }} />
+        <View style={{ width: '50%', height: 20, backgroundColor: colors.secondary, borderRadius: 8, marginBottom: 20 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30, paddingVertical: 10 }}>
+            {Array.from({ length: 7 }).map((_, i) => <View key={i} style={{ width: 40, height: 60, backgroundColor: colors.secondary, borderRadius: 20 }} />)}
+        </View>
+        <View style={{ width: '30%', height: 24, backgroundColor: colors.secondary, borderRadius: 8, marginBottom: 20 }} />
+    </View>
+  );
+};
 
 export default function CalendarScreen() {
   const router = useRouter();
   const { addNotification } = useNotification();
+  const { colors, isDark } = useTheme();
+  
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [displayDate, setDisplayDate] = useState(new Date());
@@ -327,52 +330,53 @@ export default function CalendarScreen() {
   const renderContent = () => {
     if (isLoading) return <SkeletonLoader />;
     if (loginRequired) return <LoginRequiredView onLoginPress={() => router.replace("/auth/sign-in")} />;
-    if (error) return <View style={styles.centeredMessageContainer}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryButton} onPress={fetchItineraries}><Text style={styles.retryButtonText}>Retry</Text></TouchableOpacity></View>;
+    if (error) return <View style={[styles.centeredMessageContainer, { backgroundColor: colors.background }]}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={[styles.retryButton, { backgroundColor: colors.primary }]} onPress={fetchItineraries}><Text style={styles.retryButtonText}>Retry</Text></TouchableOpacity></View>;
     
     const expandedItem = itemsForSelectedDay.find(i => i.id === expandedItemId);
-    const timelineHeight = (orderedHours.length * HOUR_ROW_HEIGHT) + expandedDetailsHeight;
+    const timelineHeight = (orderedHours.length * HOUR_ROW_HEIGHT) + (expandedDetailsHeight > 0 ? expandedDetailsHeight - HOUR_ROW_HEIGHT : 0);
 
     return (
       <>
         <View style={styles.header}>
-            <Text style={styles.greeting}>{`${getTimeOfDay(currentTime)}, ${userName}`}</Text>
-            <Text style={styles.date}>{format(selectedDate, "EEEE, MMMM do")}</Text>
+            <Text style={[styles.greeting, { color: colors.text }]}>{`${getTimeOfDay(currentTime)}, ${userName}`}</Text>
+            <Text style={[styles.date, { color: colors.icon }]}>{format(selectedDate, "EEEE, MMMM do")}</Text>
         </View>
 
         {itineraries.length > 0 && (
-            <View style={styles.itineraryPickerContainer}>
+            <View style={[styles.itineraryPickerContainer, { backgroundColor: colors.secondary }]}>
               <Dropdown 
                 style={styles.dropdown} 
-                containerStyle={styles.dropdownContainer}
+                containerStyle={[styles.dropdownContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                 data={itineraries.map(it => ({ label: it.name, value: it.id }))} 
                 value={selectedItinerary?.id} 
                 onChange={item => { const it = itineraries.find(i => i.id === item.value); if (it) { setSelectedItinerary(it); setSelectedDate(new Date(it.startDate)); setDisplayDate(new Date(it.startDate)); setIsDetailsVisible(false); } }} 
                 labelField="label" valueField="value" 
                 placeholder="Select Itinerary" 
-                placeholderStyle={styles.placeholderStyle} 
-                selectedTextStyle={styles.selectedTextStyle} 
-                renderLeftIcon={() => <MaterialIcons name="calendar-today" style={styles.dropdownIcon} size={20} />}
+                placeholderStyle={[styles.placeholderStyle, { color: colors.icon }]} 
+                selectedTextStyle={[styles.selectedTextStyle, { color: colors.text }]} 
+                activeColor={colors.secondary}
+                renderLeftIcon={() => <MaterialIcons name="calendar-today" style={styles.dropdownIcon} size={20} color={colors.primary} />}
               />
               <TouchableOpacity onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setIsDetailsVisible(!isDetailsVisible); }} style={styles.detailsButton}>
-                  <MaterialIcons name="info-outline" size={24} color="#555" />
+                  <MaterialIcons name="info-outline" size={24} color={colors.icon} />
               </TouchableOpacity>
               <TouchableOpacity onPress={handleDeleteItinerary} style={styles.deleteButton}>
-                  <MaterialIcons name="delete-outline" size={24} color="#D32F2F" />
+                  <MaterialIcons name="delete-outline" size={24} color={colors.danger} />
               </TouchableOpacity>
             </View>
         )}
         
         {isDetailsVisible && selectedItinerary && (
-          <View style={styles.detailsContainer}>
-            <View style={styles.detailRow}><Text style={styles.detailLabel}>Type:</Text><Text style={styles.detailValue}>{selectedItinerary.type}</Text></View>
-            <View style={styles.detailRow}><Text style={styles.detailLabel}>Budget:</Text><Text style={styles.detailValue}>{formatAndCapitalize(selectedItinerary.budget ?? undefined) || "Not Specified"}</Text></View>
-            <View style={styles.detailRow}><Text style={styles.detailLabel}>Dates:</Text><Text style={styles.detailValue}>{`${format(selectedItinerary.startDate, "MMM d")} - ${format(selectedItinerary.endDate, "MMM d, yyyy")}`}</Text></View>
+          <View style={[styles.detailsContainer, { backgroundColor: colors.secondary, borderColor: colors.cardBorder }]}>
+            <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: colors.icon }]}>Type:</Text><Text style={[styles.detailValue, { color: colors.text }]}>{selectedItinerary.type}</Text></View>
+            <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: colors.icon }]}>Budget:</Text><Text style={[styles.detailValue, { color: colors.text }]}>{formatAndCapitalize(selectedItinerary.budget ?? undefined) || "Not Specified"}</Text></View>
+            <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: colors.icon }]}>Dates:</Text><Text style={[styles.detailValue, { color: colors.text }]}>{`${format(selectedItinerary.startDate, "MMM d")} - ${format(selectedItinerary.endDate, "MMM d, yyyy")}`}</Text></View>
           </View>
         )}
 
         <View style={styles.calendarContainer}>
             <View style={styles.weekControlContainer}>
-                <TouchableOpacity onPress={() => setDisplayDate(d => new Date(d.setDate(d.getDate() - 7)))} style={styles.navButton}><MaterialIcons name="chevron-left" size={28} color="#555" /></TouchableOpacity>
+                <TouchableOpacity onPress={() => setDisplayDate(d => new Date(d.setDate(d.getDate() - 7)))} style={styles.navButton}><MaterialIcons name="chevron-left" size={28} color={colors.icon} /></TouchableOpacity>
                 <View style={styles.datesRow}>
                     {weekDates.map(date => {
                         const isSelected = isSameDay(date, selectedDate);
@@ -381,33 +385,31 @@ export default function CalendarScreen() {
                         const isWithinItinerary = selectedItinerary && normDate >= new Date(selectedItinerary.startDate).setHours(0,0,0,0) && normDate <= new Date(selectedItinerary.endDate).setHours(0,0,0,0);
                         return (
                             <TouchableOpacity key={date.toISOString()} style={styles.dateCell} onPress={() => setSelectedDate(date)}>
-                                <Text style={[styles.dayHeaderText, isSelected && { color: "#6366F1" }]}>{format(date, "EEE")}</Text>
-                                <View style={[styles.dateNumberContainer, isSelected ? styles.selectedDateCell : isCurrentDay ? styles.todayDateCell : null]}>
-                                    <Text style={[styles.dateNumber, isSelected ? styles.selectedDateNumber : isCurrentDay ? styles.todayDateNumber : {}]}>{date.getDate()}</Text>
+                                <Text style={[styles.dayHeaderText, { color: colors.icon }, isSelected && { color: colors.primary }]}>{format(date, "EEE")}</Text>
+                                <View style={[styles.dateNumberContainer, isSelected ? [styles.selectedDateCell, { backgroundColor: colors.primary }] : isCurrentDay ? [styles.todayDateCell, { borderColor: colors.primary }] : null]}>
+                                    <Text style={[styles.dateNumber, { color: colors.text }, isSelected ? styles.selectedDateNumber : isCurrentDay ? [styles.todayDateNumber, { color: colors.primary }] : {}]}>{date.getDate()}</Text>
                                 </View>
-                                {isWithinItinerary && <View style={styles.itineraryDot} />}
+                                {isWithinItinerary && <View style={[styles.itineraryDot, { backgroundColor: colors.primary }]} />}
                             </TouchableOpacity>
                         );
                     })}
                 </View>
-                <TouchableOpacity onPress={() => setDisplayDate(d => new Date(d.setDate(d.getDate() + 7)))} style={styles.navButton}><MaterialIcons name="chevron-right" size={28} color="#555" /></TouchableOpacity>
+                <TouchableOpacity onPress={() => setDisplayDate(d => new Date(d.setDate(d.getDate() + 7)))} style={styles.navButton}><MaterialIcons name="chevron-right" size={28} color={colors.icon} /></TouchableOpacity>
             </View>
         </View>
 
         {selectedItinerary ? (
           <View style={[styles.timelineContainer, { height: timelineHeight }]}>
-            {/* Background Grid */}
             {orderedHours.map(hourIndex => {
               const time = `${(hourIndex % 12 || 12)}:00 ${hourIndex >= 12 ? "PM" : "AM"}`;
               return (
                 <View key={hourIndex} style={styles.timelineRow}>
-                  <Text style={styles.timelineTime}>{time}</Text>
-                  <View style={styles.timelineDivider} />
+                  <Text style={[styles.timelineTime, { color: colors.icon }]}>{time}</Text>
+                  <View style={[styles.timelineDivider, { borderLeftColor: colors.cardBorder }]} />
                 </View>
               )
             })}
             
-            {/* Absolutely Positioned Schedule Items */}
             <View style={styles.scheduleItemsContainer}>
               {itemsForSelectedDay.map(item => {
                 const isExpanded = expandedItemId === item.id;
@@ -443,29 +445,29 @@ export default function CalendarScreen() {
                     ]}
                   >
                     <TouchableOpacity onPress={() => handleItemPress(item)} activeOpacity={0.8} >
-                      <View style={[styles.scheduleItemCard, {minHeight: height - 4}]}>
+                      <View style={[styles.scheduleItemCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }, isExpanded && { borderColor: colors.primary}]}>
                         <Image source={item.place_image ? { uri: item.place_image } : require("../../../assets/images/icon.png")} style={styles.cardImage} />
                         <View style={styles.cardContent}>
-                          <Text style={styles.scheduleItemText} numberOfLines={1}>{item.place_name}</Text>
-                          <Text style={styles.scheduleItemDetails}>{`${format(startTime, "h:mm a")} - ${format(endTime, "h:mm a")}`}</Text>
+                          <Text style={[styles.scheduleItemText, { color: colors.text }]} numberOfLines={1}>{item.place_name}</Text>
+                          <Text style={[styles.scheduleItemDetails, { color: colors.icon }]}>{`${format(startTime, "h:mm a")} - ${format(endTime, "h:mm a")}`}</Text>
                         </View>
                       </View>
                     </TouchableOpacity>
                     {isExpanded && (
-                       <View onLayout={(event) => setExpandedDetailsHeight(event.nativeEvent.layout.height)} style={styles.expandedDetailsContainer}>
-                       {isFetchingDetails && !details ? <ActivityIndicator style={{ marginVertical: 20 }} color="#6366F1" /> : (
+                       <View onLayout={(event) => setExpandedDetailsHeight(event.nativeEvent.layout.height)} style={[styles.expandedDetailsContainer, { backgroundColor: colors.secondary, borderColor: colors.primary }]}>
+                       {isFetchingDetails && !details ? <ActivityIndicator style={{ marginVertical: 20 }} color={colors.primary} /> : (
                          <>
-                           <Text style={styles.detailsDescription}>{desc.length > 120 && !isDescExpanded ? `${desc.substring(0, 120)}...` : desc}</Text>
-                           {desc.length > 120 && <TouchableOpacity onPress={() => setIsDescriptionExpanded(isDescriptionExpanded === item.id ? null : item.id)}><Text style={styles.showMoreText}>{isDescriptionExpanded === item.id ? "Show less" : "Show more"}</Text></TouchableOpacity>}
-                           <View style={styles.detailRow}><Text style={styles.detailLabel}>Status:</Text><Text style={[styles.detailValue, { color: details?.isOpen ? "#10B981" : "#EF4444" }]}>{details?.isOpen ? "Open Now" : "Currently Closed"}</Text></View>
+                           <Text style={[styles.detailsDescription, { color: colors.icon }]}>{desc.length > 120 && !isDescExpanded ? `${desc.substring(0, 120)}...` : desc}</Text>
+                           {desc.length > 120 && <TouchableOpacity onPress={() => setIsDescriptionExpanded(isDescriptionExpanded === item.id ? null : item.id)}><Text style={[styles.showMoreText, { color: colors.primary }]}>{isDescriptionExpanded === item.id ? "Show less" : "Show more"}</Text></TouchableOpacity>}
+                           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: colors.icon }]}>Status:</Text><Text style={[styles.detailValue, { color: details?.isOpen ? "#10B981" : colors.danger }]}>{details?.isOpen ? "Open Now" : "Currently Closed"}</Text></View>
                            <View style={styles.actionButtonsRow}>
                              <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={() => handleOpenEditModal(item)}><MaterialIcons name="edit" size={18} color="#FFFFFF" /><Text style={styles.actionButtonText}>Edit</Text></TouchableOpacity>
                              <TouchableOpacity style={[styles.actionButton, styles.directionsButton]} onPress={() => handleShowDirections(item)}>
                                {isFetchingRoute ? <ActivityIndicator size="small" color="#FFFFFF"/> : <><MaterialIcons name="directions" size={18} color="#FFFFFF" /><Text style={styles.actionButtonText}>{routeCoordinates.length > 0 ? "Hide" : "Route"}</Text></>}
                              </TouchableOpacity>
                            </View>
-                           {routeCoordinates.length > 0 && <MapView ref={mapRef} style={styles.mapView} showsUserLocation initialRegion={{ latitude: routeCoordinates[0].latitude, longitude: routeCoordinates[0].longitude, latitudeDelta: 0.0922, longitudeDelta: 0.0421 }}><Marker coordinate={routeCoordinates[routeCoordinates.length - 1]} title="Destination" /><Polyline coordinates={routeCoordinates} strokeColor="#6366F1" strokeWidth={5} /></MapView>}
-                           <TouchableOpacity style={styles.deleteItemButton} onPress={() => handleDeleteScheduleItem(item)}><MaterialIcons name="delete" size={16} color="#B91C1C" /><Text style={styles.deleteItemButtonText}>Delete Item</Text></TouchableOpacity>
+                           {routeCoordinates.length > 0 && <MapView ref={mapRef} style={styles.mapView} provider="google" customMapStyle={isDark ? mapStyleDark : []} showsUserLocation initialRegion={{ latitude: routeCoordinates[0].latitude, longitude: routeCoordinates[0].longitude, latitudeDelta: 0.0922, longitudeDelta: 0.0421 }}><Marker coordinate={routeCoordinates[routeCoordinates.length - 1]} title="Destination" /><Polyline coordinates={routeCoordinates} strokeColor={colors.primary} strokeWidth={5} /></MapView>}
+                           <TouchableOpacity style={[styles.deleteItemButton, { borderTopColor: colors.cardBorder }]} onPress={() => handleDeleteScheduleItem(item)}><MaterialIcons name="delete" size={16} color={colors.danger} /><Text style={[styles.deleteItemButtonText, { color: colors.danger }]}>Delete Item</Text></TouchableOpacity>
                          </>
                        )}
                      </View>
@@ -478,9 +480,9 @@ export default function CalendarScreen() {
           </View>
         ) : (
           <View style={styles.emptyState}>
-            <MaterialIcons name="map" size={50} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No Itinerary Selected</Text>
-            <Text style={styles.emptySubtitle}>Create or select an itinerary to see your plans.</Text>
+            <MaterialIcons name="map" size={50} color={colors.icon} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No Itinerary Selected</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.icon }]}>Create or select an itinerary to see your plans.</Text>
           </View>
         )}
       </>
@@ -488,14 +490,14 @@ export default function CalendarScreen() {
   };
   
   return (
-    <View style={styles.screenContainer}>
+    <View style={[styles.screenContainer, { backgroundColor: colors.background }]}>
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           {renderContent()}
         </ScrollView>
         {!loginRequired && !isLoading && (
-          <TouchableOpacity style={styles.addButton} onPress={handleOpenModal}>
-            <MaterialIcons name="add" size={30} color="#FFFFFF" />
+          <TouchableOpacity style={[styles.addButton, { backgroundColor: isDark ? colors.card : colors.text }]} onPress={handleOpenModal}>
+            <MaterialIcons name="add" size={30} color={isDark ? colors.text : colors.card} />
           </TouchableOpacity>
         )}
       </SafeAreaView>
@@ -519,71 +521,73 @@ export default function CalendarScreen() {
   );
 }
 
+const mapStyleDark: MapStyleElement[] | undefined = [ /* ... Google Maps dark style JSON ... */ ];
+
 const styles = StyleSheet.create({
-  screenContainer: { flex: 1, backgroundColor: "#FFFFFF" },
+  screenContainer: { flex: 1 },
   safeArea: { flex: 1 },
   container: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 100 },
   centeredMessageContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20, minHeight: 500 },
-  messageTitle: { fontSize: 22, fontWeight: "bold", color: "#1F2937", textAlign: "center", marginBottom: 12 },
-  messageText: { fontSize: 16, color: "#6B7280", textAlign: "center", marginBottom: 24, lineHeight: 22 },
-  loginButton: { backgroundColor: "#6366F1", paddingVertical: 12, paddingHorizontal: 32, borderRadius: 100 },
+  messageTitle: { fontSize: 22, fontWeight: "bold", textAlign: "center", marginBottom: 12 },
+  messageText: { fontSize: 16, textAlign: "center", marginBottom: 24, lineHeight: 22 },
+  loginButton: { paddingVertical: 12, paddingHorizontal: 32, borderRadius: 100 },
   loginButtonText: { color: "#FFFFFF", fontWeight: "bold", fontSize: 16 },
-  errorText: { color: "#D32F2F", fontSize: 16, textAlign: "center", marginBottom: 20 },
-  retryButton: { backgroundColor: "#6366F1", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 100 },
-  retryButtonText: { color: "#FFFFFF", fontWeight: "bold" },
+  errorText: { fontSize: 16, textAlign: "center", marginBottom: 20 },
+  retryButton: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 100 },
+  retryButtonText: { fontWeight: "bold" },
   header: { marginBottom: 20, paddingHorizontal: 5 },
-  greeting: { fontSize: 32, fontWeight: "bold", color: "#111827" },
-  date: { fontSize: 16, color: "#6B7280", marginTop: 4 },
-  itineraryPickerContainer: { flexDirection: "row", alignItems: "center", marginBottom: 15, backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 5 },
+  greeting: { fontSize: 32, fontWeight: "bold" },
+  date: { fontSize: 16, marginTop: 4 },
+  itineraryPickerContainer: { flexDirection: "row", alignItems: "center", marginBottom: 15, borderRadius: 12, paddingHorizontal: 5 },
   dropdown: { flex: 1, height: 50 },
-  dropdownContainer: { borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' },
-  placeholderStyle: { fontSize: 16, color: "#6B7280", marginLeft: 10 },
-  selectedTextStyle: { fontSize: 16, color: "#1F2937", marginLeft: 10, fontWeight: '500' },
-  dropdownIcon: { color: "#6366F1", marginRight: 10 },
+  dropdownContainer: { borderRadius: 12, borderWidth: 1 },
+  placeholderStyle: { fontSize: 16, marginLeft: 10 },
+  selectedTextStyle: { fontSize: 16, marginLeft: 10, fontWeight: '500' },
+  dropdownIcon: { marginRight: 10 },
   detailsButton: { padding: 8, marginHorizontal: 5 },
   deleteButton: { padding: 8 },
-  detailsContainer: { backgroundColor: "#F9FAFB", borderRadius: 12, padding: 15, marginTop: -10, marginBottom: 20, borderWidth: 1, borderColor: '#E5E7EB' },
+  detailsContainer: { borderRadius: 12, padding: 15, marginTop: -10, marginBottom: 20, borderWidth: 1 },
   detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 5 },
-  detailLabel: { fontSize: 14, color: "#6B7280", fontWeight: "500" },
-  detailValue: { fontSize: 14, color: "#1F2937", fontWeight: "600" },
+  detailLabel: { fontSize: 14, fontWeight: "500" },
+  detailValue: { fontSize: 14, fontWeight: "600" },
   calendarContainer: { marginBottom: 25 },
   weekControlContainer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   navButton: { padding: 8 },
   datesRow: { flexDirection: "row", justifyContent: "space-around", flex: 1 },
   dateCell: { justifyContent: 'flex-start', alignItems: 'center', height: 70, flex: 1 },
-  dayHeaderText: { fontSize: 13, fontWeight: "600", color: "#9CA3AF", textTransform: "uppercase", marginBottom: 8 },
+  dayHeaderText: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", marginBottom: 8 },
   dateNumberContainer: { width: 36, height: 36, justifyContent: "center", alignItems: "center", borderRadius: 18 },
-  selectedDateCell: { backgroundColor: "#6366F1", borderRadius: 18 },
-  todayDateCell: { borderWidth: 2, borderColor: '#6366F1', borderRadius: 18 },
-  dateNumber: { fontSize: 16, fontWeight: "600", color: "#1F2937" },
+  selectedDateCell: { borderRadius: 18 },
+  todayDateCell: { borderWidth: 2, borderRadius: 18 },
+  dateNumber: { fontSize: 16, fontWeight: "600" },
   selectedDateNumber: { color: "#FFFFFF" },
-  todayDateNumber: { color: '#6366F1' },
-  itineraryDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#6366F1', marginTop: 6 },
+  todayDateNumber: {},
+  itineraryDot: { width: 5, height: 5, borderRadius: 3, marginTop: 6 },
   timelineContainer: { marginTop: 10, position: 'relative' },
   timelineRow: { flexDirection: "row", height: HOUR_ROW_HEIGHT, alignItems: 'flex-start' },
-  timelineTime: { fontSize: 14, color: "#9CA3AF", width: TIME_LABEL_WIDTH, textAlign: "right", paddingRight: 10, marginTop: -8 },
-  timelineDivider: { flex: 1, borderLeftWidth: 1, borderLeftColor: "#E5E7EB" },
+  timelineTime: { fontSize: 14, width: TIME_LABEL_WIDTH, textAlign: "right", paddingRight: 10, marginTop: -8 },
+  timelineDivider: { flex: 1, borderLeftWidth: 1 },
   scheduleItemsContainer: { position: 'absolute', top: 0, left: TIME_LABEL_WIDTH, right: 0, bottom: 0 },
   scheduleItemWrapper: { position: 'absolute', right: 0, left: 10, paddingVertical: 2, zIndex: 10 },
   expandedZIndex: { zIndex: 100 },
-  scheduleItemCard: { flexDirection: "row", backgroundColor: '#FFFFFF', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', shadowColor: "#4A5568", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 3, overflow: 'hidden' },
-  cardImage: { width: 60, backgroundColor: '#E5E7EB' },
+  scheduleItemCard: { flexDirection: "row", borderRadius: 8, borderWidth: 1, shadowColor: "#4A5568", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 3, overflow: 'hidden' },
+  cardImage: { width: 60 },
   cardContent: { paddingVertical: 8, paddingHorizontal: 12, flex: 1, justifyContent: "center" },
-  scheduleItemText: { fontSize: 15, fontWeight: "bold", color: "#1F2937", marginBottom: 2 },
-  scheduleItemDetails: { fontSize: 13, color: "#6B7280" },
-  expandedDetailsContainer: { backgroundColor: "#F9FAFB", borderBottomLeftRadius: 8, borderBottomRightRadius: 8, borderWidth: 1, borderTopWidth: 0, borderColor: '#E5E7EB', padding: 12, marginTop: -1, zIndex: 99 },
-  detailsDescription: { fontSize: 14, color: "#4B5563", lineHeight: 21, marginBottom: 12 },
-  showMoreText: { fontSize: 14, fontWeight: "bold", color: "#6366F1", marginBottom: 15, marginTop: -5 },
+  scheduleItemText: { fontSize: 15, fontWeight: "bold", marginBottom: 2 },
+  scheduleItemDetails: { fontSize: 13 },
+  expandedDetailsContainer: { borderBottomLeftRadius: 8, borderBottomRightRadius: 8, borderWidth: 1, borderTopWidth: 0, padding: 12, marginTop: -1, zIndex: 99 },
+  detailsDescription: { fontSize: 14, lineHeight: 21, marginBottom: 12 },
+  showMoreText: { fontSize: 14, fontWeight: "bold", marginBottom: 15, marginTop: -5 },
   actionButtonsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, marginBottom: 15 },
   actionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 8, flex: 1 },
   actionButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold', marginLeft: 6 },
   editButton: { backgroundColor: '#4338CA', marginRight: 5 },
   directionsButton: { backgroundColor: '#10B981', marginLeft: 5 },
-  deleteItemButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 12, marginTop: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-  deleteItemButtonText: { color: '#B91C1C', fontSize: 14, fontWeight: '600', marginLeft: 6 },
+  deleteItemButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 12, marginTop: 8, borderTopWidth: 1 },
+  deleteItemButtonText: { fontSize: 14, fontWeight: '600', marginLeft: 6 },
   mapView: { height: 200, width: "100%", marginTop: 15, borderRadius: 12 },
   emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: 80 },
-  emptyTitle: { fontSize: 18, color: "#6B7280", fontWeight: "600", marginBottom: 8 },
-  emptySubtitle: { fontSize: 14, color: "#9CA3AF", textAlign: "center" },
-  addButton: { position: "absolute", bottom: 30, right: 20, width: 64, height: 64, borderRadius: 32, backgroundColor: "#1F2937", justifyContent: "center", alignItems: "center", elevation: 8, shadowColor: "#1F2937", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4 },
+  emptyTitle: { fontSize: 18, fontWeight: "600", marginBottom: 8 },
+  emptySubtitle: { fontSize: 14, textAlign: "center" },
+  addButton: { position: "absolute", bottom: 30, right: 20, width: 64, height: 64, borderRadius: 32, justifyContent: "center", alignItems: "center", elevation: 8, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4 },
 });

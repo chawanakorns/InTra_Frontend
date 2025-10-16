@@ -5,6 +5,7 @@ import { Stack } from "expo-router";
 import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from "react-native";
 import { NotificationProvider } from '../context/NotificationContext';
+import { ThemeProvider } from '../context/ThemeContext';
 import { UserProfileProvider, useUserProfile } from "../context/UserProfileContext";
 import { registerForPushNotificationsAsync } from '../services/notificationService';
 
@@ -42,15 +43,17 @@ export default function RootLayout() {
   }
 
   return (
-    <NotificationProvider>
-      <UserProfileProvider>
-        <NotificationHandler />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="dashboard" />
-        </Stack>
-      </UserProfileProvider>
-    </NotificationProvider>
+    <ThemeProvider>
+      <NotificationProvider>
+        <UserProfileProvider>
+          <NotificationHandler />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="auth" />
+            <Stack.Screen name="dashboard" />
+          </Stack>
+        </UserProfileProvider>
+      </NotificationProvider>
+    </ThemeProvider>
   );
 }

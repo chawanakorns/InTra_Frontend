@@ -17,6 +17,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "../../../context/ThemeContext";
 import { API_URL } from "../../config";
 
 const BACKEND_API_URL = Platform.select({
@@ -59,19 +60,23 @@ const getCategory = (placeType: string | null): Exclude<Category, "all"> => {
   return "attraction";
 };
 
-const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => (
-  <View style={styles.centeredContainer}>
-    <MaterialIcons name="lock-outline" size={60} color={COLORS.gray} />
-    <Text style={styles.emptyTitle}>Login Required</Text>
-    <Text style={styles.messageText}>Please log in to view your saved bookmarks.</Text>
-    <TouchableOpacity style={styles.loginButton} onPress={onLoginPress}>
-      <Text style={styles.loginButtonText}>Go to Login</Text>
-    </TouchableOpacity>
-  </View>
-);
+const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.centeredContainer, { backgroundColor: colors.background }]}>
+      <MaterialIcons name="lock-outline" size={60} color={colors.icon} />
+      <Text style={[styles.emptyTitle, { color: colors.text }]}>Login Required</Text>
+      <Text style={[styles.messageText, { color: colors.icon }]}>Please log in to view your saved bookmarks.</Text>
+      <TouchableOpacity style={[styles.loginButton, { backgroundColor: colors.primary }]} onPress={onLoginPress}>
+        <Text style={styles.loginButtonText}>Go to Login</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 export default function BookmarksScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<Category>("all");
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
@@ -221,7 +226,7 @@ export default function BookmarksScreen() {
       return (
         <View style={styles.centeredContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.messageText}>Loading Bookmarks...</Text>
+          <Text style={[styles.messageText, { color: colors.text }]}>Loading Bookmarks...</Text>
         </View>
       );
     }
@@ -242,33 +247,33 @@ export default function BookmarksScreen() {
     if (bookmarks.length === 0) {
       return (
         <View style={styles.centeredContainer}>
-          <MaterialIcons name="bookmark-border" size={60} color={COLORS.gray} />
-          <Text style={styles.emptyTitle}>No Bookmarks Yet</Text>
-          <Text style={styles.messageText}>Tap the bookmark icon on a place to save it here.</Text>
+          <MaterialIcons name="bookmark-border" size={60} color={colors.icon} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Bookmarks Yet</Text>
+          <Text style={[styles.messageText, { color: colors.icon }]}>Tap the bookmark icon on a place to save it here.</Text>
         </View>
       );
     }
     if (filteredBookmarks.length === 0) {
       return (
         <View style={styles.centeredContainer}>
-          <MaterialIcons name="search-off" size={60} color={COLORS.gray} />
-          <Text style={styles.emptyTitle}>No Results Found</Text>
-          <Text style={styles.messageText}>Try adjusting your search or filters.</Text>
+          <MaterialIcons name="search-off" size={60} color={colors.icon} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Results Found</Text>
+          <Text style={[styles.messageText, { color: colors.icon }]}>Try adjusting your search or filters.</Text>
         </View>
       );
     }
     return filteredBookmarks.map((bookmark) => (
-      <TouchableOpacity key={bookmark.id} style={styles.bookmarkCard} onPress={() => handleNavigateToDetail(bookmark)}>
+      <TouchableOpacity key={bookmark.id} style={[styles.bookmarkCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]} onPress={() => handleNavigateToDetail(bookmark)}>
         <Image source={{ uri: bookmark.place_image || "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&h=400&fit=crop" }} style={styles.bookmarkImage} />
         <View style={styles.cardContent}>
-          <Text style={styles.bookmarkName} numberOfLines={1}>{bookmark.place_name}</Text>
-          <Text style={styles.bookmarkLocation} numberOfLines={1}>
-            <Ionicons name="location-outline" size={14} color={COLORS.text} />{" "}{bookmark.place_address || "No address"}
+          <Text style={[styles.bookmarkName, { color: colors.text }]} numberOfLines={1}>{bookmark.place_name}</Text>
+          <Text style={[styles.bookmarkLocation, { color: colors.icon }]} numberOfLines={1}>
+            <Ionicons name="location-outline" size={14} color={colors.icon} />{" "}{bookmark.place_address || "No address"}
           </Text>
           <View style={styles.cardFooter}>
             {renderStars(bookmark.place_rating)}
-            <TouchableOpacity style={styles.removeButton} onPress={() => confirmRemoveBookmark(bookmark)}>
-              <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+            <TouchableOpacity style={[styles.removeButton, { backgroundColor: COLORS.dangerLight }]} onPress={() => confirmRemoveBookmark(bookmark)}>
+              <Ionicons name="trash-outline" size={20} color={colors.danger} />
             </TouchableOpacity>
           </View>
         </View>
@@ -285,14 +290,20 @@ export default function BookmarksScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>My Bookmarks</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.cardBorder }]}>
+        <Text style={[styles.title, { color: colors.text }]}>My Bookmarks</Text>
       </View>
-      <View style={styles.controlsContainer}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color={COLORS.gray} />
-          <TextInput style={styles.searchInput} placeholder="Search by name or address..." value={searchQuery} onChangeText={setSearchQuery} placeholderTextColor={COLORS.gray} />
+      <View style={[styles.controlsContainer, { backgroundColor: colors.card, borderBottomColor: colors.cardBorder }]}>
+        <View style={[styles.searchBar, { backgroundColor: colors.secondary }]}>
+          <Ionicons name="search" size={20} color={colors.icon} />
+          <TextInput 
+            style={[styles.searchInput, { color: colors.text }]} 
+            placeholder="Search by name or address..." 
+            value={searchQuery} 
+            onChangeText={setSearchQuery} 
+            placeholderTextColor={colors.icon} 
+          />
         </View>
         <View style={styles.categoryContainer}>
           <CategoryButton name="All" value="all" />
@@ -300,7 +311,11 @@ export default function BookmarksScreen() {
           <CategoryButton name="Restaurants" value="restaurant" />
         </View>
       </View>
-      <ScrollView style={styles.bookmarksList} contentContainerStyle={{ paddingBottom: 30, flexGrow: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}>
+      <ScrollView 
+        style={styles.bookmarksList} 
+        contentContainerStyle={{ paddingBottom: 30, flexGrow: 1 }} 
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
+      >
         {renderContent()}
       </ScrollView>
     </SafeAreaView>
