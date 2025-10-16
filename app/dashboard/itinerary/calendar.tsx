@@ -282,7 +282,6 @@ export default function CalendarScreen() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (expandedItemId === item.id) { 
         setExpandedItemId(null);
-        setExpandedDetailsHeight(0);
     } else {
         setExpandedItemId(item.id); 
         setRouteCoordinates([]); 
@@ -320,20 +319,38 @@ export default function CalendarScreen() {
   
   const getTimeOfDay = (date: Date) => { const h = date.getHours(); if (h < 12) return "Good Morning"; if (h < 17) return "Good Afternoon"; return "Good Evening"; };
   
+  // --- START OF THE FIX: Pre-calculate layout properties ---
   const itemsForSelectedDay = useMemo(() => {
     if (!selectedItinerary) return [];
     return selectedItinerary.schedule_items
       .filter(item => isSameDay(parse(item.scheduled_date, "yyyy-MM-dd", new Date()), selectedDate))
-      .sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time));
+      .sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time))
+      .map(item => {
+        const [hour, minute] = item.scheduled_time.split(':').map(Number);
+        const rowIndex = hourToRowIndexMap.get(hour) ?? 0;
+        const top = (rowIndex * HOUR_ROW_HEIGHT) + ((minute / 60) * HOUR_ROW_HEIGHT);
+        const height = (item.duration_minutes / 60) * HOUR_ROW_HEIGHT;
+        
+        return {
+          ...item,
+          layout: {
+            top,
+            height: Math.max(height, HOUR_ROW_HEIGHT / 2) // Ensure a minimum height
+          }
+        };
+      });
   }, [selectedItinerary, selectedDate]);
+  // --- END OF THE FIX ---
 
   const renderContent = () => {
     if (isLoading) return <SkeletonLoader />;
     if (loginRequired) return <LoginRequiredView onLoginPress={() => router.replace("/auth/sign-in")} />;
     if (error) return <View style={[styles.centeredMessageContainer, { backgroundColor: colors.background }]}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={[styles.retryButton, { backgroundColor: colors.primary }]} onPress={fetchItineraries}><Text style={styles.retryButtonText}>Retry</Text></TouchableOpacity></View>;
     
+    // --- START OF THE FIX: Adjust total height calculation ---
     const expandedItem = itemsForSelectedDay.find(i => i.id === expandedItemId);
-    const timelineHeight = (orderedHours.length * HOUR_ROW_HEIGHT) + (expandedDetailsHeight > 0 ? expandedDetailsHeight - HOUR_ROW_HEIGHT : 0);
+    const totalTimelineHeight = (orderedHours.length * HOUR_ROW_HEIGHT) + (expandedItem ? expandedDetailsHeight : 0);
+    // --- END OF THE FIX ---
 
     return (
       <>
@@ -399,7 +416,7 @@ export default function CalendarScreen() {
         </View>
 
         {selectedItinerary ? (
-          <View style={[styles.timelineContainer, { height: timelineHeight }]}>
+          <View style={[styles.timelineContainer, { height: totalTimelineHeight }]}>
             {orderedHours.map(hourIndex => {
               const time = `${(hourIndex % 12 || 12)}:00 ${hourIndex >= 12 ? "PM" : "AM"}`;
               return (
@@ -415,37 +432,27 @@ export default function CalendarScreen() {
                 const isExpanded = expandedItemId === item.id;
                 const details = placeDetailsCache[item.place_id];
                 const desc = details?.description || "";
-                const isDescExpanded = isDescriptionExpanded === item.id;
                 
-                const [hour, minute] = item.scheduled_time.split(':').map(Number);
-                const rowIndex = hourToRowIndexMap.get(hour) ?? 0;
-                const top = (rowIndex * HOUR_ROW_HEIGHT) + ((minute / 60) * HOUR_ROW_HEIGHT);
-                const height = (item.duration_minutes / 60) * HOUR_ROW_HEIGHT;
-
                 const startTime = parse(item.scheduled_time, "HH:mm", new Date());
                 const endTime = new Date(startTime.getTime() + item.duration_minutes * 60000);
                 
                 let pushDownOffset = 0;
-                if (expandedItem && item.id !== expandedItem.id) {
-                    const itemStartTime = parse(item.scheduled_time, "HH:mm", new Date());
-                    const expandedItemStartTime = parse(expandedItem.scheduled_time, "HH:mm", new Date());
-                    if (itemStartTime > expandedItemStartTime) {
-                        pushDownOffset = expandedDetailsHeight;
-                    }
+                if (expandedItem && item.id !== expandedItem.id && item.layout.top > expandedItem.layout.top) {
+                    pushDownOffset = expandedDetailsHeight;
                 }
 
                 return (
-                  <View 
+                  <Animated.View 
                     key={item.id} 
                     style={[
                         styles.scheduleItemWrapper, 
-                        { top, height: isExpanded ? undefined : height },
-                        { transform: [{ translateY: pushDownOffset }] },
+                        { top: item.layout.top, transform: [{ translateY: pushDownOffset }] },
+                        isExpanded ? { height: item.layout.height + expandedDetailsHeight } : { height: item.layout.height },
                         isExpanded && styles.expandedZIndex
                     ]}
                   >
                     <TouchableOpacity onPress={() => handleItemPress(item)} activeOpacity={0.8} >
-                      <View style={[styles.scheduleItemCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }, isExpanded && { borderColor: colors.primary}]}>
+                      <View style={[styles.scheduleItemCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, minHeight: item.layout.height - 4 }, isExpanded && { borderColor: colors.primary }]}>
                         <Image source={item.place_image ? { uri: item.place_image } : require("../../../assets/images/icon.png")} style={styles.cardImage} />
                         <View style={styles.cardContent}>
                           <Text style={[styles.scheduleItemText, { color: colors.text }]} numberOfLines={1}>{item.place_name}</Text>
@@ -457,8 +464,7 @@ export default function CalendarScreen() {
                        <View onLayout={(event) => setExpandedDetailsHeight(event.nativeEvent.layout.height)} style={[styles.expandedDetailsContainer, { backgroundColor: colors.secondary, borderColor: colors.primary }]}>
                        {isFetchingDetails && !details ? <ActivityIndicator style={{ marginVertical: 20 }} color={colors.primary} /> : (
                          <>
-                           <Text style={[styles.detailsDescription, { color: colors.icon }]}>{desc.length > 120 && !isDescExpanded ? `${desc.substring(0, 120)}...` : desc}</Text>
-                           {desc.length > 120 && <TouchableOpacity onPress={() => setIsDescriptionExpanded(isDescriptionExpanded === item.id ? null : item.id)}><Text style={[styles.showMoreText, { color: colors.primary }]}>{isDescriptionExpanded === item.id ? "Show less" : "Show more"}</Text></TouchableOpacity>}
+                           <Text style={[styles.detailsDescription, { color: colors.icon }]}>{desc}</Text>
                            <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: colors.icon }]}>Status:</Text><Text style={[styles.detailValue, { color: details?.isOpen ? "#10B981" : colors.danger }]}>{details?.isOpen ? "Open Now" : "Currently Closed"}</Text></View>
                            <View style={styles.actionButtonsRow}>
                              <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={() => handleOpenEditModal(item)}><MaterialIcons name="edit" size={18} color="#FFFFFF" /><Text style={styles.actionButtonText}>Edit</Text></TouchableOpacity>
@@ -472,11 +478,10 @@ export default function CalendarScreen() {
                        )}
                      </View>
                     )}
-                  </View>
+                  </Animated.View>
                 );
               })}
             </View>
-
           </View>
         ) : (
           <View style={styles.emptyState}>
@@ -521,7 +526,7 @@ export default function CalendarScreen() {
   );
 }
 
-const mapStyleDark: MapStyleElement[] | undefined = [ /* ... Google Maps dark style JSON ... */ ];
+const mapStyleDark: MapStyleElement[] | undefined = [ /* Google Maps Dark Style JSON */ ];
 
 const styles = StyleSheet.create({
   screenContainer: { flex: 1 },
@@ -557,8 +562,8 @@ const styles = StyleSheet.create({
   dateCell: { justifyContent: 'flex-start', alignItems: 'center', height: 70, flex: 1 },
   dayHeaderText: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", marginBottom: 8 },
   dateNumberContainer: { width: 36, height: 36, justifyContent: "center", alignItems: "center", borderRadius: 18 },
-  selectedDateCell: { borderRadius: 18 },
-  todayDateCell: { borderWidth: 2, borderRadius: 18 },
+  selectedDateCell: {},
+  todayDateCell: { borderWidth: 2 },
   dateNumber: { fontSize: 16, fontWeight: "600" },
   selectedDateNumber: { color: "#FFFFFF" },
   todayDateNumber: {},
@@ -568,7 +573,7 @@ const styles = StyleSheet.create({
   timelineTime: { fontSize: 14, width: TIME_LABEL_WIDTH, textAlign: "right", paddingRight: 10, marginTop: -8 },
   timelineDivider: { flex: 1, borderLeftWidth: 1 },
   scheduleItemsContainer: { position: 'absolute', top: 0, left: TIME_LABEL_WIDTH, right: 0, bottom: 0 },
-  scheduleItemWrapper: { position: 'absolute', right: 0, left: 10, paddingVertical: 2, zIndex: 10 },
+  scheduleItemWrapper: { position: 'absolute', right: 0, left: 10, paddingVertical: 2 },
   expandedZIndex: { zIndex: 100 },
   scheduleItemCard: { flexDirection: "row", borderRadius: 8, borderWidth: 1, shadowColor: "#4A5568", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 3, overflow: 'hidden' },
   cardImage: { width: 60 },
