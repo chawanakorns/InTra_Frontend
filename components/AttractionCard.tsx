@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 interface Attraction {
   id: string;
@@ -20,6 +21,7 @@ interface AttractionCardProps {
 }
 
 export default function AttractionCard({ attraction, onPress, style }: AttractionCardProps) {
+  const { colors } = useTheme();
   const getAttractionIcon = (types: string[] = []) => {
     if (types.includes('museum')) return 'museum';
     if (types.includes('park')) return 'park';
@@ -42,7 +44,7 @@ export default function AttractionCard({ attraction, onPress, style }: Attractio
 
   return (
     <TouchableOpacity
-      style={[styles.card, style]}
+      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }, style]}
       onPress={() => onPress(attraction)}
     >
       <View style={styles.imageWrapper}>
@@ -80,51 +82,23 @@ export default function AttractionCard({ attraction, onPress, style }: Attractio
       </View>
       
       <View style={styles.contentContainer}>
-        <Text style={styles.name} numberOfLines={2}>{attraction.name}</Text>
+        <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>{attraction.name}</Text>
         
         <View style={styles.ratingContainer}>
           <View style={styles.ratingWrapper}>
             <MaterialIcons name="star" size={14} color="#FFD700" />
-            <Text style={styles.rating}>
+            <Text style={[styles.rating, { color: colors.text }]}>
               {attraction.rating > 0 ? attraction.rating.toFixed(1) : 'N/A'}
             </Text>
           </View>
-          
-          {attraction.priceLevel && (
-            <Text style={styles.priceLevel}>
-              {'$'.repeat(attraction.priceLevel)}
-            </Text>
-          )}
         </View>
         
         {attraction.address && (
-          <Text style={styles.address} numberOfLines={1}>
-            <MaterialIcons name="location-on" size={12} color="#666" />
+          <Text style={[styles.address, { color: colors.icon }]} numberOfLines={1}>
+            <MaterialIcons name="location-on" size={12} color={colors.icon} />
             {' '}{attraction.address}
           </Text>
         )}
-        
-        {attraction.types && attraction.types.length > 0 && (
-          <View style={styles.typeContainer}>
-            <Text style={styles.type} numberOfLines={1}>
-              {attraction.types
-                .filter(type => 
-                  !type.includes('establishment') && 
-                  !type.includes('point_of_interest') &&
-                  type !== 'tourist_attraction'
-                )
-                .slice(0, 2)
-                .map(type => type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))
-                .join(' • ')
-              }
-            </Text>
-          </View>
-        )}
-        
-        <View style={styles.visitContainer}>
-          <MaterialIcons name="schedule" size={12} color="#8B5CF6" />
-          <Text style={styles.visitText}>Tap to explore</Text>
-        </View>
       </View>
     </TouchableOpacity>
   );
@@ -132,7 +106,6 @@ export default function AttractionCard({ attraction, onPress, style }: Attractio
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 12,
     elevation: 3,
@@ -141,6 +114,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     marginBottom: 16,
+    borderWidth: 1,
   },
   imageWrapper: {
     height: 160,

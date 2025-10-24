@@ -1,21 +1,13 @@
-// file: app/dashboard/profile/_layout.tsx
-
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
-import React, { useEffect } from 'react'; // <-- IMPORT useEffect
+import * as Notifications from 'expo-notifications';
+import { Tabs, useRouter } from "expo-router";
+import React, { useEffect, useRef } from 'react';
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { registerForPushNotificationsAsync } from '../../services/notificationService'; // <-- IMPORT THE SERVICE
-
-const COLORS = {
-  primary: "#6366F1",
-  gray: "#9CA3AF",
-  lightGray: "#F3F4F6",
-  white: "#FFFFFF",
-  dark: "#111827",
-};
+import { useTheme } from "../../context/ThemeContext";
+import { registerForPushNotificationsAsync } from '../../services/notificationService';
 
 function TabBarIcon({
   name,
@@ -27,41 +19,61 @@ function TabBarIcon({
   focused: boolean;
 }) {
   const iconName = focused ? name : `${name}-outline`;
-  return <Ionicons size={24} name={iconName as any} color={color} />;
+  return <Ionicons size={26} name={iconName as any} color={color} />;
 }
 
 export default function DashboardTabLayout() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { colors } = useTheme();
 
-  // --- ADD THIS HOOK ---
-  // This hook runs when the component mounts, which is perfect for one-time setup tasks
-  // like registering for push notifications after a user logs in.
+  const notificationListener = useRef<Notifications.Subscription>(null);
+  const responseListener = useRef<Notifications.Subscription>(null);
+
   useEffect(() => {
-    // We call the function to get permission and the token.
-    // The service itself handles sending the token to your backend.
     registerForPushNotificationsAsync();
-  }, []); // The empty dependency array [] ensures this effect runs only once.
-  // --------------------
+
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification Received:', notification);
+    });
+
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification Tapped:', response);
+      const data = response.notification.request.content.data;
+      if (data && data.screen === 'itinerary') {
+        router.navigate('/dashboard/itinerary/calendar');
+      }
+    });
+
+    return () => {
+      if (notificationListener.current) {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+      }
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
+  }, []);
 
   return (
     <SafeAreaProvider>
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: COLORS.primary,
-          tabBarInactiveTintColor: COLORS.gray,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.icon,
           tabBarStyle: {
-            height: 60 + insets.bottom,
+            height: 65 + insets.bottom,
             paddingTop: 10,
             paddingBottom: 5 + insets.bottom,
-            backgroundColor: COLORS.white,
+            backgroundColor: colors.card,
             borderTopWidth: 1,
-            borderTopColor: COLORS.lightGray,
-            elevation: 5,
-            shadowColor: COLORS.dark,
+            borderTopColor: colors.cardBorder,
+            elevation: 8,
+            shadowColor: "#000",
             shadowOffset: { width: 0, height: -2 },
-            shadowOpacity: 0.05,
-            shadowRadius: 4,
+            shadowOpacity: 0.1,
+            shadowRadius: 5,
           },
           tabBarLabelStyle: {
             fontSize: 12,
@@ -70,7 +82,6 @@ export default function DashboardTabLayout() {
           },
         }}
       >
-        {/* Visible Tabs */}
         <Tabs.Screen
           name="home/index"
           options={{
@@ -107,24 +118,10 @@ export default function DashboardTabLayout() {
             ),
           }}
         />
-
-        {/* --- MODIFIED: Notification screen is now hidden from the tab bar --- */}
-        <Tabs.Screen
-          name="notifications/index" // This still refers to the app/dashboard/notification directory
-          options={{
-            href: null, // This hides the tab from the navigation bar
-          }}
-        />
-
-        {/* Other Hidden Routes */}
+        <Tabs.Screen name="notifications/index" options={{ href: null }} />
         <Tabs.Screen name="home/recommendations" options={{ href: null }} />
         <Tabs.Screen name="profile/setting" options={{ href: null }} />
-        <Tabs.Screen
-          name="profile/editprofile/editprofile"
-          options={{
-            href: null,
-          }}
-        />
+        <Tabs.Screen name="profile/editprofile/editprofile" options={{ href: null }} />
       </Tabs>
     </SafeAreaProvider>
   );

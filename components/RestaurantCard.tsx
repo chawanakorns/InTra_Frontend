@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 interface Restaurant {
   id: string;
@@ -20,9 +21,10 @@ interface RestaurantCardProps {
 }
 
 export default function RestaurantCard({ restaurant, onPress, style }: RestaurantCardProps) {
+  const { colors } = useTheme();
   return (
     <TouchableOpacity
-      style={[styles.card, style]}
+      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }, style]}
       onPress={() => onPress(restaurant)}
     >
       <View style={styles.imageWrapper}>
@@ -48,12 +50,12 @@ export default function RestaurantCard({ restaurant, onPress, style }: Restauran
       </View>
       
       <View style={styles.contentContainer}>
-        <Text style={styles.name} numberOfLines={2}>{restaurant.name}</Text>
+        <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>{restaurant.name}</Text>
         
         <View style={styles.ratingContainer}>
           <View style={styles.ratingWrapper}>
             <MaterialIcons name="star" size={14} color="#FFD700" />
-            <Text style={styles.rating}>
+            <Text style={[styles.rating, { color: colors.text }]}>
               {restaurant.rating > 0 ? restaurant.rating.toFixed(1) : 'N/A'}
             </Text>
           </View>
@@ -66,7 +68,7 @@ export default function RestaurantCard({ restaurant, onPress, style }: Restauran
         </View>
         
         {restaurant.address && (
-          <Text style={styles.address} numberOfLines={1}>
+          <Text style={[styles.address, { color: colors.icon }]} numberOfLines={1}>
             <MaterialIcons name="location-on" size={12} color="#666" />
             {' '}{restaurant.address}
           </Text>
@@ -74,7 +76,7 @@ export default function RestaurantCard({ restaurant, onPress, style }: Restauran
         
         {restaurant.types && restaurant.types.length > 0 && (
           <View style={styles.typeContainer}>
-            <Text style={styles.type} numberOfLines={1}>
+            <Text style={[styles.type, { color: colors.text }]} numberOfLines={1}>
               {restaurant.types
                 .filter(type => !type.includes('establishment') && !type.includes('point_of_interest'))
                 .slice(0, 2)

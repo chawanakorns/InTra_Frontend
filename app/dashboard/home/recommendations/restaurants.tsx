@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import RestaurantCard from "../../../../components/RestaurantCard";
+import { useTheme } from "../../../../context/ThemeContext";
 import { API_URL } from "../../../config";
 
 const BACKEND_API_URL = Platform.select({
@@ -38,6 +39,7 @@ interface Place {
 
 export default function RecommendationsScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [restaurants, setRestaurants] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -131,28 +133,28 @@ export default function RecommendationsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366F1" />
-          <Text style={styles.loadingText}>Finding nearby restaurants...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.text }]}>Finding nearby restaurants...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.push('/dashboard/home')}>
-          <MaterialIcons name="arrow-back" size={24} color="#1F2937" />
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Restaurants</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Restaurants</Text>
         <TouchableOpacity onPress={loadPlaces} style={styles.refreshButton}>
-          <MaterialIcons name="refresh" size={24} color="#6366F1" />
+          <MaterialIcons name="refresh" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
-      <TextInput style={styles.search} placeholder="Search restaurants..." value={searchQuery} onChangeText={setSearchQuery} />
+      <TextInput style={[styles.search, { backgroundColor: colors.secondary, borderColor: colors.cardBorder, color: colors.text }]} placeholder="Search restaurants..." value={searchQuery} onChangeText={setSearchQuery} />
 
       {error && (
         <View style={styles.errorContainer}>

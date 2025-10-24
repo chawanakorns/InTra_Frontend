@@ -6,15 +6,23 @@ import { useNavigation, useRouter } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, Dimensions, Image, // <-- THE FIX: Import Image and Dimensions
-  StyleSheet, Text,
-  TextInput, TouchableOpacity, View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { auth } from "../../../config/firebaseConfig";
-import { API_URL } from '../../config';
+import { API_URL } from "../../config";
 
-// THE FIX: Get screen height
-const screenHeight = Dimensions.get('window').height;
+const screenHeight = Dimensions.get("window").height;
 
 export default function SignIn() {
   const navigation = useNavigation();
@@ -29,7 +37,7 @@ export default function SignIn() {
       headerShown: false,
     });
   }, []);
-  
+
   const validateEmail = (emailText) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(emailText);
@@ -57,7 +65,11 @@ export default function SignIn() {
 
     setIsLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email.trim(),
+        password
+      );
       const user = userCredential.user;
 
       const token = await user.getIdToken();
@@ -72,20 +84,25 @@ export default function SignIn() {
       if (syncResponse.data.has_completed_personalization) {
         router.replace("dashboard");
       } else {
-        router.replace("auth/personalize/kindOfusers");
+        router.replace("auth/personalize/personalization");
       }
     } catch (error) {
       console.error("Sign-In Error:", error);
       let errorMessage = "An unexpected error occurred. Please try again.";
       if (error.isAxiosError) {
-          errorMessage = "Network Error: Could not connect to the server. Please check your connection and try again.";
+        errorMessage =
+          "Network Error: Could not connect to the server. Please check your connection and try again.";
       } else if (error.code) {
-          const errorCode = error.code;
-          if (errorCode === 'auth/user-not-found' || errorCode === 'auth/wrong-password' || errorCode === 'auth/invalid-credential') {
-            errorMessage = "Invalid email or password.";
-          } else if (errorCode === 'auth/invalid-email') {
-            errorMessage = "Please enter a valid email address.";
-          }
+        const errorCode = error.code;
+        if (
+          errorCode === "auth/user-not-found" ||
+          errorCode === "auth/wrong-password" ||
+          errorCode === "auth/invalid-credential"
+        ) {
+          errorMessage = "Invalid email or password.";
+        } else if (errorCode === "auth/invalid-email") {
+          errorMessage = "Please enter a valid email address.";
+        }
       }
       Alert.alert("Sign In Failed", errorMessage);
     } finally {
@@ -99,73 +116,186 @@ export default function SignIn() {
   };
 
   return (
-    <View style={style.container}>
-      <TouchableOpacity onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={24} color="white" />
-      </TouchableOpacity>
-      <Image
-        source={require("../../../assets/images/Mobilelogin.png")} // Make sure this path is correct
-        style={style.image} // <-- THE FIX: Changed 'styles' to 'style'
-      />
-      <Text style={style.title}>Let's Sign You In</Text>
-      <View style={{ marginTop: 20 }}>
-        <Text style={style.labelText}>Email</Text>
-        <TextInput
-          style={[style.input, !isEmailValid && style.inputError]}
-          value={email}
-          onChangeText={handleEmailChange}
-          placeholder="Enter Email (e.g., test@email.com)"
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        {!isEmailValid && <Text style={style.errorText}>Please enter a valid email address</Text>}
-      </View>
-      <View style={{ marginTop: 20 }}>
-        <Text style={style.labelText}>Password</Text>
-        <TextInput secureTextEntry={true} style={style.input} value={password} onChangeText={setPassword} placeholder="Enter Password" />
-        <TouchableOpacity style={{ alignItems: "flex-end", marginTop: 10 }} onPress={() => router.push("/auth/forgot-password")}>
-          <Text style={style.forgotPasswordText}>Forgot Password?</Text>
-        </TouchableOpacity>
-      </View>
-      <TouchableOpacity onPress={handleSignIn} disabled={isLoading} style={[style.button, style.primaryButton, isLoading && style.disabledButton]}>
-        {isLoading && <ActivityIndicator size="small" color={Colors.WHITE} style={{ marginRight: 10 }} />}
-        <Text style={style.buttonText}>{isLoading ? "Signing In..." : "Sign In"}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={handleGuestSignIn} style={[style.button, style.secondaryButton]}>
-        <Text style={[style.buttonText, style.secondaryButtonText]}>Continue as Guest</Text>
-      </TouchableOpacity>
-      <View style={style.footer}>
-        <Text style={style.footerText}>Don't have an account? </Text>
-        <TouchableOpacity onPress={() => router.replace("auth/sign-up")}>
-          <Text style={style.footerLink}>Register</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={style.container}
+    >
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+        <View style={style.innerContainer}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+          <Image
+            source={require("../../../assets/images/Mobilelogin.png")}
+            style={style.image}
+          />
+          <Text style={style.title}>Let&apos;s Sign You In</Text>
+          <View style={{ marginTop: 20 }}>
+            <Text style={style.labelText}>Email</Text>
+            <TextInput
+              style={[style.input, !isEmailValid && style.inputError]}
+              value={email}
+              onChangeText={handleEmailChange}
+              placeholder="Enter Email (e.g., test@email.com)"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            {!isEmailValid && (
+              <Text style={style.errorText}>
+                Please enter a valid email address
+              </Text>
+            )}
+          </View>
+          <View style={{ marginTop: 20 }}>
+            <Text style={style.labelText}>Password</Text>
+            <TextInput
+              secureTextEntry={true}
+              style={style.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Enter Password"
+            />
+            <TouchableOpacity
+              style={{ alignItems: "flex-end", marginTop: 10 }}
+              onPress={() => router.push("/auth/forgot-password")}
+            >
+              <Text style={style.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            onPress={handleSignIn}
+            disabled={isLoading}
+            style={[
+              style.button,
+              style.primaryButton,
+              isLoading && style.disabledButton,
+            ]}
+          >
+            {isLoading && (
+              <ActivityIndicator
+                size="small"
+                color={Colors.WHITE}
+                style={{ marginRight: 10 }}
+              />
+            )}
+            <Text style={style.buttonText}>
+              {isLoading ? "Signing In..." : "Sign In"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleGuestSignIn}
+            style={[style.button, style.secondaryButton]}
+          >
+            <Text style={[style.buttonText, style.secondaryButtonText]}>
+              Continue as Guest
+            </Text>
+          </TouchableOpacity>
+          <View style={style.footer}>
+            <Text style={style.footerText}>Don&apos;t have an account? </Text>
+            <TouchableOpacity onPress={() => router.replace("auth/sign-up")}>
+              <Text style={style.footerLink}>Register</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
+
 const style = StyleSheet.create({
-  container: { padding: 25, paddingTop: 50, backgroundColor: Colors.BLUE, height: "100%" },
-  image: {
-    width: "100%", // Changed to 100% for better layout
-    height: screenHeight * 0.25, // Adjusted height for better balance
-    resizeMode: 'contain', // Added resizeMode
-    alignSelf: 'center', // Center the image
-    marginBottom: 20, // Add some margin
+  container: {
+    flex: 1,
+    backgroundColor: '#7E9DFF',
+    paddingTop: 20,
   },
-  title: { fontFamily: "outfit-bold", color: Colors.WHITE, fontSize: 30, marginTop: 1 },
-  subtitle: { fontFamily: "outfit", fontSize: 24, color: Colors.GRAY, marginTop: 20 },
-  input: { padding: 15, borderWidth: 1, borderRadius: 15, borderColor: Colors.GRAY, backgroundColor: Colors.WHITE, fontSize: 16, fontFamily: "outfit" },
-  inputError: { borderColor: "#FF0000", borderWidth: 2 },
-  errorText: { color: "#FF0000", fontSize: 12, fontFamily: "outfit", marginTop: 5 },
-  labelText: { fontFamily: "outfit", fontSize: 16, color: Colors.WHITE, marginBottom: 5 },
-  forgotPasswordText: { fontFamily: "outfit", fontSize: 14, color: Colors.WHITE },
-  button: { padding: 15, borderRadius: 15, flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 20 },
-  primaryButton: { backgroundColor: Colors.PRIMARY, borderWidth: 1 },
-  secondaryButton: { backgroundColor: Colors.WHITE },
-  disabledButton: { backgroundColor: Colors.GRAY },
-  buttonText: { fontFamily: "outfit-bold", fontSize: 16, color: Colors.WHITE, textAlign: "center" },
-  secondaryButtonText: { color: Colors.PRIMARY },
-  footer: { flexDirection: "row", justifyContent: "center", marginTop: 20 },
-  footerText: { fontFamily: "outfit", fontSize: 16, color: Colors.WHITE },
-  footerLink: { fontFamily: "outfit-bold", fontSize: 16, color: Colors.WHITE },
+  innerContainer: {
+    padding: 25,
+    paddingTop: 50,
+    flex: 1,
+  },
+  image: {
+    width: "100%",
+    height: screenHeight * 0.25,
+    resizeMode: "contain",
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  title: {
+    fontFamily: "outfit-bold",
+    color: '#FFFFFF',
+    fontSize: 30,
+    marginTop: 1,
+  },
+  input: {
+    padding: 15,
+    borderWidth: 1,
+    borderRadius: 15,
+    borderColor: '#CCCCCC',
+    backgroundColor: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: "outfit",
+  },
+  inputError: {
+    borderColor: "#FF0000",
+    borderWidth: 2,
+  },
+  errorText: {
+    color: "#FF0000",
+    fontSize: 12,
+    fontFamily: "outfit",
+    marginTop: 5,
+  },
+  labelText: {
+    fontFamily: "outfit",
+    fontSize: 16,
+    color: '#FFFFFF',
+    marginBottom: 5,
+  },
+  forgotPasswordText: {
+    fontFamily: "outfit",
+    fontSize: 14,
+    color: '#FFFFFF',
+  },
+  button: {
+    padding: 15,
+    borderRadius: 15,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+  primaryButton: {
+    backgroundColor: '#000000ff',
+    borderWidth: 1,
+  },
+  secondaryButton: {
+    backgroundColor: '#FFFFFF',
+  },
+  disabledButton: {
+    backgroundColor: '#CCCCCC',
+  },
+  buttonText: {
+    fontFamily: "outfit-bold",
+    fontSize: 16,
+    color: '#FFFFFF',
+    textAlign: "center",
+  },
+  secondaryButtonText: {
+    color: '#000000ff',
+  },
+  footer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  footerText: {
+    fontFamily: "outfit",
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  footerLink: {
+    fontFamily: "outfit-bold",
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
 });

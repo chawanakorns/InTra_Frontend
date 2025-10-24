@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/Colors'; // Adjust this import path if necessary
+import { StyleSheet, View } from 'react-native';
 
 const ProgressIndicator = ({ currentStep, totalSteps = 5 }) => {
   return (
@@ -10,8 +9,7 @@ const ProgressIndicator = ({ currentStep, totalSteps = 5 }) => {
           key={index}
           style={[
             styles.dot,
-            // The active dot is black, the rest are light gray
-            index < currentStep ? styles.activeDot : styles.inactiveDot,
+            index + 1 === currentStep ? styles.activeDot : styles.inactiveDot,
           ]}
         />
       ))}
@@ -33,10 +31,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   activeDot: {
-    backgroundColor: '#000000', // Black
+    backgroundColor: '#6366F1',
   },
   inactiveDot: {
-    backgroundColor: '#E0E0E0', // Light Gray
+    backgroundColor: '#E5E7EB',
   },
 });
 

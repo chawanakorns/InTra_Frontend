@@ -9,17 +9,17 @@ import {
   Alert,
   Image,
   ImageBackground,
-  Modal, // <-- THE FIX 1: Import Modal
+  Modal,
   Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
-// <-- THE FIX 2: Import the image viewer library -->
 import ImageViewer from "react-native-image-zoom-viewer";
+import { useTheme } from "../../../../context/ThemeContext";
 import { API_URL } from "../../../config";
 
 const COLORS = {
@@ -67,7 +67,8 @@ const formatDateToYYYYMMDD = (date: Date): string => {
 export default function PlaceDetail() {
   const { placeId, origin } = useLocalSearchParams();
   const router = useRouter();
-
+  const { colors } = useTheme();
+  
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -84,8 +85,6 @@ export default function PlaceDetail() {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkId, setBookmarkId] = useState<number | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(true);
-
-  // <-- THE FIX 3: Add state for the image viewer modal -->
   const [isImageViewerVisible, setImageViewerVisible] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
@@ -105,10 +104,7 @@ export default function PlaceDetail() {
     }
   }, [placeId]);
 
-  // <-- THE FIX 4: Functions to handle opening and closing the image viewer -->
   const openImageViewer = (index: number) => {
-    // The gallery shows images starting from the second one (index 1 of the main array)
-    // so we add 1 to the tapped index to get the correct position in the full `place.images` array.
     setCurrentImageIndex(index + 1);
     setImageViewerVisible(true);
   };
@@ -266,24 +262,36 @@ export default function PlaceDetail() {
   };
 
   if (loadingDetails) {
-    return (<View style={styles.fullScreenLoader}><ActivityIndicator size="large" color={COLORS.primary} /><Text>Loading Details...</Text></View>);
+    return (
+      <View style={[styles.fullScreenLoader, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.text, marginTop: 10 }}>Loading Details...</Text>
+      </View>
+    );
   }
   if (!place) {
-    return (<View style={styles.fullScreenLoader}><Text>Could not load place information.</Text><TouchableOpacity onPress={() => router.back()}><Text>Go Back</Text></TouchableOpacity></View>);
+    return (
+      <View style={[styles.fullScreenLoader, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.text }}>Could not load place information.</Text>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={{ color: colors.primary, marginTop: 20 }}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}>
         <ImageBackground source={{ uri: place.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop' }} style={styles.imageBackground}>
           <LinearGradient colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.8)']} style={styles.gradientOverlay}>
             <View style={styles.header}>
               <TouchableOpacity onPress={() => { if (origin === 'home') router.push('/dashboard/home'); else router.back(); }} style={styles.headerButton}>
-                <MaterialIcons name="arrow-back" size={24} color={COLORS.white} />
+                <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />
               </TouchableOpacity>
               {isLoggedIn && (
                 <TouchableOpacity onPress={toggleBookmark} style={styles.headerButton} disabled={checkingStatus}>
-                  {checkingStatus ? <ActivityIndicator size="small" color={COLORS.white} /> : <FontAwesome name={isBookmarked ? 'bookmark' : 'bookmark-o'} size={24} color={COLORS.white} />}
+                  {checkingStatus ? <ActivityIndicator size="small" color="#FFFFFF" /> : <FontAwesome name={isBookmarked ? 'bookmark' : 'bookmark-o'} size={24} color="#FFFFFF" />}
                 </TouchableOpacity>
               )}
             </View>
@@ -293,58 +301,101 @@ export default function PlaceDetail() {
             </View>
           </LinearGradient>
         </ImageBackground>
-        <View style={styles.contentContainer}>
+        
+        <View style={[styles.contentContainer, { backgroundColor: colors.background }]}>
           <View style={styles.detailsRow}>
-            {place.rating && (<View style={styles.detailBox}><Ionicons name="star" size={20} color={COLORS.primary} /><Text style={styles.detailText}>{place.rating} / 5</Text></View>)}
-            {place.isOpen !== undefined && (<View style={styles.detailBox}><Ionicons name="time-outline" size={20} color={COLORS.primary} /><Text style={styles.detailText}>{place.isOpen ? 'Open Now' : 'Closed'}</Text></View>)}
+            {place.rating && (<View style={[styles.detailBox, { backgroundColor: colors.secondary }]}><Ionicons name="star" size={20} color={colors.primary} /><Text style={[styles.detailText, { color: colors.primary }]}>{place.rating} / 5</Text></View>)}
+            {place.isOpen !== undefined && (<View style={[styles.detailBox, { backgroundColor: colors.secondary }]}><Ionicons name="time-outline" size={20} color={colors.primary} /><Text style={[styles.detailText, { color: colors.primary }]}>{place.isOpen ? 'Open Now' : 'Closed'}</Text></View>)}
           </View>
+
           {place.images && place.images.length > 1 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>More Images</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>More Images</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-                {/* <-- THE FIX 5: Make each image pressable --> */}
                 {place.images.slice(1).map((url, index) => (
                   <TouchableOpacity key={index} onPress={() => openImageViewer(index)}>
-                    <Image
-                      source={{ uri: url }}
-                      style={styles.galleryImage}
-                    />
+                    <Image source={{ uri: url }} style={styles.galleryImage} />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
           )}
           
-          {place.address && (<View style={styles.addressSection}><Ionicons name="location-outline" size={22} color={COLORS.primary} style={{marginRight: 12}}/><Text style={styles.addressText}>{place.address}</Text></View>)}
+          {place.address && (
+            <View style={[styles.addressSection, { backgroundColor: colors.secondary }]}>
+              <Ionicons name="location-outline" size={22} color={colors.primary} style={{marginRight: 12}}/>
+              <Text style={[styles.addressText, { color: colors.text }]}>{place.address}</Text>
+            </View>
+          )}
           
-          <View style={styles.section}><Text style={styles.sectionTitle}>Description</Text><Text style={styles.descriptionText}>{place.description}</Text></View>
-          
-          
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Description</Text>
+            <Text style={[styles.descriptionText, { color: colors.icon }]}>{place.description}</Text>
+          </View>
         </View>
       </ScrollView>
-      {isLoggedIn && (<TouchableOpacity style={styles.fab} onPress={() => setShowItineraryModal(true)} disabled={loadingModal}><Ionicons name="add" size={24} color={COLORS.white} /><Text style={styles.fabText}>Add to Itinerary</Text></TouchableOpacity>)}
-      {showItineraryModal && (<View style={styles.modalOverlay}><View style={styles.modalContainer}><Text style={styles.modalTitle}>Add to Itinerary</Text><View style={styles.formGroup}><Text style={styles.formLabel}>Select Itinerary</Text>{loadingModal ? (<View style={styles.loadingContainer}><ActivityIndicator size="small" color={COLORS.primary} /></View>) : error ? (<View style={styles.errorContainer}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryButton} onPress={fetchItineraries}><Text style={styles.retryButtonText}>Try Again</Text></TouchableOpacity></View>) : itineraries.length > 0 ? (<ScrollView style={styles.dropdownContainer}>{itineraries.map((itinerary) => (<TouchableOpacity key={itinerary.id} style={[ styles.itineraryOption, selectedItinerary?.id === itinerary.id && styles.selectedItinerary ]} onPress={() => setSelectedItinerary(itinerary)}><Text style={styles.itineraryName}>{itinerary.name}</Text></TouchableOpacity>))}</ScrollView>) : (<Text style={styles.noItinerariesText}>No itineraries found. Create one first.</Text>)}</View>{selectedItinerary && <>
-      <View style={styles.formGroup}><Text style={styles.formLabel}>Date</Text><TouchableOpacity style={styles.dateInput} onPress={() => setShowDatePicker(true)}><Text>{formatDateToYYYYMMDD(date)}</Text></TouchableOpacity>{showDatePicker && (<DateTimePicker value={date} mode="date" display="default" onChange={(event: any, selectedDate?: Date) => { setShowDatePicker(Platform.OS === 'ios'); if (selectedDate) setDate(selectedDate); }} minimumDate={new Date(selectedItinerary.start_date)} maximumDate={new Date(selectedItinerary.end_date)} />)}</View>
-      <View style={styles.formGroup}><Text style={styles.formLabel}>Time</Text><TouchableOpacity style={styles.dateInput} onPress={() => setShowTimePicker(true)}><Text>{time}</Text></TouchableOpacity>{showTimePicker && (<DateTimePicker value={new Date()} mode="time" display="default" onChange={(event: any, selectedDate?: Date) => { setShowTimePicker(Platform.OS === 'ios'); if (selectedDate) { const hours = selectedDate.getHours().toString().padStart(2, '0'); const minutes = selectedDate.getMinutes().toString().padStart(2, '0'); setTime(`${hours}:${minutes}`); } }} />)}</View></>}<View style={styles.modalButtons}><TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowItineraryModal(false)}><Text style={styles.cancelButtonText}>Cancel</Text></TouchableOpacity><TouchableOpacity style={[styles.modalButton, styles.confirmButton, (!selectedItinerary || loadingModal) && styles.disabledButton]} onPress={handleAddToItinerary} disabled={!selectedItinerary || loadingModal}>{loadingModal ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.confirmButtonText}>Add</Text>}</TouchableOpacity></View></View></View>)}
+
+      {isLoggedIn && (
+        <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary }]} onPress={() => setShowItineraryModal(true)} disabled={loadingModal}>
+          <Ionicons name="add" size={24} color="#FFFFFF" />
+          <Text style={styles.fabText}>Add to Itinerary</Text>
+        </TouchableOpacity>
+      )}
+
+      {showItineraryModal && (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Add to Itinerary</Text>
+            <View style={styles.formGroup}>
+              <Text style={[styles.formLabel, { color: colors.text }]}>Select Itinerary</Text>
+              {loadingModal ? (<View style={styles.loadingContainer}><ActivityIndicator size="small" color={colors.primary} /></View>) 
+                : error ? (<View style={styles.errorContainer}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryButton} onPress={fetchItineraries}><Text style={styles.retryButtonText}>Try Again</Text></TouchableOpacity></View>) 
+                : itineraries.length > 0 ? (
+                  <ScrollView style={[styles.dropdownContainer, { borderColor: colors.cardBorder }]}>
+                    {itineraries.map((itinerary) => (
+                      <TouchableOpacity key={itinerary.id} style={[ styles.itineraryOption, selectedItinerary?.id === itinerary.id && { backgroundColor: colors.secondary }, { borderBottomColor: colors.cardBorder } ]} onPress={() => setSelectedItinerary(itinerary)}>
+                        <Text style={[styles.itineraryName, { color: colors.text }]}>{itinerary.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                ) : (<Text style={[styles.noItinerariesText, { color: colors.icon }]}>No itineraries found. Create one first.</Text>)
+              }
+            </View>
+            {selectedItinerary && (
+              <>
+                <View style={styles.formGroup}>
+                    <Text style={[styles.formLabel, { color: colors.text }]}>Date</Text>
+                    <TouchableOpacity style={[styles.dateInput, { backgroundColor: colors.secondary }]} onPress={() => setShowDatePicker(true)}>
+                        <Text style={{ color: colors.text }}>{formatDateToYYYYMMDD(date)}</Text>
+                    </TouchableOpacity>
+                    {showDatePicker && (<DateTimePicker value={date} mode="date" display="default" onChange={(event: any, selectedDate?: Date) => { setShowDatePicker(Platform.OS === 'ios'); if (selectedDate) setDate(selectedDate); }} minimumDate={new Date(selectedItinerary.start_date)} maximumDate={new Date(selectedItinerary.end_date)} />)}
+                </View>
+                <View style={styles.formGroup}>
+                    <Text style={[styles.formLabel, { color: colors.text }]}>Time</Text>
+                    <TouchableOpacity style={[styles.dateInput, { backgroundColor: colors.secondary }]} onPress={() => setShowTimePicker(true)}>
+                        <Text style={{ color: colors.text }}>{time}</Text>
+                    </TouchableOpacity>
+                    {showTimePicker && (<DateTimePicker value={new Date()} mode="time" display="default" onChange={(event: any, selectedDate?: Date) => { setShowTimePicker(Platform.OS === 'ios'); if (selectedDate) { const hours = selectedDate.getHours().toString().padStart(2, '0'); const minutes = selectedDate.getMinutes().toString().padStart(2, '0'); setTime(`${hours}:${minutes}`); } }} />)}
+                </View>
+              </>
+            )}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={[styles.modalButton, styles.cancelButton, { backgroundColor: colors.secondary }]} onPress={() => setShowItineraryModal(false)}>
+                <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalButton, styles.confirmButton, (!selectedItinerary || loadingModal) && styles.disabledButton, { backgroundColor: colors.primary }]} onPress={handleAddToItinerary} disabled={!selectedItinerary || loadingModal}>
+                {loadingModal ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.confirmButtonText}>Add</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
       
-      {/* <-- THE FIX 6: Add the Modal for the full-screen image viewer --> */}
       {place?.images && (
-        <Modal
-          visible={isImageViewerVisible}
-          transparent={true}
-          onRequestClose={closeImageViewer}
-        >
-          <ImageViewer
-            imageUrls={place.images.map((url) => ({ url }))}
-            index={currentImageIndex}
-            onCancel={closeImageViewer}
-            enableSwipeDown
-            renderHeader={() => (
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={closeImageViewer}
-              >
-                <MaterialIcons name="close" size={30} color={COLORS.white} />
+        <Modal visible={isImageViewerVisible} transparent={true} onRequestClose={closeImageViewer}>
+          <ImageViewer imageUrls={place.images.map((url) => ({ url }))} index={currentImageIndex} onCancel={closeImageViewer} enableSwipeDown renderHeader={() => (
+              <TouchableOpacity style={styles.closeButton} onPress={closeImageViewer}>
+                <MaterialIcons name="close" size={30} color="#FFFFFF" />
               </TouchableOpacity>
             )}
           />
@@ -417,4 +468,12 @@ const styles = StyleSheet.create({
   confirmButton: { backgroundColor: COLORS.primary },
   confirmButtonText: { color: COLORS.white, fontWeight: "bold", fontSize: 16 },
   disabledButton: { opacity: 0.5 },
+  durationInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 14,
+    fontSize: 16,
+    marginTop: 8,
+    marginBottom: 8,
+  },
 });

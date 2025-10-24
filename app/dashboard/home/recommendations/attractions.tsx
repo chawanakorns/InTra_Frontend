@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AttractionCard from "../../../../components/AttractionCard";
+import { useTheme } from "../../../../context/ThemeContext";
 import { API_URL } from "../../../config";
 
 const BACKEND_API_URL = Platform.select({
@@ -38,6 +39,7 @@ interface Place {
 
 export default function AttractionsScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [attractions, setAttractions] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -131,28 +133,34 @@ export default function AttractionsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366F1" />
-          <Text style={styles.loadingText}>Finding nearby attractions...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.text }]}>Finding nearby attractions...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.push('/dashboard/home')} style={{ padding: 8 }}>
-          <MaterialIcons name="arrow-back" size={24} color="#1F2937" />
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Attractions</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Attractions</Text>
         <TouchableOpacity onPress={loadPlaces} style={styles.refreshButton}>
-          <MaterialIcons name="refresh" size={24} color="#6366F1" />
+          <MaterialIcons name="refresh" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
-      <TextInput style={styles.search} placeholder="Search attractions..." value={searchQuery} onChangeText={setSearchQuery} />
+      <TextInput 
+        style={[styles.search, { backgroundColor: colors.secondary, borderColor: colors.cardBorder, color: colors.text }]} 
+        placeholder="Search attractions..." 
+        value={searchQuery} 
+        onChangeText={setSearchQuery} 
+        placeholderTextColor={colors.icon}
+      />
 
       {error && (
         <View style={styles.errorContainer}>
@@ -163,7 +171,7 @@ export default function AttractionsScreen() {
         </View>
       )}
 
-      {!error && <Text style={styles.resultCount}>{filteredPlaces.length} attraction{filteredPlaces.length !== 1 ? "s" : ""}</Text>}
+      {!error && <Text style={[styles.resultCount, { color: colors.icon }]}>{filteredPlaces.length} attraction{filteredPlaces.length !== 1 ? "s" : ""}</Text>}
 
       <FlatList
         data={filteredPlaces}
@@ -173,9 +181,8 @@ export default function AttractionsScreen() {
         ListEmptyComponent={
           !error ? (
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="place" size={60} color="#ccc" />
-              <Text style={styles.emptyText}>No attractions found</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={loadPlaces}><Text style={styles.retryButtonText}>Try Again</Text></TouchableOpacity>
+              <MaterialIcons name="place" size={60} color={colors.icon} />
+              <Text style={[styles.emptyText, { color: colors.icon }]}>No attractions found</Text>
             </View>
           ) : null
         }

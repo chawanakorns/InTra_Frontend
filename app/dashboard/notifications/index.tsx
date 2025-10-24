@@ -1,8 +1,5 @@
-// file: app/dashboard/notification/index.tsx
-
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// --- MODIFIED: Import 'format' instead of 'formatDistanceToNow' ---
 import { format } from 'date-fns';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -18,11 +15,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-const API_URL = Platform.select({
-  android: 'http://10.0.2.2:8000',
-  default: 'http://127.0.0.1:8000',
-});
+import { useTheme } from '../../../context/ThemeContext';
+import { API_URL } from '../../config';
 
 interface Notification {
   id: number;
@@ -32,8 +26,26 @@ interface Notification {
   is_read: boolean;
 }
 
+const LoginRequiredView = ({ onLoginPress }: { onLoginPress: () => void }) => {
+  const { colors } = useTheme();
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.centeredContainer}>
+          <MaterialIcons name="lock-outline" size={60} color={colors.icon} />
+          <Text style={[styles.messageTitle, { color: colors.text }]}>Login Required</Text>
+          <Text style={[styles.messageText, { color: colors.icon }]}>Please log in to see your notifications.</Text>
+          <TouchableOpacity style={[styles.loginButton, { backgroundColor: colors.primary }]} onPress={onLoginPress}>
+            <Text style={styles.loginButtonText}>Go to Login</Text>
+          </TouchableOpacity>
+        </View>
+    </SafeAreaView>
+  );
+};
+
+
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +116,8 @@ export default function NotificationsScreen() {
         {
           text: "Clear",
           onPress: async () => {
+            const originalNotifications = [...notifications];
+            setNotifications([]);
             try {
               const token = await AsyncStorage.getItem('firebase_id_token');
               const response = await fetch(`${API_URL}/api/notifications/`, {
@@ -111,14 +125,14 @@ export default function NotificationsScreen() {
                 headers: { Authorization: `Bearer ${token}` },
               });
 
-              if (response.ok) {
-                setNotifications([]);
-              } else {
+              if (!response.ok) {
                 Alert.alert("Error", "Failed to clear notifications.");
+                setNotifications(originalNotifications);
               }
             } catch (error) {
               console.error("Failed to clear notifications:", error);
               Alert.alert("Error", "An unexpected error occurred.");
+              setNotifications(originalNotifications);
             }
           },
           style: "destructive",
@@ -127,64 +141,67 @@ export default function NotificationsScreen() {
     );
   };
 
-  const renderItem = ({ item }: { item: Notification }) => (
-    <TouchableOpacity
-      style={[styles.notificationItem, !item.is_read && styles.unreadItem]}
-      onPress={() => !item.is_read && handleMarkAsRead(item.id)}
-    >
-      <View style={styles.iconContainer}>
-        {!item.is_read && <View style={styles.unreadDot} />}
-        <MaterialIcons name="notifications" size={24} color="#6366F1" />
-      </View>
-      <View style={styles.textContainer}>
-        <Text style={styles.title}>{item.title}</Text>
-        {item.body && <Text style={styles.body}>{item.body}</Text>}
-        {/* --- MODIFIED: Format the date to show Day, Month, Year, and Time --- */}
-        <Text style={styles.date}>
-          {format(new Date(item.created_at), 'MMM d, yyyy, h:mm a')}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderItem = ({ item }: { item: Notification }) => {
+    const titleColor = item.is_read ? colors.icon : colors.text;
+    const bodyColor = item.is_read ? colors.icon : colors.text;
+    const dateColor = item.is_read ? colors.icon : colors.text;
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.notificationItem,
+          { backgroundColor: colors.card, borderColor: colors.cardBorder },
+          !item.is_read && { backgroundColor: colors.primary, borderColor: colors.primary }
+        ]}
+        onPress={() => !item.is_read && handleMarkAsRead(item.id)}
+      >
+        <View style={styles.iconContainer}>
+          {!item.is_read && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
+          <MaterialIcons name={item.is_read ? "notifications-none" : "notifications"} size={24} color={item.is_read ? colors.icon : colors.primary} />
+        </View>
+        <View style={styles.textContainer}>
+          <Text style={[styles.title, { color: titleColor }]}>{item.title}</Text>
+          {item.body && <Text style={[styles.body, { color: bodyColor }]}>{item.body}</Text>}
+          <Text style={[styles.date, { color: dateColor }]}>
+            {format(new Date(item.created_at), 'MMM d, yyyy, h:mm a')}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   if (isLoading) {
     return (
-      <View style={styles.centeredContainer}>
-        <ActivityIndicator size="large" color="#6366F1" />
+      <View style={[styles.centeredContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   if (!isLoggedIn) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centeredContainer}>
-          <MaterialIcons name="lock-outline" size={60} color="#9CA3AF" />
-          <Text style={styles.messageTitle}>Login Required</Text>
-          <Text style={styles.messageText}>Please log in to see your notifications.</Text>
-          <TouchableOpacity style={styles.loginButton} onPress={() => router.replace('/auth/sign-in')}>
-            <Text style={styles.loginButtonText}>Go to Login</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
+    return <LoginRequiredView onLoginPress={() => router.replace('/auth/sign-in')} />;
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>Notifications</Text>
-        {notifications.length > 0 && (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.headerContainer, { backgroundColor: colors.card, borderBottomColor: colors.cardBorder }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <MaterialIcons name="arrow-back" size={28} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.header, { color: colors.text }]}>Notifications</Text>
+        {notifications.length > 0 ? (
           <TouchableOpacity onPress={handleClearAll} style={styles.clearButton}>
-            <MaterialIcons name="clear-all" size={28} color="#6B7280" />
+            <MaterialIcons name="clear-all" size={28} color={colors.icon} />
           </TouchableOpacity>
+        ) : (
+            <View style={{ width: 40 }} />
         )}
       </View>
       {notifications.length === 0 ? (
         <View style={styles.centeredContainer}>
-          <MaterialIcons name="notifications-off" size={60} color="#9CA3AF" />
-          <Text style={styles.messageTitle}>No Notifications Yet</Text>
-          <Text style={styles.messageText}>Important updates will appear here.</Text>
+          <MaterialIcons name="notifications-off" size={60} color={colors.icon} />
+          <Text style={[styles.messageTitle, { color: colors.text }]}>No Notifications Yet</Text>
+          <Text style={[styles.messageText, { color: colors.icon }]}>Important updates will appear here.</Text>
         </View>
       ) : (
         <FlatList
@@ -192,7 +209,7 @@ export default function NotificationsScreen() {
           renderItem={renderItem}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#6366F1"]} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
         />
       )}
     </SafeAreaView>
@@ -200,35 +217,59 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, paddingTop: Platform.OS === 'android' ? 30 : 0 },
   headerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 10,
     paddingBottom: 10,
+    borderBottomWidth: 1,
+  },
+  backButton: {
+    padding: 6,
+    marginRight: 10,
   },
   header: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#1F2937',
+    textAlign: 'center',
+    flex: 1,
   },
   clearButton: {
     padding: 6,
+    marginLeft: 10,
   },
-  list: { paddingHorizontal: 20 },
-  notificationItem: { flexDirection: 'row', backgroundColor: '#FFFFFF', padding: 15, borderRadius: 12, marginBottom: 15, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
-  unreadItem: { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' },
+  list: { paddingHorizontal: 20, paddingTop: 10 },
+  notificationItem: { 
+    flexDirection: 'row', 
+    padding: 15, 
+    borderRadius: 12, 
+    marginBottom: 15, 
+    alignItems: 'center', 
+    borderWidth: 1,
+  },
+  unreadItem: {},
   iconContainer: { marginRight: 15, alignItems: 'center' },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#6366F1', position: 'absolute', top: -2, right: -2, zIndex: 1 },
+  unreadDot: { 
+    width: 8, 
+    height: 8, 
+    borderRadius: 4, 
+    position: 'absolute', 
+    top: -2, 
+    right: -2, 
+    zIndex: 1,
+    borderWidth: 1,
+    borderColor: '#FFFFFF', // To make it pop a bit
+  },
   textContainer: { flex: 1 },
-  title: { fontSize: 16, fontWeight: 'bold', color: '#1F2937' },
-  body: { fontSize: 14, color: '#4B5563', marginTop: 4 },
-  date: { fontSize: 12, color: '#9CA3AF', marginTop: 8 },
+  title: { fontSize: 16, fontWeight: 'bold' },
+  body: { fontSize: 14, marginTop: 4 },
+  date: { fontSize: 12, marginTop: 8 },
   centeredContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  messageTitle: { fontSize: 22, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginBottom: 12 },
-  messageText: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 24, lineHeight: 22 },
-  loginButton: { backgroundColor: '#6366F1', paddingVertical: 12, paddingHorizontal: 32, borderRadius: 8 },
+  messageTitle: { fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 12 },
+  messageText: { fontSize: 16, textAlign: 'center', marginBottom: 24, lineHeight: 22 },
+  loginButton: { paddingVertical: 12, paddingHorizontal: 32, borderRadius: 8 },
   loginButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 },
 });
