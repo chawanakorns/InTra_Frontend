@@ -1,13 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Notifications from 'expo-notifications';
 import { Tabs, useRouter } from "expo-router";
 import React, { useEffect, useRef } from 'react';
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import * as Notifications from 'expo-notifications';
-import { registerForPushNotificationsAsync } from '../../services/notificationService';
 import { useTheme } from "../../context/ThemeContext";
+import { registerForPushNotificationsAsync } from '../../services/notificationService';
 
 function TabBarIcon({
   name,
@@ -97,15 +97,6 @@ export default function DashboardTabLayout() {
             title: "Itinerary",
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon name="calendar" color={color} focused={focused} />
-            ),
-          }}
-        />
-         <Tabs.Screen
-          name="ai_assistant"
-          options={{
-            title: "Assistant",
-            tabBarIcon: ({ color, focused }) => (
-              <TabBarIcon name="sparkles" color={color} focused={focused} />
             ),
           }}
         />
