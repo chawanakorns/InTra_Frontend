@@ -116,7 +116,7 @@ export default function SignUp() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      router.replace("auth/personalize/kindOfusers");
+      router.replace("auth/personalize/personalization");
     } catch (error) {
       console.error("Registration error:", error);
       let errorMessage = "Registration failed. Please try again.";

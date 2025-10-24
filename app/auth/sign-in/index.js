@@ -84,7 +84,7 @@ export default function SignIn() {
       if (syncResponse.data.has_completed_personalization) {
         router.replace("dashboard");
       } else {
-        router.replace("auth/personalize/kindOfusers");
+        router.replace("auth/personalize/personalization");
       }
     } catch (error) {
       console.error("Sign-In Error:", error);

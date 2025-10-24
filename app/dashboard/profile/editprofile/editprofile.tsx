@@ -208,9 +208,9 @@ export default function EditProfileScreen() {
                           await AsyncStorage.setItem('preferred_dining', JSON.stringify(profile.preferred_dining || []));
                           await AsyncStorage.setItem('preferred_times', JSON.stringify(profile.preferred_times || []));
                           router.push({
-                              pathname: '/auth/personalize/kindOfusers',
+                              pathname: '/auth/personalize/personalization',
                               params: { editMode: 'true' }
-                          });
+                          } as any);
                       } catch (error) {
                           console.error("Failed to set preferences in storage:", error);
                           Alert.alert("Error", "Could not prepare the preference editor.");
