@@ -205,7 +205,7 @@ export default function SignIn() {
 const style = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.BLUE,
+    backgroundColor: '#7E9DFF',
     paddingTop: 20,
   },
   innerContainer: {
@@ -222,7 +222,7 @@ const style = StyleSheet.create({
   },
   title: {
     fontFamily: "outfit-bold",
-    color: Colors.WHITE,
+    color: '#FFFFFF',
     fontSize: 30,
     marginTop: 1,
   },
@@ -230,8 +230,8 @@ const style = StyleSheet.create({
     padding: 15,
     borderWidth: 1,
     borderRadius: 15,
-    borderColor: Colors.GRAY,
-    backgroundColor: Colors.WHITE,
+    borderColor: '#CCCCCC',
+    backgroundColor: '#FFFFFF',
     fontSize: 16,
     fontFamily: "outfit",
   },
@@ -248,13 +248,13 @@ const style = StyleSheet.create({
   labelText: {
     fontFamily: "outfit",
     fontSize: 16,
-    color: Colors.WHITE,
+    color: '#FFFFFF',
     marginBottom: 5,
   },
   forgotPasswordText: {
     fontFamily: "outfit",
     fontSize: 14,
-    color: Colors.WHITE,
+    color: '#FFFFFF',
   },
   button: {
     padding: 15,
@@ -265,23 +265,23 @@ const style = StyleSheet.create({
     marginTop: 20,
   },
   primaryButton: {
-    backgroundColor: Colors.PRIMARY,
+    backgroundColor: '#000000ff',
     borderWidth: 1,
   },
   secondaryButton: {
-    backgroundColor: Colors.WHITE,
+    backgroundColor: '#FFFFFF',
   },
   disabledButton: {
-    backgroundColor: Colors.GRAY,
+    backgroundColor: '#CCCCCC',
   },
   buttonText: {
     fontFamily: "outfit-bold",
     fontSize: 16,
-    color: Colors.WHITE,
+    color: '#FFFFFF',
     textAlign: "center",
   },
   secondaryButtonText: {
-    color: Colors.PRIMARY,
+    color: '#000000ff',
   },
   footer: {
     flexDirection: "row",
@@ -291,11 +291,11 @@ const style = StyleSheet.create({
   footerText: {
     fontFamily: "outfit",
     fontSize: 16,
-    color: Colors.WHITE,
+    color: '#FFFFFF',
   },
   footerLink: {
     fontFamily: "outfit-bold",
     fontSize: 16,
-    color: Colors.WHITE,
+    color: '#FFFFFF',
   },
 });

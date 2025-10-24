@@ -185,7 +185,7 @@ export default function ProfileScreen() {
           </View>
         </View>
         
-        <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.card }]} onPress={handleLogout}>
+        <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]} onPress={handleLogout}>
           <MaterialIcons name="logout" size={22} color={colors.danger} />
           <Text style={[styles.logoutButtonText, { color: colors.danger }]}>Log Out</Text>
         </TouchableOpacity>
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     lastMenuButton: { borderBottomWidth: 0 },
     iconContainer: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
     menuLabel: { flex: 1, fontSize: 16, fontWeight: '500' },
-    logoutButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 12, padding: 15, marginHorizontal: 20, marginTop: 30 },
+    logoutButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 12, padding: 15, marginHorizontal: 20, marginTop: 30, backgroundColor: '#fff', borderColor: "#4A5568", borderWidth: 1 },
     logoutButtonText: { fontSize: 16, fontWeight: 'bold', marginLeft: 8 },
     centeredContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
     messageTitle: { fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 12 },

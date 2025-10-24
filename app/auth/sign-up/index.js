@@ -9,9 +9,9 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView, 
-  Platform, 
-  ScrollView, 
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -275,39 +275,38 @@ export default function SignUp() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1, // <-- MODIFIED
-    backgroundColor: Colors.BLUE,
+    flex: 1,
+    backgroundColor: '#7E9DFF',
   },
   innerContainer: {
-    // <-- NEW
     padding: 25,
     paddingTop: 50,
     flexGrow: 1,
   },
   title: {
     fontFamily: "outfit-bold",
-    color: Colors.WHITE,
+    color: '#FFFFFF',
     fontSize: 30,
     marginTop: 30,
   },
   subtitle: {
     fontFamily: "outfit",
     fontSize: 16,
-    color: Colors.WHITE,
+    color: '#FFFFFF',
     marginTop: 10,
   },
   labelText: {
     fontFamily: "outfit",
     fontSize: 16,
-    color: Colors.WHITE,
+    color: '#FFFFFF',
     marginBottom: 10,
   },
   input: {
     padding: 15,
     borderWidth: 1,
     borderRadius: 15,
-    borderColor: Colors.GRAY,
-    backgroundColor: Colors.WHITE,
+    borderColor: '#CCCCCC',
+    backgroundColor: '#FFFFFF',
     fontFamily: "outfit",
     fontSize: 16,
   },
@@ -315,8 +314,8 @@ const styles = StyleSheet.create({
     padding: 15,
     borderWidth: 1,
     borderRadius: 15,
-    borderColor: Colors.GRAY,
-    backgroundColor: Colors.WHITE,
+    borderColor: '#CCCCCC',
+    backgroundColor: '#FFFFFF',
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -325,7 +324,7 @@ const styles = StyleSheet.create({
   dateText: {
     fontFamily: "outfit",
     fontSize: 16,
-    color: Colors.BLACK,
+    color: '#000000',
   },
   row: {
     flexDirection: "row",
@@ -336,19 +335,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     borderWidth: 1,
     borderRadius: 15,
-    borderColor: Colors.GRAY,
-    backgroundColor: Colors.WHITE,
+    borderColor: '#CCCCCC',
+    backgroundColor: '#FFFFFF',
     height: 58,
   },
   placeholderStyle: {
     fontFamily: "outfit",
     fontSize: 16,
-    color: Colors.BLACK,
+    color: '#000000',
   },
   selectedTextStyle: {
     fontFamily: "outfit",
     fontSize: 16,
-    color: Colors.BLACK,
+    color: '#000000',
   },
   inputError: {
     borderColor: "#FF0000",
@@ -364,18 +363,18 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 15,
     marginTop: 40,
-    backgroundColor: Colors.PRIMARY,
+    backgroundColor: '#000000ff',
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
   },
   disabledButton: {
-    backgroundColor: Colors.GRAY,
+    backgroundColor: '#CCCCCC',
   },
   buttonText: {
     fontFamily: "outfit-bold",
     fontSize: 16,
-    color: Colors.WHITE,
+    color: '#FFFFFF',
     textAlign: "center",
   },
   footer: {
@@ -387,11 +386,11 @@ const styles = StyleSheet.create({
   footerText: {
     fontFamily: "outfit",
     fontSize: 16,
-    color: Colors.WHITE,
+    color: '#FFFFFF',
   },
   footerLink: {
     fontFamily: "outfit-bold",
     fontSize: 16,
-    color: Colors.WHITE,
+    color: '#FFFFFF',
   },
 });
