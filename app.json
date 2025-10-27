@@ -40,7 +40,8 @@
         }
       ],
       "expo-web-browser",
-      "expo-notifications"
+      "expo-notifications",
+      "./plugins/withNetworkSecurityConfig.js"
     ],
     "experiments": {
       "typedRoutes": true
@@ -50,6 +51,7 @@
       "eas": {
         "projectId": "274b91e6-8a77-42dd-af30-079499a02c07"
       },
+      "ec2Ip": "13.215.170.82",
       "googleMaps": {
       "androidApiKey": "AIzaSyDew79TqjIULXwqCq0QwwLmRvj4WtRVuY8"
       }
