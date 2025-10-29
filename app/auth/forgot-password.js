@@ -90,7 +90,7 @@ const getResponsiveStyles = ({ width, height }) => {
     container: {
       padding: scaled(25),
       paddingTop: Platform.OS === 'android' ? scaled(40) : scaled(50),
-      backgroundColor: Colors.BLUE,
+      backgroundColor: '#7E9DFF',
       flex: 1, // Use flex: 1 to fill the entire screen
     },
     backButton: {
@@ -98,47 +98,47 @@ const getResponsiveStyles = ({ width, height }) => {
     },
     title: {
       fontFamily: "outfit-bold",
-      color: Colors.WHITE,
+      color: '#FFFFFF',
       fontSize: scaled(30),
       marginTop: scaled(10), // Reduced margin
     },
     subtitle: {
       fontFamily: "outfit",
       fontSize: scaled(16),
-      color: Colors.GRAY,
+      color: '#FFFFFF',
       marginTop: scaled(20),
     },
     input: {
       padding: scaled(15),
       borderWidth: 1,
       borderRadius: scaled(15),
-      borderColor: Colors.GRAY,
-      backgroundColor: Colors.WHITE,
+      borderColor: '#A9A9A9',
+      backgroundColor: '#FFFFFF',
       fontSize: scaled(16),
       fontFamily: "outfit",
     },
     labelText: {
       fontFamily: "outfit",
       fontSize: scaled(16),
-      color: Colors.WHITE,
+      color: '#FFFFFF',
       marginBottom: scaled(10),
     },
     button: {
       padding: scaled(15),
       borderRadius: scaled(15),
-      backgroundColor: Colors.PRIMARY,
+      backgroundColor: '#000000ff',
       flexDirection: "row",
       justifyContent: "center",
       alignItems: "center",
       marginTop: scaled(40),
     },
     disabledButton: {
-      backgroundColor: Colors.GRAY,
+      backgroundColor: '#A9A9A9',
     },
     buttonText: {
       fontFamily: "outfit-bold",
       fontSize: scaled(16),
-      color: Colors.WHITE,
+      color: '#FFFFFF',
       textAlign: "center",
     },
   });

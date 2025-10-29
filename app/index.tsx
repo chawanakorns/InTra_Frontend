@@ -1,21 +1,24 @@
 import { useRouter } from "expo-router";
 import React from "react";
-import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Dimensions, Image, ImageBackground, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function Index() {
   const router = useRouter();
   return (
-    <View style={styles.mainContainer}>
-      <Image
+    <SafeAreaView style={styles.mainContainer}>
+      <StatusBar barStyle="light-content" />
+      <ImageBackground
         source={require("../assets/images/Index-images.jpg")}
-        style={styles.image}
-      />
-      <View style={styles.overlay}>
-        <Image
-          source={require('../assets/images/airplane-around-earth.png')} //
-          style={styles.icon}
-        />
-      </View>
+        style={styles.imageBackground}
+      >
+        <View style={styles.overlay}>
+          <Image
+            source={require('../assets/images/intra_logo_circle.png')}
+            style={styles.icon}
+          />
+        </View>
+      </ImageBackground>
+
       <View style={styles.container}>
         <View style={styles.contentWrapper}>
           <Text style={styles.welcomeText}>Welcome to</Text>
@@ -32,7 +35,7 @@ export default function Index() {
           <Text style={styles.buttonText}>Let&apos;s get started!</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -41,94 +44,80 @@ const screenHeight = Dimensions.get('window').height;
 const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#7E9DFF', 
   },
-  image: {
+  imageBackground: {
     width: "100%",
-    height: screenHeight * 0.55,
-    filter: "brightness(50%) blur(3px)",
+    height: screenHeight * 0.6, // Adjusted height to match screenshot
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)', 
     justifyContent: 'center',
     alignItems: 'center',
-    height: screenHeight * 0.55,
   },
   icon: {
     width: 200,
     height: 200,
-    tintColor: '#FFFFFF',
   },
   container: {
     flex: 1,
     backgroundColor: '#7E9DFF',
-    marginTop: -40,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-    justifyContent: 'flex-start',
+    marginTop: -50, // Adjusted overlap to match screenshot
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
+    // --- FIX: Removed space-between to group content at the top ---
+    justifyContent: 'flex-start', 
   },
   contentWrapper: {
-    marginTop: 50,
+    paddingTop: 40,
     alignItems: "center",
-    marginBottom: 50,
   },
   welcomeText: {
     fontSize: 20,
     fontFamily: "outfit",
     color: '#FFFFFF',
     textAlign: "center",
-    marginTop: -5,
-    marginBottom: 10,
-    includeFontPadding: false,
-    textAlignVertical: "center",
   },
   titleText: {
     fontSize: 48,
     fontFamily: "cinzelDeco-bold",
     color: '#FFFFFF',
     textAlign: "center",
-    marginVertical: 20,
-    includeFontPadding: false,
-    textAlignVertical: "center",
-    marginTop: 10
-    
+    marginVertical: 10,
   },
   subtitleText: {
     fontSize: 18,
     fontFamily: "outfit-bold",
     color: '#FFFFFF',
     textAlign: "center",
-    includeFontPadding: false,
-    textAlignVertical: "center",
-    marginBottom: 25,
+    marginBottom: 20,
   },
   descriptionText: {
     fontSize: 17,
     fontFamily: "outfit-medium",
     color: '#FFFFFF',
     textAlign: "center",
-    includeFontPadding: false,
-    textAlignVertical: "center",
     lineHeight: 24,
-    width: "90%",
-    marginBottom: 15,
+    opacity: 0.9,
   },
   button: {
-    padding: 15,
-    backgroundColor: '#000000ff',
+    padding: 18,
+    backgroundColor: '#0F172A', 
     borderRadius: 99,
     width: "100%",
     alignSelf: 'center',
-    marginTop: -20,
+    // --- FIX: Added marginTop to control space below the text ---
+    marginTop: 40,
   },
   buttonText: {
-    fontSize: 20,
-    fontFamily: "outfit",
+    fontSize: 18,
+    fontFamily: "outfit-bold",
     color: '#FFFFFF',
     textAlign: "center",
-    includeFontPadding: false,
-    textAlignVertical: "center",
   },
 });

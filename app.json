@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "InTra_Frontend",
+    "name": "InTra",
     "slug": "InTra_Frontend",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/intra_logo_circle.png",
     "scheme": "intrafrontend",
     "userInterfaceStyle": "automatic",
     "ios": {

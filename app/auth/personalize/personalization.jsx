@@ -4,21 +4,20 @@ import axios from "axios";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    Image,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Image,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import ProgressIndicator from "../../../components/ProgressIndicator";
 import { API_URL } from '../../config';
 
-// --- Define all steps in one place ---
 const STEPS = [
   {
     key: 'tourist_type',
@@ -80,7 +79,17 @@ export default function PersonalizationScreen() {
   const currentStepData = STEPS[currentStep];
 
   useEffect(() => {
-    const loadAllSelections = async () => {
+    const initializeSelections = async () => {
+      const allKeys = STEPS.map(step => step.key);
+      
+      // *** FIX IS HERE: Clear storage if not in edit mode ***
+      if (!editMode) {
+        await AsyncStorage.multiRemove(allKeys);
+        setSelections({});
+        return; // Exit early for new users
+      }
+      
+      // Load existing selections if in edit mode
       const allSelections = {};
       for (const step of STEPS) {
         try {
@@ -94,8 +103,14 @@ export default function PersonalizationScreen() {
       }
       setSelections(allSelections);
     };
-    loadAllSelections();
-  }, []);
+
+    initializeSelections();
+
+    // Cleanup function to reset state when leaving the screen
+    return () => {
+        setSelections({});
+    }
+  }, [editMode]);
 
   const toggleSelection = (label) => {
     const currentKey = currentStepData.key;
@@ -114,7 +129,6 @@ export default function PersonalizationScreen() {
       Alert.alert("Selection Required", `Please select at least one option to continue.`);
       return;
     }
-    await AsyncStorage.setItem(currentKey, JSON.stringify(currentSelection));
 
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
@@ -148,7 +162,12 @@ export default function PersonalizationScreen() {
       const allKeys = STEPS.map(step => step.key);
       const personalizationData = {};
       for(const key of allKeys){
-        personalizationData[key] = selections[key] || [];
+         // Ensure the final step's selection is included before saving
+        if (key === currentStepData.key) {
+            personalizationData[key] = selections[key] || [];
+        } else {
+            personalizationData[key] = JSON.parse(await AsyncStorage.getItem(key) || "[]");
+        }
       }
 
       await axios.post(
@@ -160,7 +179,11 @@ export default function PersonalizationScreen() {
       await AsyncStorage.multiRemove(allKeys);
 
       Alert.alert("Success!", "Your preferences have been saved.");
-      router.replace("/dashboard");
+      if (editMode) {
+        router.back(); // Go back if we were editing
+      } else {
+        router.replace("/dashboard"); // Go to dashboard for new users
+      }
 
     } catch (error) {
       console.error("Error saving personalization:", error.response ? error.response.data : error);
@@ -263,7 +286,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: '#7E9DFF',
+    backgroundColor: '#6366F1',
     borderRadius: 12,
     width: 24,
     height: 24,
@@ -274,8 +297,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 25,
-    marginTop: 40,
-    marginBottom: 40,
+    marginTop: 20,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
     paddingTop: 20,
