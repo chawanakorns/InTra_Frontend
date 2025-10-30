@@ -231,7 +231,7 @@ export default function PersonalizationScreen() {
         style={styles.list}
       />
       
-      <View style={styles.footer}>
+      <View style={styles.buttonContainer}>
         <TouchableOpacity onPress={handlePrevious} style={[styles.button, styles.secondaryButton]}>
           <Text style={styles.secondaryButtonText}>Previous</Text>
         </TouchableOpacity>
@@ -293,14 +293,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  footer: {
+  buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 25,
-    marginTop: 20,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
     paddingTop: 20,
+    paddingBottom: 50,
   },
   button: { 
     paddingVertical: 15, 

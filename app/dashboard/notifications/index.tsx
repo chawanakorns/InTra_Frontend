@@ -151,13 +151,13 @@ export default function NotificationsScreen() {
         style={[
           styles.notificationItem,
           { backgroundColor: colors.card, borderColor: colors.cardBorder },
-          !item.is_read && { backgroundColor: colors.primary, borderColor: colors.primary }
+          !item.is_read && { backgroundColor: '#7E9DFF', borderColor: '#7E9DFF' }
         ]}
         onPress={() => !item.is_read && handleMarkAsRead(item.id)}
       >
         <View style={styles.iconContainer}>
-          {!item.is_read && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
-          <MaterialIcons name={item.is_read ? "notifications-none" : "notifications"} size={24} color={item.is_read ? colors.icon : colors.primary} />
+          {!item.is_read && <View style={[styles.unreadDot, { backgroundColor: '#7E9DFF' }]} />}
+          <MaterialIcons name={item.is_read ? "notifications-none" : "notifications"} size={24} color={item.is_read ? colors.icon : '#7E9DFF'} />
         </View>
         <View style={styles.textContainer}>
           <Text style={[styles.title, { color: titleColor }]}>{item.title}</Text>
@@ -173,7 +173,7 @@ export default function NotificationsScreen() {
   if (isLoading) {
     return (
       <View style={[styles.centeredContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color='#7E9DFF' />
       </View>
     );
   }

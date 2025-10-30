@@ -184,9 +184,7 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.icon }]}>About</Text>
            <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <NavRow icon="description" title="Terms of Service" onPress={() => Alert.alert("Terms of Service", "TOS details would go here.")}/>
-            <View style={[styles.divider, { backgroundColor: colors.secondary }]} />
-            <NavRow icon="privacy-tip" title="Privacy Policy" onPress={() => Alert.alert("Privacy Policy", "Privacy details would go here.")}/>
+            <NavRow icon="privacy-tip" title="Privacy Policy" onPress={() => router.push('./privacy')}/>
              <View style={[styles.divider, { backgroundColor: colors.secondary }]} />
             <SettingRow icon="info-outline" title="App Version">
               <Text style={[styles.versionText, { color: colors.icon }]}>1.0.0</Text>

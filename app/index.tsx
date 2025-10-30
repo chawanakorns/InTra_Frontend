@@ -27,13 +27,16 @@ export default function Index() {
           <Text style={styles.descriptionText}>
             Discover Your Journey — Smart Itineraries Designed Just for You.
           </Text>
+        
+          {/* --- FIX: Button moved inside the content wrapper --- */}
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => router.push("/auth/sign-in")}
+          >
+            <Text style={styles.buttonText}>Let&apos;s get started!</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => router.push("/auth/sign-in")}
-        >
-          <Text style={styles.buttonText}>Let&apos;s get started!</Text>
-        </TouchableOpacity>
+        <StatusBar hidden={true} />
       </View>
     </SafeAreaView>
   );
@@ -48,7 +51,7 @@ const styles = StyleSheet.create({
   },
   imageBackground: {
     width: "100%",
-    height: screenHeight * 0.6, // Adjusted height to match screenshot
+    height: screenHeight * 0.6,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -65,12 +68,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#7E9DFF',
-    marginTop: -50, // Adjusted overlap to match screenshot
+    marginTop: -55,
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
     paddingHorizontal: 25,
     paddingBottom: 40,
-    // --- FIX: Removed space-between to group content at the top ---
     justifyContent: 'flex-start', 
   },
   contentWrapper: {
@@ -111,8 +113,7 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     width: "100%",
     alignSelf: 'center',
-    // --- FIX: Added marginTop to control space below the text ---
-    marginTop: 40,
+    marginTop: 40, 
   },
   buttonText: {
     fontSize: 18,
