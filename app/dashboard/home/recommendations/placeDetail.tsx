@@ -232,6 +232,7 @@ export default function PlaceDetail() {
       const scheduleItem = {
         place_id: place.placeId,
         place_name: place.name,
+        description: place.description || null,
         place_type: place.types ? place.types[0] : null,
         place_address: place.address || null,
         place_rating: place.rating || null,

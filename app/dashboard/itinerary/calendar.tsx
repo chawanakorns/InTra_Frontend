@@ -43,7 +43,7 @@ const BACKEND_NOTIFICATION_API_URL = `${API_URL}/api/notifications`;
 const HOUR_ROW_HEIGHT = 80;
 const TIME_LABEL_WIDTH = 80;
 
-type ScheduleItem = { id: string; place_id: string; place_name: string; place_type?: string; place_address?: string; place_rating?: number; place_image?: string; scheduled_date: string; scheduled_time: string; duration_minutes: number; };
+type ScheduleItem = { id: string; place_id: string; place_name: string; description?: string; place_type?: string; place_address?: string; place_rating?: number; place_image?: string; scheduled_date: string; scheduled_time: string; duration_minutes: number; };
 type Itinerary = { id: string; type: string; budget: string | null; name: string; startDate: Date; endDate: Date; schedule_items: ScheduleItem[]; };
 type PlaceDetails = { id: string; name: string; description: string; isOpen?: boolean; address?: string; rating?: number; };
 
@@ -437,8 +437,16 @@ export default function CalendarScreen() {
               {itemsForSelectedDay.map(item => {
                 const isExpanded = expandedItemId === item.id;
                 const details = placeDetailsCache[item.place_id];
-                const desc = details?.description || "";
                 
+                const desc = item.description || details?.description || "No description available.";
+                const isDescLong = desc.length > 120;
+                const isDescCurrentlyExpanded = isDescriptionExpanded === item.id;
+
+                const toggleDescription = () => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setIsDescriptionExpanded(prev => (prev === item.id ? null : item.id));
+                };
+
                 const startTime = parse(item.scheduled_time, "HH:mm", new Date());
                 const endTime = new Date(startTime.getTime() + item.duration_minutes * 60000);
                 
@@ -470,7 +478,19 @@ export default function CalendarScreen() {
                        <View onLayout={(event) => setExpandedDetailsHeight(event.nativeEvent.layout.height)} style={[styles.expandedDetailsContainer, { backgroundColor: colors.secondary, borderColor: colors.primary }]}>
                        {isFetchingDetails && !details ? <ActivityIndicator style={{ marginVertical: 20 }} color={colors.primary} /> : (
                          <>
-                           <Text style={[styles.detailsDescription, { color: colors.icon }]}>{desc}</Text>
+                           <Text 
+                             style={[styles.detailsDescription, { color: colors.icon }]}
+                             numberOfLines={isDescLong && !isDescCurrentlyExpanded ? 3 : undefined}
+                           >
+                             {desc}
+                           </Text>
+                           {isDescLong && (
+                            <TouchableOpacity onPress={toggleDescription}>
+                              <Text style={[styles.showMoreText, { color: colors.primary }]}>
+                                {isDescCurrentlyExpanded ? "Show Less" : "Read More"}
+                              </Text>
+                            </TouchableOpacity>
+                           )}
                            <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: colors.icon }]}>Status:</Text><Text style={[styles.detailValue, { color: details?.isOpen ? "#10B981" : colors.danger }]}>{details?.isOpen ? "Open Now" : "Currently Closed"}</Text></View>
                            <View style={styles.actionButtonsRow}>
                              <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={() => handleOpenEditModal(item)}><MaterialIcons name="edit" size={18} color="#FFFFFF" /><Text style={styles.actionButtonText}>Edit</Text></TouchableOpacity>
