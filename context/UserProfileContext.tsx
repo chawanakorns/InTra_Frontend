@@ -1,6 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, ReactNode, useCallback, useContext, useState } from 'react';
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { API_URL } from '../app/config'; // <-- THE FIX: Use the centralized Ngrok URL
+import { AuthContext } from './AuthContext';
 
 // Interface for the user profile data used in the frontend
 interface UserProfile {
@@ -35,17 +35,28 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Get auth context so we can use a fresh token instead of relying on AsyncStorage
+    const auth = useContext(AuthContext);
+
     const fetchUserProfile = useCallback(async () => {
         setIsLoading(true);
         try {
-            const token = await AsyncStorage.getItem('firebase_id_token');
+            // Prefer token from AuthContext; if not present, try to request one from the current user
+            let token: string | null = null;
+            if (auth && auth.token) token = auth.token;
+            else if (auth && auth.user) {
+                try {
+                    token = await auth.user.getIdToken();
+                } catch (err) {
+                    console.warn('Failed to get token from current user', err);
+                }
+            }
+
             if (!token) {
                 setProfile(null); // No token, no user
                 return;
             }
 
-            // --- THIS IS THE CRITICAL FIX ---
-            // Use the correct, public API_URL to fetch the user's profile
             const response = await fetch(`${API_URL}/auth/me`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -54,8 +65,8 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
 
             if (!response.ok) {
                 if (response.status === 401) {
-                    // Unauthorized or expired token
-                    await AsyncStorage.removeItem('firebase_id_token');
+                    // Let AuthProvider handle sign-out/refresh. Log and clear profile locally.
+                    console.warn('Unauthorized when fetching profile; token may be expired');
                 }
                 throw new Error('Failed to fetch user profile');
             }
@@ -75,7 +86,7 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
                 preferred_cuisines: data.preferred_cuisines,
                 preferred_dining: data.preferred_dining,
                 preferred_times: data.preferred_times,
-            });
+            } as any);
 
         } catch (error) {
             console.error('Error fetching user profile:', error);
@@ -83,7 +94,15 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [auth]);
+
+    // Auto-fetch profile when auth token becomes available from AuthContext
+    useEffect(() => {
+        // only try to fetch when auth initialization finished
+        if (auth && auth.initializing === false) {
+            fetchUserProfile();
+        }
+    }, [auth, fetchUserProfile]);
 
     return (
         <UserProfileContext.Provider value={{ profile, isLoading, fetchUserProfile }}>

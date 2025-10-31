@@ -1,12 +1,14 @@
 // file: app/dashboard/_layout.tsx
 
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
-import React, { useEffect } from 'react';
+import { Stack, useRouter } from "expo-router";
+import React, { useContext, useEffect } from 'react';
 import { ActivityIndicator, View } from "react-native";
+import { AuthContext, AuthProvider } from '../context/AuthContext';
 import { NotificationProvider } from '../context/NotificationContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import { UserProfileProvider, useUserProfile } from "../context/UserProfileContext";
+
 import { registerForPushNotificationsAsync } from '../services/notificationService';
 
 function NotificationHandler() {
@@ -45,15 +47,36 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <NotificationProvider>
-        <UserProfileProvider>
-          <NotificationHandler />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="auth" />
-            <Stack.Screen name="dashboard" />
-          </Stack>
-        </UserProfileProvider>
+        <AuthProvider>
+          <UserProfileProvider>
+            <NotificationHandler />
+            <InnerRoutes />
+          </UserProfileProvider>
+        </AuthProvider>
       </NotificationProvider>
     </ThemeProvider>
+  );
+}
+
+function InnerRoutes() {
+  const router = useRouter();
+  const { user, initializing } = useContext(AuthContext);
+
+  useEffect(() => {
+    if (initializing) return;
+    try {
+  if (user) router.replace('/dashboard' as any);
+  else router.replace('/' as any);
+    } catch (err) {
+      console.warn('Router replace failed', err);
+    }
+  }, [initializing, user, router]);
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="auth" />
+      <Stack.Screen name="dashboard" />
+    </Stack>
   );
 }

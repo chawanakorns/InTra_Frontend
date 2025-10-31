@@ -29,6 +29,7 @@ export default function SignIn() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailValid, setIsEmailValid] = useState(true);
 
@@ -36,7 +37,7 @@ export default function SignIn() {
     navigation.setOptions({
       headerShown: false,
     });
-  }, []);
+  }, [navigation]);
 
   const validateEmail = (emailText) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -74,6 +75,8 @@ export default function SignIn() {
 
       const token = await user.getIdToken();
       await AsyncStorage.setItem("firebase_id_token", token);
+      // persist the user's remember preference
+      await AsyncStorage.setItem('remember_me', rememberMe ? 'true' : 'false');
 
       const syncResponse = await axios.post(
         `${API_URL}/auth/sync`,
@@ -112,6 +115,7 @@ export default function SignIn() {
 
   const handleGuestSignIn = async () => {
     await AsyncStorage.removeItem("firebase_id_token");
+    await AsyncStorage.setItem('remember_me', 'false');
     router.replace("dashboard");
   };
 
@@ -161,6 +165,25 @@ export default function SignIn() {
             >
               <Text style={style.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center'}}>
+            <TouchableOpacity
+              onPress={() => setRememberMe(!rememberMe)}
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: '#FFFFFF',
+                backgroundColor: rememberMe ? '#000000' : '#FFFFFF',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 10,
+              }}
+            >
+              {rememberMe && <Ionicons name="checkmark" size={18} color="#FFFFFF" />}
+            </TouchableOpacity>
+            <Text style={{ color: '#FFFFFF', fontFamily: 'outfit' }}>Remember me</Text>
           </View>
           <TouchableOpacity
             onPress={handleSignIn}

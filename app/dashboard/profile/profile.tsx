@@ -118,13 +118,14 @@ export default function ProfileScreen() {
       "Confirm Logout", "Are you sure you want to log out?",
       [{ text: "Cancel", style: "cancel" }, {
         text: "Log Out", style: "destructive",
-        onPress: async () => {
+            onPress: async () => {
           try {
             await signOut(auth);
             await AsyncStorage.removeItem('firebase_id_token');
             fetchUserProfile(); 
-            router.replace('/auth/sign-in');
-          } catch (error) {
+            // Navigate to root landing page to avoid stale/incorrect back navigation
+            router.replace('/' as any);
+          } catch {
             Alert.alert("Error", "An unexpected error occurred during logout.");
           }
         }

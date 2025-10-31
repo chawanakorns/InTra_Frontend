@@ -1,11 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import polyline from "@mapbox/polyline";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { format, isSameDay, isToday, parse } from "date-fns";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { auth } from '../../../config/firebaseConfig';
+import { AuthContext } from '../../../context/AuthContext';
+
 import {
   ActivityIndicator,
   Alert,
@@ -100,6 +102,7 @@ export default function CalendarScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loginRequired, setLoginRequired] = useState(false);
+  const { user, initializing } = useContext(AuthContext);
   const [userName, setUserName] = useState("Guest");
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
@@ -133,9 +136,10 @@ export default function CalendarScreen() {
   useEffect(() => { const startOfWeek = new Date(displayDate); startOfWeek.setDate(displayDate.getDate() - displayDate.getDay()); setWeekDates(Array.from({ length: 7 }, (_, i) => new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i))); }, [displayDate]);
   useEffect(() => { if (selectedItinerary) { const selectedDay = new Date(selectedDate); selectedDay.setHours(0, 0, 0, 0); const itineraryStartDay = new Date(selectedItinerary.startDate); itineraryStartDay.setHours(0, 0, 0, 0); const itineraryEndDay = new Date(selectedItinerary.endDate); itineraryEndDay.setHours(0, 0, 0, 0); if (selectedDay < itineraryStartDay || selectedDay > itineraryEndDay) { setSelectedDate(new Date(selectedItinerary.startDate)); setDisplayDate(new Date(selectedItinerary.startDate)); } } }, [selectedItinerary, selectedDate]);
   
-  const fetchUserName = useCallback(async (token: string | null) => {
-    if (!token) { setUserName("Guest"); return; }
+  const fetchUserName = useCallback(async () => {
     try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) { setUserName("Guest"); return; }
       const response = await fetch(`${BACKEND_AUTH_API_URL}/me`, { headers: { Authorization: `Bearer ${token}` } });
       if (response.ok) { const data = await response.json(); setUserName(data.full_name?.split(" ")[0] || "User"); } else { setUserName("User"); }
     } catch (err) { console.error("Failed to fetch user name:", err); setUserName("User"); }
@@ -146,11 +150,13 @@ export default function CalendarScreen() {
     setError(null);
     setLoginRequired(false);
     try {
-      const token = await AsyncStorage.getItem("firebase_id_token");
-      await fetchUserName(token);
+      if (initializing) return;
+      if (!user) { setLoginRequired(true); setItineraries([]); return; }
+      await fetchUserName();
+      const token = await auth.currentUser?.getIdToken();
       if (!token) { setLoginRequired(true); setItineraries([]); return; }
       const response = await fetch(`${BACKEND_ITINERARY_API_URL}/`, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` } });
-      if (response.status === 401) { setLoginRequired(true); await AsyncStorage.removeItem("firebase_id_token"); setItineraries([]); return; }
+      if (response.status === 401) { setLoginRequired(true); try { await auth.signOut(); } catch {} setItineraries([]); return; }
       if (!response.ok) { throw new Error(await response.text() || `Server error: ${response.status}`); }
       const data = await response.json();
       const fetchedItineraries: Itinerary[] = data.map((it: any) => ({ 
@@ -176,15 +182,15 @@ export default function CalendarScreen() {
   const handleCloseEditModal = () => { setIsEditModalVisible(false); setItemToEdit(null); };
 
   const createPersistentNotification = async (title: string, body: string) => {
-    try {
-        const token = await AsyncStorage.getItem("firebase_id_token");
-        if (!token) return;
-        await fetch(BACKEND_NOTIFICATION_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ title, body })
-        });
-    } catch (error) { console.error("Failed to create persistent notification:", error); }
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) return;
+    await fetch(BACKEND_NOTIFICATION_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ title, body })
+    });
+  } catch (err) { console.error("Failed to create persistent notification:", err); }
   };
   
   const handleSaveScheduleItem = async (itemId: string | null, newDate: string, newTime: string, newDuration: number) => {
@@ -199,8 +205,8 @@ export default function CalendarScreen() {
     });
     handleCloseEditModal();
     try {
-      const token = await AsyncStorage.getItem("firebase_id_token");
-      if (!token) throw new Error("Authentication token not found.");
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error("Authentication token not found.");
       const payload = { scheduled_date: newDate, scheduled_time: newTime, duration_minutes: newDuration };
       const response = await fetch(`${BACKEND_ITINERARY_API_URL}/items/${itemId}`, {
         method: "PUT",
@@ -223,7 +229,7 @@ export default function CalendarScreen() {
       [{ text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: async () => {
         try {
-          const token = await AsyncStorage.getItem("firebase_id_token");
+          const token = await auth.currentUser?.getIdToken();
           if (!token) { setLoginRequired(true); return; }
           const response = await fetch(`${BACKEND_ITINERARY_API_URL}/items/${itemToDelete.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
           if (response.status === 204) {
@@ -260,7 +266,7 @@ export default function CalendarScreen() {
     Alert.alert(`Delete "${itineraryName}"?`, "This will permanently delete the itinerary and all its scheduled items.", [{ text: "Cancel", style: "cancel" }, { 
         text: "Delete", style: "destructive", onPress: async () => {
           try {
-            const token = await AsyncStorage.getItem("firebase_id_token");
+            const token = await auth.currentUser?.getIdToken();
             if (!token) { setLoginRequired(true); return; }
             const response = await fetch(`${BACKEND_ITINERARY_API_URL}/${selectedItinerary.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
             if (response.status === 204) {
@@ -288,13 +294,13 @@ export default function CalendarScreen() {
         setIsDescriptionExpanded(null); 
         if (!placeDetailsCache[item.place_id]) { 
             setIsFetchingDetails(true); 
-            try { 
-                const token = await AsyncStorage.getItem("firebase_id_token"); 
-                const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/place/${item.place_id}/details`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); 
-                if (!response.ok) throw new Error("Failed to fetch place details"); 
-                const details: PlaceDetails = await response.json(); setPlaceDetailsCache(prev => ({ ...prev, [item.place_id]: details })); 
-            } catch (error) { Alert.alert("Error", "Could not load place details."); setExpandedItemId(null); 
-            } finally { setIsFetchingDetails(false); } 
+      try { 
+        const token = await auth.currentUser?.getIdToken(); 
+        const response = await fetch(`${BACKEND_RECOMMENDATIONS_API_URL}/recommendations/place/${item.place_id}/details`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); 
+        if (!response.ok) throw new Error("Failed to fetch place details"); 
+        const details: PlaceDetails = await response.json(); setPlaceDetailsCache(prev => ({ ...prev, [item.place_id]: details })); 
+            } catch { Alert.alert("Error", "Could not load place details."); setExpandedItemId(null); 
+      } finally { setIsFetchingDetails(false); } 
         } 
     } 
   };

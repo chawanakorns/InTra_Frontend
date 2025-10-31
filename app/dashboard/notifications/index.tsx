@@ -1,8 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useContext, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,8 +12,10 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
+import { auth } from '../../../config/firebaseConfig';
+import { AuthContext } from '../../../context/AuthContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { API_URL } from '../../config';
 
@@ -50,18 +51,20 @@ export default function NotificationsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const { user, initializing } = useContext(AuthContext);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const token = await AsyncStorage.getItem('firebase_id_token');
-      if (!token) {
+      if (initializing) return; // wait until auth initialized
+      if (!user) {
         setIsLoggedIn(false);
         setNotifications([]);
         return;
       }
       setIsLoggedIn(true);
 
+      const token = await auth.currentUser?.getIdToken();
       const response = await fetch(`${API_URL}/api/notifications/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -78,7 +81,7 @@ export default function NotificationsScreen() {
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [initializing, user]);
 
   useFocusEffect(
     useCallback(() => {
@@ -97,7 +100,7 @@ export default function NotificationsScreen() {
       prev.map(n => (n.id === id ? { ...n, is_read: true } : n))
     );
     try {
-      const token = await AsyncStorage.getItem('firebase_id_token');
+      const token = await auth.currentUser?.getIdToken();
       await fetch(`${API_URL}/api/notifications/${id}/read`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
@@ -118,22 +121,22 @@ export default function NotificationsScreen() {
           onPress: async () => {
             const originalNotifications = [...notifications];
             setNotifications([]);
-            try {
-              const token = await AsyncStorage.getItem('firebase_id_token');
-              const response = await fetch(`${API_URL}/api/notifications/`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` },
-              });
+              try {
+                const token = await auth.currentUser?.getIdToken();
+                const response = await fetch(`${API_URL}/api/notifications/`, {
+                  method: 'DELETE',
+                  headers: { Authorization: `Bearer ${token}` },
+                });
 
-              if (!response.ok) {
-                Alert.alert("Error", "Failed to clear notifications.");
+                if (!response.ok) {
+                  Alert.alert("Error", "Failed to clear notifications.");
+                  setNotifications(originalNotifications);
+                }
+              } catch (error) {
+                console.error("Failed to clear notifications:", error);
+                Alert.alert("Error", "An unexpected error occurred.");
                 setNotifications(originalNotifications);
               }
-            } catch (error) {
-              console.error("Failed to clear notifications:", error);
-              Alert.alert("Error", "An unexpected error occurred.");
-              setNotifications(originalNotifications);
-            }
           },
           style: "destructive",
         },
@@ -197,6 +200,11 @@ export default function NotificationsScreen() {
             <View style={{ width: 40 }} />
         )}
       </View>
+      {error && (
+        <View style={[styles.errorContainer, { backgroundColor: '#FEE2E2' }]}>
+          <Text style={[styles.errorText, { color: '#B91C1C' }]}>{error}</Text>
+        </View>
+      )}
       {notifications.length === 0 ? (
         <View style={styles.centeredContainer}>
           <MaterialIcons name="notifications-off" size={60} color={colors.icon} />
@@ -272,4 +280,6 @@ const styles = StyleSheet.create({
   messageText: { fontSize: 16, textAlign: 'center', marginBottom: 24, lineHeight: 22 },
   loginButton: { paddingVertical: 12, paddingHorizontal: 32, borderRadius: 8 },
   loginButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 },
+  errorContainer: { padding: 12, borderRadius: 8, marginHorizontal: 20, marginBottom: 12 },
+  errorText: { fontSize: 14, textAlign: 'center' },
 });

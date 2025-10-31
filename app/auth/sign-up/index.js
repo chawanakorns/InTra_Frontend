@@ -30,6 +30,7 @@ export default function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [gender, setGender] = useState("Male");
   const [date, setDate] = useState(new Date(2000, 0, 1));
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -105,6 +106,7 @@ export default function SignUp() {
       await updateProfile(user, { displayName: fullName.trim() });
       const token = await user.getIdToken();
       await AsyncStorage.setItem("firebase_id_token", token);
+  await AsyncStorage.setItem('remember_me', rememberMe ? 'true' : 'false');
 
       const syncData = {
         fullName: fullName.trim(),
@@ -243,6 +245,26 @@ export default function SignUp() {
             onChangeText={setConfirmPassword}
             placeholder="Enter Confirm Password"
           />
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
+          <TouchableOpacity
+            onPress={() => setRememberMe(!rememberMe)}
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 6,
+              borderWidth: 1,
+              borderColor: '#FFFFFF',
+              backgroundColor: rememberMe ? '#000000' : '#FFFFFF',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 10,
+            }}
+          >
+            {rememberMe && <Ionicons name="checkmark" size={18} color="#FFFFFF" />}
+          </TouchableOpacity>
+          <Text style={{ color: '#FFFFFF', fontFamily: 'outfit' }}>Remember me</Text>
         </View>
 
         <TouchableOpacity
