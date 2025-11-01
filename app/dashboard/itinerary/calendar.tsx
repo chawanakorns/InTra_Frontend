@@ -325,7 +325,6 @@ export default function CalendarScreen() {
   
   const getTimeOfDay = (date: Date) => { const h = date.getHours(); if (h < 12) return "Good Morning"; if (h < 17) return "Good Afternoon"; return "Good Evening"; };
   
-  // --- START OF THE FIX: Pre-calculate layout properties ---
   const itemsForSelectedDay = useMemo(() => {
     if (!selectedItinerary) return [];
     return selectedItinerary.schedule_items
@@ -346,17 +345,14 @@ export default function CalendarScreen() {
         };
       });
   }, [selectedItinerary, selectedDate]);
-  // --- END OF THE FIX ---
 
   const renderContent = () => {
     if (isLoading) return <SkeletonLoader />;
     if (loginRequired) return <LoginRequiredView onLoginPress={() => router.replace("/auth/sign-in")} />;
     if (error) return <View style={[styles.centeredMessageContainer, { backgroundColor: colors.background }]}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={[styles.retryButton, { backgroundColor: colors.primary }]} onPress={fetchItineraries}><Text style={styles.retryButtonText}>Retry</Text></TouchableOpacity></View>;
     
-    // --- START OF THE FIX: Adjust total height calculation ---
     const expandedItem = itemsForSelectedDay.find(i => i.id === expandedItemId);
     const totalTimelineHeight = (orderedHours.length * HOUR_ROW_HEIGHT) + (expandedItem ? expandedDetailsHeight : 0);
-    // --- END OF THE FIX ---
 
     return (
       <>
@@ -584,10 +580,10 @@ const styles = StyleSheet.create({
   calendarContainer: { marginBottom: 25 },
   weekControlContainer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   navButton: { padding: 8 },
-  datesRow: { flexDirection: "row", justifyContent: "space-around", flex: 1 },
-  dateCell: { justifyContent: 'flex-start', alignItems: 'center', height: 70, flex: 1 },
+  datesRow: { flexDirection: "row", justifyContent: "space-between", flex: 1 },
+  dateCell: { justifyContent: 'flex-start', alignItems: 'center', height: 70 },
   dayHeaderText: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", marginBottom: 8 },
-  dateNumberContainer: { width: 36, height: 36, justifyContent: "center", alignItems: "center", borderRadius: 18 },
+  dateNumberContainer: { width: 36, height: 36, justifyContent: "center", alignItems: "center", borderRadius: 2 },
   selectedDateCell: {},
   todayDateCell: { borderWidth: 2 },
   dateNumber: { fontSize: 16, fontWeight: "600" },
@@ -617,7 +613,7 @@ const styles = StyleSheet.create({
   deleteItemButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 12, marginTop: 8, borderTopWidth: 1 },
   deleteItemButtonText: { fontSize: 14, fontWeight: '600', marginLeft: 6 },
   mapView: { height: 200, width: "100%", marginTop: 15, borderRadius: 12 },
-  emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: 80 },
+  emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: 160 },
   emptyTitle: { fontSize: 18, fontWeight: "600", marginBottom: 8 },
   emptySubtitle: { fontSize: 14, textAlign: "center" },
   addButton: { position: "absolute", bottom: 30, right: 20, width: 64, height: 64, borderRadius: 32, justifyContent: "center", alignItems: "center", elevation: 8, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4 },
