@@ -37,7 +37,6 @@ export async function sendTokenToBackend(token: string) {
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
   if (!Device.isDevice) {
-    alert('Must use physical device for Push Notifications');
     return null;
   }
   
@@ -60,7 +59,6 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 
   if (finalStatus !== 'granted') {
-    alert('Failed to get push token for push notification!');
     return null;
   }
 

@@ -1,9 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useContext, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -18,6 +17,7 @@ import { MarkedDates } from "react-native-calendars/src/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryItem from "../../../components/CategoryItem";
 import PopularDestinationCard from "../../../components/PopularDestinationCard";
+import { AuthContext } from '../../../context/AuthContext';
 import { useTheme } from "../../../context/ThemeContext";
 import { API_URL } from "../../config";
 
@@ -60,16 +60,9 @@ export default function Dashboard() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isGuest, setIsGuest] = useState(true);
 
-  const fetchInitialData = useCallback(async () => {
-    const token = await AsyncStorage.getItem("firebase_id_token");
-    setIsGuest(!token);
-    
-    fetchItineraries(token);
-    fetchUnreadCount(token);
-    fetchPopularDestinations();
-  }, []);
+  const { user, initializing } = useContext(AuthContext);
 
-  const fetchItineraries = async (token: string | null) => {
+  const fetchItineraries = useCallback(async (token: string | null) => {
     if (!token) { setItineraries([]); return; }
     try {
       const response = await fetch(`${API_URL}/api/itineraries/`, { headers: { Authorization: `Bearer ${token}` } });
@@ -80,7 +73,7 @@ export default function Dashboard() {
       console.error("Error fetching itineraries:", error);
       setItineraries([]);
     }
-  };
+  }, []);
 
   const fetchPopularDestinations = useCallback(async () => {
     setIsLoadingPopular(true);
@@ -105,7 +98,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  const fetchUnreadCount = async (token: string | null) => {
+  const fetchUnreadCount = useCallback(async (token: string | null) => {
     if (!token) { setUnreadCount(0); return; }
     try {
       const response = await fetch(`${API_URL}/api/notifications/`, { headers: { Authorization: `Bearer ${token}` } });
@@ -117,9 +110,29 @@ export default function Dashboard() {
       console.error("Error fetching unread count:", error);
       setUnreadCount(0);
     }
-  };
+  }, []);
 
-  useFocusEffect(useCallback(() => { fetchInitialData(); }, [fetchInitialData]));
+  useFocusEffect(useCallback(() => {
+    let mounted = true;
+    const doFetch = async () => {
+      if (initializing) return;
+
+      let token: string | null = null;
+      if (user && (user as any).getIdToken) {
+        try { token = await (user as any).getIdToken(); } catch (err) { console.warn('Failed to get token', err); }
+      }
+
+      if (!mounted) return;
+      setIsGuest(!token);
+
+      await fetchItineraries(token);
+      await fetchUnreadCount(token);
+      fetchPopularDestinations();
+    };
+
+    doFetch();
+    return () => { mounted = false; };
+  }, [initializing, user, fetchItineraries, fetchUnreadCount, fetchPopularDestinations]));
 
   const markedDates = useMemo(() => {
     const newMarkedDates: MarkedDates = {};
@@ -153,9 +166,9 @@ export default function Dashboard() {
     textDisabledColor: colors.icon,
     arrowColor: colors.primary,
     monthTextColor: colors.text,
-    textDayFontWeight: '500',
-    textMonthFontWeight: "bold",
-    textDayHeaderFontWeight: '600',
+  textDayFontWeight: '500' as any,
+  textMonthFontWeight: "bold" as any,
+  textDayHeaderFontWeight: '600' as any,
     textDayFontSize: 16,
     textMonthFontSize: 18,
     textDayHeaderFontSize: 14,

@@ -1,8 +1,7 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useContext, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,6 +16,8 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { auth } from '../../../config/firebaseConfig';
+import { AuthContext } from '../../../context/AuthContext';
 import { useTheme } from "../../../context/ThemeContext";
 import { API_URL } from "../../config";
 
@@ -85,13 +86,26 @@ export default function BookmarksScreen() {
   const [loginRequired, setLoginRequired] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  const authCtx = useContext(AuthContext);
+
   const fetchBookmarks = useCallback(async () => {
     if (!refreshing) setLoading(true);
     setError(null);
     setLoginRequired(false);
 
     try {
-      const token = await AsyncStorage.getItem("firebase_id_token"); // <-- CORRECTED TOKEN KEY
+      if (authCtx.initializing) {
+        // wait for auth initialization before attempting API calls
+        setLoading(false);
+        return;
+      }
+
+      let token: string | null = null;
+      if (authCtx.token) token = authCtx.token;
+      else if (auth.currentUser) {
+        try { token = await auth.currentUser.getIdToken(); } catch (err) { console.warn('Failed to get token', err); }
+      }
+
       if (!token) {
         setLoginRequired(true);
         setBookmarks([]);
@@ -104,7 +118,6 @@ export default function BookmarksScreen() {
 
       if (response.status === 401) {
         setLoginRequired(true);
-        await AsyncStorage.removeItem("firebase_id_token"); // <-- CORRECTED TOKEN KEY
         setBookmarks([]);
         return;
       }
@@ -121,7 +134,7 @@ export default function BookmarksScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [refreshing]);
+  }, [refreshing, authCtx]);
 
   useFocusEffect(
     useCallback(() => {
@@ -149,23 +162,24 @@ export default function BookmarksScreen() {
     const originalBookmarks = [...bookmarks];
     setBookmarks(bookmarks.filter((b) => b.id !== bookmarkId));
     try {
-      const token = await AsyncStorage.getItem("firebase_id_token"); // <-- CORRECTED TOKEN KEY
-      if (!token) throw new Error("Authentication required");
+      let token: string | null = null;
+      if (authCtx.token) token = authCtx.token;
+      else if (auth.currentUser) {
+        try { token = await auth.currentUser.getIdToken(); } catch (err) { console.warn('Failed to get token', err); }
+      }
+      if (!token) throw new Error('Authentication required');
 
-      const response = await fetch(
-        `${BACKEND_API_URL}/api/bookmarks/${bookmarkId}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const response = await fetch(`${BACKEND_API_URL}/api/bookmarks/${bookmarkId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (response.status !== 204) {
-        Alert.alert("Error", "Failed to remove bookmark. Please try again.");
+        Alert.alert('Error', 'Failed to remove bookmark. Please try again.');
         setBookmarks(originalBookmarks);
       }
-    } catch (e) {
-      Alert.alert("Error", "An error occurred while removing the bookmark.");
+    } catch {
+      Alert.alert('Error', 'An error occurred while removing the bookmark.');
       setBookmarks(originalBookmarks);
     }
   };

@@ -4,22 +4,24 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { useNavigation, useRouter } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { auth } from "../../../config/firebaseConfig";
+
+import { AuthContext } from '../../../context/AuthContext';
 import { API_URL } from "../../config";
 
 const screenHeight = Dimensions.get("window").height;
@@ -32,6 +34,7 @@ export default function SignIn() {
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailValid, setIsEmailValid] = useState(true);
+  const authCtx = useContext(AuthContext);
 
   useEffect(() => {
     navigation.setOptions({
@@ -66,6 +69,11 @@ export default function SignIn() {
 
     setIsLoading(true);
     try {
+  // Persist the remember preference before signing in so AuthProvider can pick it up
+  await AsyncStorage.setItem('remember_me', rememberMe ? 'true' : 'false');
+  // Update in-memory context so AuthProvider behavior reflects the user's choice immediately
+  try { authCtx.setRememberPref(rememberMe); } catch {}
+
       const userCredential = await signInWithEmailAndPassword(
         auth,
         email.trim(),
@@ -73,11 +81,12 @@ export default function SignIn() {
       );
       const user = userCredential.user;
 
-      const token = await user.getIdToken();
-      await AsyncStorage.setItem("firebase_id_token", token);
-      // persist the user's remember preference
-      await AsyncStorage.setItem('remember_me', rememberMe ? 'true' : 'false');
+      // Note: AuthProvider will obtain and persist the id token when appropriate.
+      // We avoid writing the raw token here to keep token persistence centralized.
 
+      // Let AuthProvider set up axios default Authorization header; fetch a token
+      // from the signed-in user when needed for the sync call.
+      const token = await user.getIdToken();
       const syncResponse = await axios.post(
         `${API_URL}/auth/sync`,
         {},

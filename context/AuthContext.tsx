@@ -9,6 +9,7 @@ type AuthContextType = {
   token: string | null;
   initializing: boolean;
   rememberPref: boolean | null;
+  setRememberPref: (v: boolean | null) => void;
 };
 
 export const AuthContext = createContext<AuthContextType>({
@@ -16,6 +17,7 @@ export const AuthContext = createContext<AuthContextType>({
   token: null,
   initializing: true,
   rememberPref: null,
+  setRememberPref: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -24,6 +26,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [initializing, setInitializing] = useState(true);
   const [rememberPref, setRememberPref] = useState<boolean | null>(null);
   const [refreshTimer, setRefreshTimer] = useState<any>(null);
+  const hasSubscribedRef = React.useRef(false);
+  const rememberPrefRef = React.useRef<boolean | null>(null);
+
+  // keep a ref in sync with the latest rememberPref so the listener can read
+  // the current preference without requiring re-subscription
+  useEffect(() => {
+    rememberPrefRef.current = rememberPref;
+  }, [rememberPref]);
 
   // Load remember preference once on mount
   useEffect(() => {
@@ -43,8 +53,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Set up auth state listener after we know rememberPref (to avoid race)
   useEffect(() => {
     if (rememberPref === null) return;
-
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+    if (hasSubscribedRef.current) return; // subscribe only once
+  hasSubscribedRef.current = true;
+  let isInitialCheck = true;
+  const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (!u) {
         // signed out
         setUser(null);
@@ -56,25 +68,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           clearTimeout(refreshTimer);
           setRefreshTimer(null);
         }
+        // mark that initial check has completed
+        isInitialCheck = false;
         return;
       }
 
-      // If user didn't choose "remember me", sign them out immediately (enforce preference)
-      if (rememberPref === false) {
+      // If this is the initial auth check on app startup, and the user previously
+      // opted out of "remember me", sign them out to avoid silently keeping the session.
+  if (isInitialCheck && rememberPrefRef.current === false) {
         try {
           await auth.signOut();
+          isInitialCheck = false;
           return;
         } catch (err) {
-          console.warn('Failed to sign out non-remembered user', err);
+          console.warn('Failed to sign out non-remembered user on initial check', err);
         }
       }
 
-      // Normal path: rememberPref true (or unknown -> treat as true)
-      setUser(u);
+      // Normal path: set user and attach token; for non-remembered sessions we
+      // do NOT persist the token to AsyncStorage so the session won't survive app restarts.
+        setUser(u);
       try {
         const idToken = await u.getIdToken();
         setToken(idToken);
-        await AsyncStorage.setItem('firebase_id_token', idToken);
+        if (rememberPrefRef.current === true) {
+          await AsyncStorage.setItem('firebase_id_token', idToken);
+        } else {
+          // Ensure no stale token remains saved
+          await AsyncStorage.removeItem('firebase_id_token');
+        }
         axios.defaults.headers.common.Authorization = `Bearer ${idToken}`;
 
         // schedule a proactive refresh 1 minute before expiration
@@ -88,7 +110,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const t = setTimeout(async () => {
             if (auth.currentUser) {
               const newToken = await auth.currentUser.getIdToken(true);
-              await AsyncStorage.setItem('firebase_id_token', newToken);
+              if (rememberPrefRef.current === true) {
+                await AsyncStorage.setItem('firebase_id_token', newToken);
+              }
               setToken(newToken);
               axios.defaults.headers.common.Authorization = `Bearer ${newToken}`;
             }
@@ -101,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Failed to get id token on auth change', err);
       }
       setInitializing(false);
+      isInitialCheck = false;
     });
 
     return () => {
@@ -159,7 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const value = useMemo(() => ({ user, token, initializing, rememberPref }), [user, token, initializing, rememberPref]);
+  const value = useMemo(() => ({ user, token, initializing, rememberPref, setRememberPref }), [user, token, initializing, rememberPref, setRememberPref]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

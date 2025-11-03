@@ -145,7 +145,7 @@ export default function AttractionsScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }}>
+        <TouchableOpacity onPress={() => router.push("/dashboard/home")} style={{ padding: 8 }}>
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Attractions</Text>
